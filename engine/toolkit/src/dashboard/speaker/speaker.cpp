@@ -31,6 +31,7 @@ void add_speaker(Registry& registry) {
            .whole_vector = true,
            .description = "Plays a control step's PCM vector through the browser's audio output."};
   t.make = [](const Values&, const Config&) { return std::make_unique<Speaker>(); };
+  t.def.view = {.compact = true, .value = "{rate} Hz", .icon = nlohmann::json::parse(R"({"w":1,"h":1,"g":[{"t":"poly","p":[[15,40],[30,40],[50,20],[50,80],[30,60],[15,60]]},{"t":"arc","x":40,"y":35,"w":20,"h":30,"a0":-45,"a1":45},{"t":"arc","x":30,"y":20,"w":40,"h":60,"a0":-45,"a1":45}]})")};
   registry.add(std::move(t));
 }
 

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEngine } from "./engine";
 import { BrowserWindow, type Item } from "./Browser";
 import { FlowEditor, type FlowControls } from "./FlowEditor";
-import { RunStates } from "./flowContexts";
+import { isOn } from "@paperboat/shared";
+import { OnBlocks, RunStates } from "./flowContexts";
 import { isBlock, type FlowNode, type Wire } from "./flowModel";
 import { fromGraph, toGraph, withBlock } from "./flowGraph";
 import { isFrame, levelOf } from "./groups";
@@ -148,6 +149,9 @@ export function App() {
   useBackendKeys(send);
 
   const running = state.run?.status === "running";
+  // Which blocks are on, as one key: the canvas re-renders when a block flips, not every frame a run streams.
+  const onKey = Object.entries(state.latest).filter(([, v]) => isOn(v)).map(([k]) => k).sort().join("\n");
+  const onBlocks = useMemo(() => new Set(onKey ? onKey.split("\n") : []), [onKey]);
   const runStates = useMemo(
     () => ({ active: new Set(state.active), failed: new Set(state.failed), queued: new Set(state.queued), cached: new Set(state.cached), progress: state.progress }),
     [state.active, state.failed, state.queued, state.cached, state.progress],
@@ -517,6 +521,7 @@ export function App() {
         >
           {flowShown && (
           <RunStates.Provider value={runStates}>
+          <OnBlocks.Provider value={onBlocks}>
             <FlowEditor
               blocks={state.blocks}
               connectors={state.connectors}
@@ -537,6 +542,7 @@ export function App() {
               fitPadding={mode === "navigator" && page === "flow" ? FIT_PADDING_MINIMAP : FIT_PADDING}
               onAnalyse={analyse}
             />
+          </OnBlocks.Provider>
           </RunStates.Provider>
           )}
         </Panel>

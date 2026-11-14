@@ -75,7 +75,7 @@ Template lamp_template() {
       },
       .instrument = "lamp",
       .description = "Lights on the Dashboard while its input passes a threshold; can latch until the run ends.",
-      .view = {.compact = true, .glyph = "lamp", .value = "{op} {threshold}", .icon = lamp_icon()},
+      .view = {.compact = true, .glyph = "lamp", .value = "{op} {threshold}", .icon = lamp_icon()},  // lights while on
   };
   t.make = [](const Values& p, const Config& config) {
     // The op by name (config), else by its index in the options (what an expression sees).
