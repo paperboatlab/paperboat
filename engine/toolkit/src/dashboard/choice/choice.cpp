@@ -79,6 +79,7 @@ void add_choice(Registry& registry) {
     return std::make_unique<Choice>(split_options(it == config.end() ? "Negroni, Spritz" : it->second),
                                     static_cast<int>(get_or(p, "initial", 0.0)));
   };
+  t.def.view = {.compact = true, .icon = nlohmann::json::parse(R"({"w":1,"h":1,"g":[{"t":"ellipse","x":10,"y":20,"w":10,"h":10},{"t":"line","p":[[30,25],[90,25]],"weight":"thin"},{"t":"ellipse","x":10,"y":45,"w":10,"h":10,"fill":"ink"},{"t":"line","p":[[30,50],[90,50]]},{"t":"ellipse","x":10,"y":70,"w":10,"h":10},{"t":"line","p":[[30,75],[90,75]],"weight":"thin"}]})")};
   registry.add(std::move(t));
 }
 

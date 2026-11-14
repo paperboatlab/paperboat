@@ -6,7 +6,7 @@ import { iconValid, rotateIcon } from "@paperboat/shared";
 import { usePortLayout } from "./portLayout";
 import { PageIcon } from "./Shell";
 import { ParamRow } from "./ParamFields";
-import { ConnectorsContext, IconWires, RunStates } from "./flowContexts";
+import { ConnectorsContext, IconWires, OnBlocks, RunStates } from "./flowContexts";
 import { hasStepPorts, inForm, type BlockNode, type Wire } from "./flowModel";
 import { runWord } from "./engine";
 
@@ -22,6 +22,7 @@ export function Block({ id, data, selected }: NodeProps<BlockNode>) {
   const word = runWord(states, id);
   const connectors = useContext(ConnectorsContext);
   const iconWires = useContext(IconWires);
+  const on = useContext(OnBlocks).has(id);
   const [noteOpen, setNoteOpen] = useState(false);
   // Ports that follow a param come and go: have the canvas measure the handles again.
   const updateInternals = useUpdateNodeInternals();
@@ -53,6 +54,7 @@ export function Block({ id, data, selected }: NodeProps<BlockNode>) {
         onExpand={() => setExpanded(true)}
         connectors={connectors}
         wires={iconWires.count.get(id)}
+        live={on}
         popover={def.params.map((p) => (
           <ParamRow key={p.id} def={p} value={params[p.id]} set={(v) => updateNodeData(id, { params: { ...params, [p.id]: v } })} />
         ))}

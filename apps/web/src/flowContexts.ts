@@ -29,6 +29,8 @@ export const IconWires = createContext<{ count: ReadonlyMap<string, Record<strin
 
 /** The wire a dragged card would be inserted into, if any (drawn thicker). */
 export const HotWire = createContext<string | null>(null);
+/** The blocks whose latest value in the run is on (above 0.5, or true): a compact plate's live icon (a lit Lamp). */
+export const OnBlocks = createContext<ReadonlySet<string>>(new Set());
 /** What each monitor input carried at the replay playhead (#284), by `node:port`; null: not replaying. */
 export const ProbeValues = createContext<ReadonlyMap<string, string> | null>(null);
 /** The wires to follow (#55): those of the hovered wire, port or block. null: nothing is hovered. */

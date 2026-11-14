@@ -60,7 +60,7 @@ Template switch_template() {
       },
       .instrument = "switch",
       .description = "A dashboard switch: toggle (click to flip) or momentary (press and hold).",
-      .view = {.compact = true, .glyph = "switch"},
+      .view = {.compact = true, .glyph = "switch", .value = "{mode}", .icon = nlohmann::json::parse(R"({"w":1,"h":1,"g":[{"t":"line","p":[[5,65],[25,65]]},{"t":"ellipse","x":25,"y":60,"w":10,"h":10},{"t":"line","p":[[35,60],[70,30]]},{"t":"ellipse","x":70,"y":60,"w":10,"h":10},{"t":"line","p":[[80,65],[95,65]]}]})")},  // an open knife switch
   };
   t.make = [](const Values& p, const Config& config) {
     const int mode = config.contains("mode") && config.at("mode") == "momentary" ? 1 : 0;
