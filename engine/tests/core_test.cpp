@@ -684,6 +684,27 @@ TEST_CASE("a step's signal output feeds signal blocks, and back into it, a clock
   CHECK_THAT(out.last_signal("g"), WithinAbs(0.45, 1e-9));
 }
 
+TEST_CASE("Step → Signal: a path sets a signal that signal blocks read, and it holds") {
+  static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\nimport = [\"step\", \"dashboard\"]\n",
+                                                         words::registry());
+  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 1, .emit_every = 1, .real_time = false}};
+  // Start → [on: 2] → Wait 0.3 s → [off: 0]; one display reads each.
+  const json graph = {
+      {"nodes", {{{"id", "start"}, {"type", "start"}}, {{"id", "on"}, {"type", "step_signal"}, {"params", {{"value", 2}}}},
+                 {{"id", "wait"}, {"type", "wait"}, {"params", {{"seconds", 0.3}}}},
+                 {{"id", "off"}, {"type", "step_signal"}, {"params", {{"value", 0}}}},
+                 {{"id", "shown_on"}, {"type", "display"}}, {{"id", "shown_off"}, {"type", "display"}}}},
+      {"edges", {{{"from", {"start", "next"}}, {"to", {"on", "in"}}},
+                 {{"from", {"on", "next"}}, {"to", {"wait", "in"}}},
+                 {{"from", {"wait", "next"}}, {"to", {"off", "in"}}},
+                 {{"from", {"on", "y"}}, {"to", {"shown_on", "in"}}},
+                 {{"from", {"off", "y"}}, {"to", {"shown_off", "in"}}}}}};
+  Collected out;
+  CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(out.last_signal("shown_on") == 2.0);   // set once, held after the path moved on
+  CHECK(out.last_signal("shown_off") == 0.0);
+}
+
 TEST_CASE("a story with reset starts its blocks afresh each time a path arrives") {
   static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\nimport = [\"step\", \"dashboard\"]\n",
                                                          words::registry());

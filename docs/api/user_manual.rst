@@ -155,6 +155,9 @@ and the sheet becomes a mixed flow; the Add browser offers both layers.
 A **story** is a state: its internal signal blocks run only while a path is at it. `reset`
 starts its blocks afresh on each entry; without it the state carries over. The `Signal → Step`
 block turns a 0/1 (boolean) signal into a step wire, starting a path when it rises (or falls).
+The other way, a path passing through `Step → Signal` sets its signal output `y` to its `value`
+and holds it until a path passes again: one set to 1 and one set to 0 switch a motor or a lamp
+on and off from a Step flow. Signal blocks read the new value a clock tick later.
 
 Configuring Block Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

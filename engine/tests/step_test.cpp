@@ -85,6 +85,19 @@ TEST_CASE("step/signal_step turns a 0/1 signal into a step wire") {
   CHECK(falling->tick({}, {{"signal", 0}}) == "next");
 }
 
+TEST_CASE("step/step_signal sets its signal when a path passes, and holds it") {
+  auto set = make("step/step_signal", {{"value", 2.5}});
+  CHECK_FALSE(set->may_start());  // it has a step input: not a hat
+  CHECK(std::get<double>(set->outputs().at("y")) == 0.0);  // before any path
+  set->enter({}, {});
+  CHECK(set->tick({}, {}) == "next");  // passes straight on
+  CHECK(std::get<double>(set->outputs().at("y")) == 2.5);
+  CHECK(std::get<double>(make("step/step_signal")->outputs().at("y")) == 0.0);
+  auto on = make("step/step_signal");
+  on->enter({}, {});
+  CHECK(std::get<double>(on->outputs().at("y")) == 1.0);  // value defaults to 1
+}
+
 TEST_CASE("step/while loops while its condition holds") {
   auto loop = make("step/while");
   CHECK(loop->tick({}, {{"cond", 1}}) == "loop");
