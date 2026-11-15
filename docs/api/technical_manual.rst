@@ -189,10 +189,13 @@ block is instantiated:
    cycle of feedthrough blocks is an algebraic loop: the sort groups its blocks (a `Loop` in
    `Graph::loops`), tears it at the first block left in graph order, and runs them together.
    Each pass, as the run reaches the loop, it solves for the torn outputs by Newton's method
-   with a Jacobian of differences, then runs the loop's blocks once from the solution. Every
-   block in a loop must be stateless (`Block::stateless`), since solving calls it many times
-   per pass; torn outputs carry numbers or vectors. A block with state, a singular loop or
-   one that doesn't converge in 50 iterations fails the run naming a block in it.
+   with a Jacobian of differences, then runs the loop's blocks once from the solution. Solving
+   calls a stateless block's `step` many times per pass, and a block with state's
+   `Block::outputs_for` (its outputs for these inputs, its state untouched), as Simulink splits
+   output from update. An instance whose outputs don't depend on its inputs this step
+   (`Block::feedthrough()` false: a strictly proper transfer function) is not in any loop.
+   Torn outputs carry numbers or vectors. A block with state and no `outputs_for`, a singular
+   loop or one that doesn't converge in 50 iterations fails the run naming a block in it.
 4. **Vector Lanes**: An elementwise block (`BlockDef::elementwise`) fed a vector, straight or
    through other elementwise blocks, runs as N lanes: N instances, each given its element of
    every vector input and every number input whole, their outputs gathered into vectors of N.

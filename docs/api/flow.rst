@@ -15,8 +15,9 @@ against its catalog and station, makes an instance of each block, and runs it.
   A loop through a linked block, a step block or a block without feedthrough (they read
   their inputs after the pass) is an ordinary feedback loop. In an algebraic loop the engine
   tears a wire and solves for its value (Newton's method), so ``y = 2 (r - y)`` gives
-  ``y = 2r/3``. Every block in one must be stateless; a block with state, a loop with no
-  single solution (a gain of 1 around it) or one that doesn't converge fails the run, naming
+  ``y = 2r/3``. A block with state takes part through ``Block::outputs_for`` (transfer
+  functions and PID do), and a strictly proper transfer function has no feedthrough at all, as
+  in Simulink. A block with state that can't, a loop with no single solution (a gain of 1 around it) or one that doesn't converge fails the run, naming
   a block in it.
 - **A run never crashes the backend.** A bad graph or a failing block fails the run with
   an error ``log`` and ``run.finished`` ``failed``.

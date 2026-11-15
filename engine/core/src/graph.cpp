@@ -310,6 +310,11 @@ Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station&
   }
 
   lift_elementwise(out, graph.at("edges"));
+  // An instance may have no feedthrough where its type may (Block::feedthrough); not lanes of a
+  // length known only at run time, which have no outputs to give before their first step.
+  for (auto& [id, node] : out.nodes)
+    if (node.block && node.def.feedthrough && node.lanes != std::optional<std::size_t>{0} && !node.block->feedthrough())
+      node.def.feedthrough = false;
 
   std::map<std::string, std::vector<std::string>> deps;
   for (const auto& e : graph.at("edges")) {
