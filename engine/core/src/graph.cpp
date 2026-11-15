@@ -20,34 +20,66 @@ const toolkit::PortDef& port_def(const Node& node, const std::string& port, bool
 
 namespace {
 
-// Sort `ids` so each comes after the ones it depends on. Throws on a cycle, unless `loops`:
-// then what is left in one follows in graph order.
+// Sort `ids` so each comes after the ones it depends on. Blocks that wait for each other (an
+// algebraic loop: a cycle of wires through blocks with feedthrough) run together, as a Loop
+// of `g`: when no block is ready, the lowest such cycle is torn open at a block (its inputs
+// from the cycle become unknowns the run solves for) until its blocks have an order.
 std::vector<std::string> sorted(const std::vector<std::string>& ids, std::map<std::string, std::vector<std::string>>& deps,
-                                const std::string& where, bool loops = false) {
+                                Graph& g) {
   std::vector<std::string> order;
   std::set<std::string> done;
+  // ponytail: O(n^3) cycle search, fine for hand-drawn graphs; Tarjan if graphs get large.
+  const auto reach = [&](const std::string& from) {  // the blocks not done that `from` waits for
+    std::set<std::string> seen;
+    std::vector<std::string> todo{from};
+    while (!todo.empty()) {
+      const auto id = todo.back();
+      todo.pop_back();
+      for (const auto& d : deps[id])
+        if (!done.contains(d) && seen.insert(d).second) todo.push_back(d);
+    }
+    return seen;
+  };
   while (order.size() < ids.size()) {
     std::vector<std::string> ready;
     for (const auto& id : ids) {
       if (done.contains(id)) continue;
       if (std::ranges::all_of(deps[id], [&](const std::string& d) { return done.contains(d); })) ready.push_back(id);
     }
-    if (ready.empty() && loops) {
-      for (const auto& id : ids)
-        if (!done.contains(id)) order.push_back(id);
-      return order;
-    }
     if (ready.empty()) {
-      // What's left is in a loop, or waits for one: name a block that is in it.
-      std::string in_loop;
-      for (const auto& id : ids)
-        if (!done.contains(id) && std::ranges::any_of(deps[id], [&](const std::string& d) { return !done.contains(d); })) {
-          in_loop = id;
-          break;
+      // Each block left waits for a cycle. Go down to a cycle that waits for no other.
+      std::string v = *std::ranges::find_if(ids, [&](const std::string& id) { return !done.contains(id); });
+      auto cycle = reach(v);
+      for (auto lower = cycle.begin(); lower != cycle.end();) {
+        if (reach(*lower).contains(v)) {
+          ++lower;
+        } else {
+          v = *lower;
+          cycle = reach(v);
+          lower = cycle.begin();
         }
-      throw GraphError(in_loop, "graph has a cycle" + where + (in_loop.empty() ? "" : " through " + in_loop) +
-                                    ": an algebraic loop. Break it with a block that doesn't pass its input straight through "
-                                    "(a delay, an integrator)");
+      }
+      Loop loop;
+      for (std::size_t left = cycle.size(); left > 0;) {
+        auto next = std::ranges::find_if(ids, [&](const std::string& id) {
+          return cycle.contains(id) && !done.contains(id) &&
+                 std::ranges::all_of(deps[id], [&](const std::string& d) { return done.contains(d); });
+        });
+        if (next == ids.end()) {  // tear the first block left: what feeds it from the cycle is unknown
+          next = std::ranges::find_if(ids, [&](const std::string& id) { return cycle.contains(id) && !done.contains(id); });
+          for (const auto& [to, from] : g.wires)
+            if (to.first == *next && cycle.contains(from.first) && !done.contains(from.first) &&
+                std::ranges::find(loop.torn, from) == loop.torn.end())
+              loop.torn.push_back(from);
+        }
+        done.insert(*next);
+        order.push_back(*next);
+        loop.blocks.push_back(*next);
+        g.nodes.at(*next).in_loop = true;
+        --left;
+      }
+      g.loops[loop.blocks.front()] = std::move(loop);
+      continue;
     }
     for (const auto& id : ready) {
       done.insert(id);
@@ -127,7 +159,7 @@ toolkit::BlockDef story_def() {
 
 }  // namespace
 
-Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station& station, bool loops) {
+Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station& station) {
   Graph out;
   std::vector<std::string> ids;  // in graph order, so ties sort the same way every run
 
@@ -328,8 +360,8 @@ Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station&
     if (auto it = out.story_of.find(id); it != out.story_of.end()) inside[it->second].push_back(id);
     else outside.push_back(id);
   }
-  out.order = sorted(outside, deps, "", loops);
-  for (auto& [gid, story] : out.stories) story.order = sorted(inside[gid], deps, " in story " + gid);
+  out.order = sorted(outside, deps, out);
+  for (auto& [gid, story] : out.stories) story.order = sorted(inside[gid], deps, out);
   return out;
 }
 

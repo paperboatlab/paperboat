@@ -703,35 +703,15 @@ json Run::pass_over(const std::vector<std::string>& order) {
     return it == source.def.outputs.end() ? nullptr : &*it;
   };
   for (const auto& id : order) {
+    if (const auto loop = g_.loops.find(id); loop != g_.loops.end()) solve_loop(loop->second);
     auto& node = g_.nodes.at(id);
     const auto call = calling(id);
     if (node.commented && node.comment_mode == "through") {
-      toolkit::Values in = inputs_of(node);
-      toolkit::Values out;
-      for (const auto& out_p : node.def.outputs) {
-        if (auto it = in.find(out_p.id); it != in.end()) {
-          out[out_p.id] = it->second;
-        } else if (out_p.id == "out" && in.contains("in")) {
-          out["out"] = in.at("in");
-        } else if (node.def.inputs.size() == 1 && node.def.outputs.size() == 1) {
-          if (!in.empty()) {
-            out[out_p.id] = in.begin()->second;
-          }
-        }
-      }
-      outputs_[id] = std::move(out);
-      validate_vector_outputs(node, outputs_[id]);
+      give_outputs(node);
       continue;
     }
-    if (node.object) {
-      outputs_[id] = node.object->read();
-      validate_vector_outputs(node, outputs_[id]);
-    } else if (node.block && !node.def.feedthrough) {
-      outputs_[id] = node.block->outputs();  // its inputs come after the pass
-      validate_vector_outputs(node, outputs_[id]);
-    } else if (node.block) {
-      outputs_[id] = node.block->step(ctx_, inputs_of(node));
-      validate_vector_outputs(node, outputs_[id]);
+    if (node.object || node.block) {
+      give_outputs(node);
     } else {  // a monitor: what it shows is its "value" output, or its input
       auto in = inputs_of(node);
       if (node.def.sample_per_input) {  // one sample per wired input, tagged with it
@@ -762,8 +742,140 @@ json Run::pass_over(const std::vector<std::string>& order) {
   return samples;
 }
 
+void Run::give_outputs(Node& node) {
+  const auto& id = node.id;
+  if (node.commented && node.comment_mode == "through") {
+    toolkit::Values in = inputs_of(node);
+    toolkit::Values out;
+    for (const auto& out_p : node.def.outputs) {
+      if (auto it = in.find(out_p.id); it != in.end()) {
+        out[out_p.id] = it->second;
+      } else if (out_p.id == "out" && in.contains("in")) {
+        out["out"] = in.at("in");
+      } else if (node.def.inputs.size() == 1 && node.def.outputs.size() == 1) {
+        if (!in.empty()) {
+          out[out_p.id] = in.begin()->second;
+        }
+      }
+    }
+    outputs_[id] = std::move(out);
+  } else if (node.object) {
+    outputs_[id] = node.object->read();
+  } else if (!node.def.feedthrough) {
+    outputs_[id] = node.block->outputs();  // its inputs come after the pass
+  } else {
+    outputs_[id] = node.block->step(ctx_, inputs_of(node));
+  }
+  validate_vector_outputs(node, outputs_[id]);
+}
+
+void Run::solve_loop(const Loop& loop) {
+  const std::string& first = loop.blocks.front();
+  std::string through;
+  for (const auto& id : loop.blocks) through += (through.empty() ? "" : ", ") + id;
+  const auto fail_with = [&](const std::string& why) {
+    throw GraphError(first, "algebraic loop through " + through + ": " + why +
+                                ". Break it with a block that doesn't pass its input straight through (a delay, an integrator)");
+  };
+  for (const auto& id : loop.blocks) {
+    const auto& node = g_.nodes.at(id);
+    if (node.block && !(node.commented && node.comment_mode == "through") && !node.block->stateless())
+      fail_with(id + " keeps state, so it can't be called again to solve the loop");
+  }
+  // Each torn output as numbers: a number is one, a vector its elements.
+  std::vector<std::size_t> sizes;  // per torn output; 0: a number
+  const auto read = [&](bool learn) {
+    std::vector<double> x;
+    for (std::size_t i = 0; i < loop.torn.size(); ++i) {
+      const auto& [node, port] = loop.torn[i];
+      const auto& out = outputs_[node];
+      const auto it = out.find(port);
+      std::size_t n = 0;
+      if (it == out.end() || std::holds_alternative<double>(it->second)) {
+        x.push_back(it == out.end() ? 0.0 : std::get<double>(it->second));
+      } else if (const auto* v = std::get_if<toolkit::Vector>(&it->second)) {
+        n = v->size();
+        x.insert(x.end(), v->begin(), v->end());
+      } else {
+        fail_with(node + "." + port + " carries something other than numbers");
+      }
+      if (learn) sizes.push_back(n);
+      else if (sizes[i] != n) fail_with(node + "." + port + " changed its length while the loop was solved");
+    }
+    return x;
+  };
+  const auto write = [&](const std::vector<double>& x) {
+    std::size_t at = 0;
+    for (std::size_t i = 0; i < loop.torn.size(); ++i) {
+      const auto& [node, port] = loop.torn[i];
+      if (sizes[i] == 0) outputs_[node][port] = x[at++];
+      else outputs_[node][port] = toolkit::Vector(x.begin() + at, x.begin() + at + sizes[i]);
+      at += sizes[i];
+    }
+  };
+  const auto f = [&](const std::vector<double>& x) {  // what the loop gives back for x
+    write(x);
+    for (const auto& id : loop.blocks) {
+      const auto call = calling(id);
+      give_outputs(g_.nodes.at(id));
+    }
+    return read(false);
+  };
+  const auto norm = [](const std::vector<double>& v) {
+    double m = 0;
+    for (double e : v) m = std::max(m, std::abs(e));
+    return m;
+  };
+  // The first guess: the loop once, from last pass's values (0 on the first).
+  {
+    for (const auto& id : loop.blocks) {
+      const auto call = calling(id);
+      give_outputs(g_.nodes.at(id));
+    }
+  }
+  std::vector<double> x = read(true);
+  const std::size_t n = x.size();
+  // ponytail: dense Newton with a Jacobian of differences, n + 1 loop calls per iteration;
+  // fine for a few torn wires, a sparse or Broyden update if loops get wide.
+  for (int iteration = 0; iteration < 50; ++iteration) {
+    std::vector<double> y = f(x), r(n);
+    for (std::size_t i = 0; i < n; ++i) r[i] = y[i] - x[i];
+    if (!std::isfinite(norm(r))) fail_with("its values grew without bound");
+    // J = d(f(x) - x)/dx, one column per difference; then J dx = -r by elimination. Formed
+    // even when x already fits, so a loop with many solutions (x = x) fails rather than
+    // keeping whichever it started from.
+    std::vector<std::vector<double>> J(n, std::vector<double>(n + 1));
+    for (std::size_t j = 0; j < n; ++j) {
+      const double h = 1e-7 * std::max(1.0, std::abs(x[j]));
+      auto xh = x;
+      xh[j] += h;
+      const auto yh = f(xh);
+      for (std::size_t i = 0; i < n; ++i) J[i][j] = (yh[i] - y[i]) / h - (i == j ? 1 : 0);
+    }
+    for (std::size_t i = 0; i < n; ++i) J[i][n] = -r[i];
+    for (std::size_t c = 0; c < n; ++c) {
+      std::size_t p = c;
+      for (std::size_t i = c + 1; i < n; ++i)
+        if (std::abs(J[i][c]) > std::abs(J[p][c])) p = i;
+      if (std::abs(J[p][c]) < 1e-9) fail_with("it has no single solution (its gain around the loop is 1)");
+      std::swap(J[c], J[p]);
+      for (std::size_t i = 0; i < n; ++i) {
+        if (i == c) continue;
+        const double k = J[i][c] / J[c][c];
+        for (std::size_t k2 = c; k2 <= n; ++k2) J[i][k2] -= k * J[c][k2];
+      }
+    }
+    if (norm(r) <= 1e-10 * (1 + norm(x))) {
+      write(y);
+      return;
+    }
+    for (std::size_t i = 0; i < n; ++i) x[i] += J[i][n] / J[i][i];
+  }
+  fail_with("its solution didn't converge in 50 iterations");
+}
+
 std::optional<std::string> Run::cache_signature(const Node& node) const {
-  if (!cache_ || !node.block || node.object || node.commented || !node.def.feedthrough) return std::nullopt;
+  if (!cache_ || !node.block || node.object || node.commented || !node.def.feedthrough || node.in_loop) return std::nullopt;
   if (!node.def.cacheable.value_or(node.block->stateless())) return std::nullopt;
   json params = json::object();
   for (const auto& [k, v] : node.params) params[k] = signature_value(v);

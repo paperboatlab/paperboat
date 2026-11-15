@@ -214,7 +214,7 @@ without deleting them, losing parameters, or rewiring ports:
   floating selection toolbar). The blocks dim to muted opacity with a ``// commented`` tag,
   and connected wires dim. Commented-out blocks are excluded from simulation; downstream blocks
   cleanly receive default unwired values (:code:`0.0`). Feedback loops through commented-out
-  blocks do not produce algebraic loop cycle errors.
+  blocks are not algebraic loops.
 - **Comment Through / Bypass** (:kbd:`Ctrl` + :kbd:`Shift` + :kbd:`Y`, or **Comment ▸ Bypass** in the selection bar):
   Bypasses the block's internal computation and passes signals directly from input ports
   to matching output ports (e.g. single-input single-output blocks like PID controllers,

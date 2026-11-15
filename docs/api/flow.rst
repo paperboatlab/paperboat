@@ -11,8 +11,13 @@ against its catalog and station, makes an instance of each block, and runs it.
   signal input takes one wire; a step output leads to one block.
 - **An unconnected input reads as 0** (absent from ``in``). A missing param takes its
   default.
-- **Signal wires may not loop**, except through a linked block or a step block (both read
-  their inputs after the pass). A cycle fails the run.
+- **A signal loop through blocks with feedthrough is an algebraic loop, solved each pass.**
+  A loop through a linked block, a step block or a block without feedthrough (they read
+  their inputs after the pass) is an ordinary feedback loop. In an algebraic loop the engine
+  tears a wire and solves for its value (Newton's method), so ``y = 2 (r - y)`` gives
+  ``y = 2r/3``. Every block in one must be stateless; a block with state, a loop with no
+  single solution (a gain of 1 around it) or one that doesn't converge fails the run, naming
+  a block in it.
 - **A run never crashes the backend.** A bad graph or a failing block fails the run with
   an error ``log`` and ``run.finished`` ``failed``.
 
@@ -84,8 +89,8 @@ Nodes in ``graph.nodes`` may optionally declare ``commented: true`` alongside an
 
 - **Comment out** (``"out"``): The engine excludes the block from the execution schedule and
   dependency ordering. Downstream blocks connected to its output ports receive default unsupplied
-  values (e.g. ``0.0``). Feedback cycles passing through commented-out blocks do not cause
-  algebraic loop errors. In Step flows, tokens reaching a commented-out step block terminate
+  values (e.g. ``0.0``). Feedback cycles passing through commented-out blocks are not
+  algebraic loops. In Step flows, tokens reaching a commented-out step block terminate
   cleanly.
 - **Comment through / bypass** (``"through"``): The engine bypasses the block's internal calculation.
   For single-input single-output (SISO) blocks or blocks with identically named input and output

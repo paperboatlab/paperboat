@@ -33,7 +33,7 @@ Protocol conformance
 --------------------
 
 ``protocol/smoke_test.py --port N`` (``npm run smoke -- N``) checks any running backend
-without knowing its domain: the handshake, the starter run, a cycle (must fail), a block
+without knowing its domain: the handshake, the starter run, an algebraic loop (solved, or failed naming a block), a block
 the backend doesn't have (must fail and be named), a cancel. Every message either way is
 checked against the JSON Schema (``protocol/schema/paperboat-0.schema.json``).
 
