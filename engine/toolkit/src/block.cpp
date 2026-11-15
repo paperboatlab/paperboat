@@ -520,6 +520,35 @@ class Lanes final : public Block {
     return std::ranges::all_of(lanes_, [](const auto& lane) { return lane->stateless(); });
   }
 
+  std::optional<Values> outputs_for(const Context& ctx, const Values& in) const override {
+    if (lanes_.empty()) return std::nullopt;
+    std::vector<Values> out;
+    for (std::size_t i = 0; i < lanes_.size(); ++i) {
+      Values lane;
+      for (const auto& [port, value] : in) {
+        const auto* v = std::get_if<Vector>(&value);
+        if (v && v->size() != lanes_.size()) return std::nullopt;
+        lane.emplace(port, v ? Value{(*v)[i]} : value);
+      }
+      auto y = lanes_[i]->stateless() ? std::optional<Values>(lanes_[i]->step(ctx, lane)) : lanes_[i]->outputs_for(ctx, lane);
+      if (!y) return std::nullopt;
+      out.push_back(std::move(*y));
+    }
+    return gathered(out);
+  }
+
+  // Its lanes have none (before they are made: one made to ask).
+  bool feedthrough() const override {
+    if (lanes_.empty()) {
+      try {
+        return make_(params_)->feedthrough();
+      } catch (const std::exception&) {
+        return true;
+      }
+    }
+    return std::ranges::any_of(lanes_, [](const auto& lane) { return lane->feedthrough(); });
+  }
+
   // Each lane takes it, or (a stateless one) is made again with it.
   bool set_param(std::string_view id, double value) override {
     auto params = params_;

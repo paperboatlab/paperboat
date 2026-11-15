@@ -287,8 +287,8 @@ initializers may leave any out.
       ``false`` for a block whose outputs this step don't depend on its inputs this step (an
       integrator, a delay). Its :cpp:class:`Block` gives ``outputs()`` during the pass and
       takes its inputs in ``step()`` after it, so a feedback loop may pass through it. A loop
-      with no such block is an algebraic loop: the run solves it each pass if each of its
-      blocks is stateless, and otherwise fails naming a block in it.
+      with no such block is an algebraic loop: the run solves it each pass (see
+      :cpp:func:`Block::outputs_for`), or fails naming a block in it.
 
    .. cpp:member:: std::vector<Form> forms
 
@@ -602,8 +602,23 @@ What runs
       ``set_param`` returns false the run then makes it again with the new params. A block
       that is neither takes the change with the next run (the Console says so, once). Unless
       its :cpp:member:`BlockDef::cacheable` says otherwise, a run-once may reuse a stateless
-      block's outputs from an earlier run. Only stateless blocks may sit in an algebraic loop:
-      the run calls them many times per pass to solve it.
+      block's outputs from an earlier run. In an algebraic loop the run calls a stateless block's
+      ``step`` many times per pass to solve it.
+
+   .. cpp:function:: virtual bool feedthrough() const
+
+      ``false`` for an instance whose outputs this step don't depend on its inputs this step
+      though its :cpp:member:`BlockDef::feedthrough` is ``true`` (a strictly proper transfer
+      function). The run then reads ``outputs()`` during the pass and calls ``step`` after it,
+      so a feedback loop through it is not an algebraic loop. Asked once, when the graph is made.
+
+   .. cpp:function:: virtual std::optional<Values> outputs_for(const Context& ctx, const Values& in) const
+
+      What ``step`` would return for ``in`` now, without changing the block's state (Simulink's
+      output function, apart from its update). A block with state and feedthrough implements it
+      to sit in an algebraic loop: the run calls it while it solves the loop, then ``step`` once
+      with the solution. The default returns none, and such a block in an algebraic loop fails
+      the run.
 
 .. cpp:class:: Step
 
