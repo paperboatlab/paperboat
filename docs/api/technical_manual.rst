@@ -68,7 +68,8 @@ A top-level sheet may carry both layers; it remains one sheet. Per clock step:
 `flow_mismatch` accepts a step block on a Signal sheet and a signal-only block on a Step
 sheet at the top level; a story still runs only signal blocks. The engine selects the step
 executor from the presence of step ports/stories, not from the sheet's label. `step/signal_step`
-is the explicit 0/1-signal → step converter.
+is the explicit 0/1-signal → step converter, and `step/step_signal` the way back: a path passing
+through sets its held signal output `y` to `value`.
 
 Fault Containment Principle
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
