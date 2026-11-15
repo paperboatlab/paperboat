@@ -532,6 +532,29 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .selection-dialog { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); background: var(--surface-raised); border: 1.5px solid var(--line-ink); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); white-space: nowrap; }
 .selection-dialog > .lbl:first-child { margin-right: var(--space-2); font-family: var(--font-mono); }
 .selection-dialog .kept { margin: 0 var(--space-2); }
+
+/* The selection bar as a HUD: groups that unfold their actions on hover or focus, in corner
+   brackets (the app's "chosen" mark), each action sliding out after the one before. */
+.hud { display: flex; align-items: center; gap: var(--space-1); user-select: none; }
+.hud-group { position: relative; display: inline-flex; align-items: center; height: 26px; padding: 0 6px; transition: background 0.18s var(--ease); }
+.hud-group::before, .hud-group::after { content: ""; position: absolute; top: -3px; bottom: -3px; width: 7px; border: 1.5px solid var(--line-ink); opacity: 0; transition: opacity 0.15s var(--ease), transform 0.22s var(--ease); pointer-events: none; }
+.hud-group::before { left: -2px; border-right: 0; transform: translateX(6px); }
+.hud-group::after { right: -2px; border-left: 0; transform: translateX(-6px); }
+.hud-group.on::before, .hud-group.on::after { opacity: 1; transform: none; }
+.hud-head { border: 0; background: none; padding: 0 2px; font: 500 var(--size-xs) var(--font-mono); color: var(--text); cursor: pointer; letter-spacing: 0.02em; }
+.hud-head::after { content: "▸"; display: inline-block; margin-left: 4px; font-size: 9px; color: var(--text-muted); transition: transform 0.2s var(--ease); }
+.hud-group.on .hud-head::after { transform: rotate(180deg); }
+.hud-items { display: inline-grid; grid-auto-flow: column; gap: 2px; max-width: 0; overflow: hidden; opacity: 0; transition: max-width 0.28s var(--ease), opacity 0.2s var(--ease), margin 0.28s var(--ease); }
+.hud-group.on .hud-items { max-width: 420px; opacity: 1; margin-left: 6px; }
+.hud-item { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-panel); font: 400 var(--size-xs) var(--font-sans); color: var(--text); cursor: pointer; white-space: nowrap; opacity: 0; transform: translateX(-8px); transition: opacity 0.18s var(--ease), transform 0.22s var(--ease), border-color 0.12s; }
+.hud-group.on .hud-item { opacity: 1; transform: none; transition-delay: calc(var(--i) * 45ms + 60ms); }
+.hud-item:hover:not(:disabled), .hud-item:focus-visible { border-color: var(--line-ink); outline: none; }
+.hud-item:disabled { color: var(--text-muted); cursor: default; }
+.hud-item kbd { font: 400 10px var(--font-mono); color: var(--text-muted); }
+/* While one group is open, the rest of the bar steps back. */
+.selection-dialog.hud-on > .lbl, .selection-dialog.hud-on .hud > :not(.on) { opacity: 0.45; transition: opacity 0.18s var(--ease); }
+.hud-delete svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+@media (prefers-reduced-motion: reduce) { .hud-group::before, .hud-group::after, .hud-items, .hud-item { transition: none; } }
 .expose-menu { position: relative; }
 .expose-menu > summary { list-style: none; cursor: pointer; }
 .expose-menu > summary::-webkit-details-marker { display: none; }
