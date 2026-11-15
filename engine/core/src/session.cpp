@@ -1,6 +1,8 @@
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <fstream>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -50,10 +52,88 @@ struct Session::State {
   std::string busy_toolkit;
   std::string busy_action;
   std::jthread toolkit_task;
+
+  // Samples go out in batches (pb, signals): one `signals` message per 30 ms holds every sample
+  // taken in that time, instead of a message each (a run as fast as it can sent ~19,000 a second
+  // and the page could not keep up). Slower samples go out one by one, as they come. What a pass
+  // also sends as state rides along: the newest run.progress, and the scene.patch entities merged
+  // by id. Anything else sends the batch first, so the order holds. The flusher sends a batch
+  // that a pause left.
+  static constexpr auto kBatch = std::chrono::milliseconds(30);
+  std::mutex out;  // the batch, and the order of what goes out
+  std::vector<json> batch;
+  std::optional<json> progress;      // the newest run.progress of the batch
+  json patched = json::array();      // the batch's scene.patch entities, merged by id
+  std::map<std::string, std::size_t> patched_at;
+  std::chrono::steady_clock::time_point batch_since;
+  std::atomic<std::thread::id> sender{};  // the thread inside send(): its close can't tear this down
+  /** Marks this thread as the sender while `out` is held. */
+  struct Sending {
+    std::atomic<std::thread::id>& who;
+    explicit Sending(std::atomic<std::thread::id>& w) : who(w) { who = std::this_thread::get_id(); }
+    ~Sending() { who = std::thread::id{}; }
+  };
+  std::condition_variable_any wake;
+  std::jthread flusher{[this](std::stop_token stop) {
+    std::unique_lock lock(out);
+    while (!stop.stop_requested()) {
+      wake.wait_for(lock, stop, kBatch, [] { return false; });
+      if (pending() && std::chrono::steady_clock::now() - batch_since >= kBatch) {
+        Sending mark(sender);
+        flush();
+      }
+    }
+  }};
   std::jthread run;  // declared last: destroyed (stopped and joined) before the rest
 
+  ~State() {
+    // Stop every thread that sends, then wait out a send still in flight on another thread (a
+    // close found by it deferred this teardown), before the batch and its mutex go.
+    run = {};
+    toolkit_task = {};
+    flusher = {};
+    std::lock_guard lock(out);
+  }
+
+  /** Send what the batch holds: one sample as itself, more as one `signals` (call with `out` held). */
+  bool pending() const { return !batch.empty() || progress || !patched.empty(); }
+  void flush() {
+    if (!batch.empty() && !closed) send(batch.size() == 1 ? batch.front().dump() : json{{"type", "signals"}, {"list", std::move(batch)}}.dump());
+    batch.clear();
+    if (!patched.empty() && !closed) send(json{{"type", "scene.patch"}, {"entities", std::move(patched)}}.dump());
+    patched = json::array();
+    patched_at.clear();
+    if (progress && !closed) send(progress->dump());
+    progress.reset();
+  }
   void emit(const json& msg) {
-    if (!closed) send(msg.dump());
+    if (closed) return;
+    std::lock_guard lock(out);
+    Sending mark(sender);
+    const std::string type = msg.is_object() ? msg.value("type", "") : "";
+    if (type == "signal" || type == "run.progress" || type == "scene.patch") {
+      const auto now = std::chrono::steady_clock::now();
+      if (!pending()) batch_since = now;
+      if (type == "signal") {
+        batch.push_back(msg);
+      } else if (type == "run.progress") {
+        progress = msg;
+      } else {
+        for (const auto& entity : msg.value("entities", json::array())) {
+          const std::string id = entity.value("id", "");
+          if (auto at = patched_at.find(id); at != patched_at.end()) {
+            patched[at->second].update(entity);  // later fields win
+          } else {
+            patched_at[id] = patched.size();
+            patched.push_back(entity);
+          }
+        }
+      }
+      if (now - batch_since >= kBatch) flush();
+      return;
+    }
+    flush();
+    send(msg.dump());
   }
   void log(const std::string& level, const std::string& text) {
     emit({{"type", "log"}, {"level", level}, {"text", text}});
@@ -130,13 +210,11 @@ Session::Session(const Backend& backend, Send send, Remote remote)
   }
 }
 
-void Session::send_message(const json& message) {
-  if (!state_->closed) state_->send(message.dump());
-}
+void Session::send_message(const json& message) { state_->emit(message); }
 
 bool Session::on_own_thread() const {
   const auto me = std::this_thread::get_id();
-  return state_->run.get_id() == me || state_->toolkit_task.get_id() == me;
+  return state_->run.get_id() == me || state_->toolkit_task.get_id() == me || state_->flusher.get_id() == me || state_->sender == me;
 }
 
 void Session::close() { state_->closed = true; }

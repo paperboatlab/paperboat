@@ -26,6 +26,11 @@
   }
 
   function receive(msg) {
+    // Samples taken faster than every 30 ms come as one `signals` batch: a page hears each.
+    if (msg.type === "signals") {
+      for (const one of msg.list) receive(one);
+      return;
+    }
     if (msg.type === "scene") {
       entities.clear();
       for (const e of msg.entities) entities.set(e.id, e);

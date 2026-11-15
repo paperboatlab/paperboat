@@ -12,6 +12,7 @@
 #include "paperboat/toolkit/analysis.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
 #include "paperboat/toolkit/registry.hpp"
+#include "received.hpp"
 
 namespace core = paperboat::core;
 namespace tk = paperboat::toolkit;
@@ -64,7 +65,7 @@ TEST_CASE("a session answers analysis.request with the part of the graph, variab
   std::mutex mutex;
   core::Session session(backend, [&](const std::string& text) {
     std::lock_guard lock(mutex);
-    sent.push_back(json::parse(text));
+    receive(sent, text);
   });
   const json graph = {{"nodes", {{{"id", "a"}, {"type", "gain"}, {"params", {{"k", {{"var", "kp"}}}}}},
                                  {{"id", "b"}, {"type", "gain"}, {"params", {{"k", 3}}}}}},
