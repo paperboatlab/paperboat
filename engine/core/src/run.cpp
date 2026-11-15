@@ -554,7 +554,7 @@ bool Run::set_variable(std::string_view name, const toolkit::Value& value) {
     else if (type == "boolean") (*v)["value"] = *number != 0;
     else return refuse("is " + type + ", not a number");
   } else if (const auto* text = std::get_if<std::string>(&value)) {
-    if (type != "enum" && type != "text" && type != "file") return refuse("is " + type + ", not text");
+    if (type != "enum" && type != "text" && type != "file" && type != "matrix") return refuse("is " + type + ", not text");
     (*v)["value"] = *text;
   } else {
     return refuse("takes a number or text");

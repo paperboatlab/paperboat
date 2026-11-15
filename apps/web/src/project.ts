@@ -42,7 +42,7 @@ const isText = (v: unknown): v is string => typeof v === "string";
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const pair = (v: unknown): v is [string, string] => Array.isArray(v) && v.length === 2 && v.every(isText);
 
-const VARIABLE_TYPES = ["number", "boolean", "enum", "text", "file"];
+const VARIABLE_TYPES = ["number", "boolean", "enum", "text", "file", "matrix"];
 const GROUP_KINDS = ["visual", "subsystem", "story"];
 
 /** What a sheet may be (#9; flowTypes.ts). */

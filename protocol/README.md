@@ -68,7 +68,7 @@ Default address: `ws://localhost:8765`.
   "outputs": [{ "id": "y", "type": "signal" }],
   "params":  [{ "id": "amplitude", "type": "number", "default": 5 }],
   // other param types: { "type": "boolean", "default": true } (a checkbox; 1 or 0 to the block),
-  // { "type": "text" | "key" | "file" | "variable", "default": "…" },
+  // { "type": "text" | "key" | "file" | "variable" | "matrix", "default": "…" },
   // { "type": "enum", "options": ["in-out", "in"], "default": "in-out" } (a choice; the block gets its index)
   "group": "base",                 // optional palette group: the domain, or a toolkit package
   // optional, how to draw it (a hint: absent, or a UI that ignores it, draws the normal card).
@@ -336,7 +336,7 @@ pushes on the object through the block's inputs and reads it through its outputs
  { "name": "trail", "type": "boolean", "value": false, "exposed": true, "dock": true }]          // also a Dashboard and a dock control
 ```
 
-`type` is `number`, `boolean`, `enum`, `text` or `file` (as params). Each has a `value`
+`type` is `number`, `boolean`, `enum`, `text`, `file` or `matrix` (as params). Each has a `value`
 of its type or, for a number or boolean, an `expr` over other variables (evaluated in
 dependency order; a loop is an error). `min`, `max` and `whole` constrain a number;
 `note`, `group`, `step`, `exposed` (a control in the Dashboard's `controls` tile), `dock` (a control in the run dock) and `tunable` (meant to change during a run) are for the UI. A name is letters, digits and `_`,

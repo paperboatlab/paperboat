@@ -114,7 +114,8 @@ class Param(NamedTuple):
     """A param with a type its default doesn't say: Param("Space", "key"), Param("data/a.png",
     "file"), Param("fast", "enum", ["slow", "fast"]) (a dropdown; the block gets the name in
     its params, and an expression its index), Param("Kp", "variable") (a picker of the project's
-    variables; the block gets the name, to read with ctx.variable or write with ctx.set_variable).
+    variables; the block gets the name, to read with ctx.variable or write with ctx.set_variable),
+    Param("1 0; 0 1", "matrix") (MATLAB-style matrix rows).
     Plain defaults say it: a number, a bool (a
     "boolean", a checkbox), text ("text")."""
 

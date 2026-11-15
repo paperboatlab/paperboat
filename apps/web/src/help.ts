@@ -16,7 +16,7 @@ const port = (p: PortDef) =>
   `- \`${p.id}\`${p.type && p.type !== "signal" ? ` ${p.type}` : ""}${p.unit ? ` [${p.unit}]` : ""}${p.dimension ? ` × ${p.dimension}` : ""}${p.components?.length ? ` (${p.components.map((c) => c.id).join(", ")})` : ""}`;
 
 const param = (p: ParamDef) => {
-  const value = p.type === "text" || p.type === "key" || p.type === "file" || p.type === "variable" ? (p.default ? `"${p.default}"` : "empty") : String(p.default);
+  const value = p.type === "text" || p.type === "key" || p.type === "file" || p.type === "variable" || p.type === "matrix" ? (p.default ? `"${p.default}"` : "empty") : String(p.default);
   const unit = p.type === "number" && p.unit ? ` ${p.unit}` : "";
   const options = p.type === "enum" ? `, one of ${p.options.join(", ")}` : "";
   return `- \`${p.id}\` ${p.type}, default ${value}${unit}${options}`;

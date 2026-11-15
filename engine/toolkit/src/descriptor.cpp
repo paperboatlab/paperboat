@@ -78,8 +78,16 @@ std::vector<ParamDef> new_params(const json& obj, const std::string& at) {
       p.unit = v.value("unit", std::string{});
       if (p.is_number()) p.default_value = number_of(v.at("default"));
       else p.default_text = v.at("default").get<std::string>();
-      if (p.type != "number" && p.type != "boolean" && p.type != "text" && p.type != "key" && p.type != "file" && p.type != "enum" && p.type != "variable")
-        throw DescriptorError(at + ": param " + id + " has type \"" + p.type + "\" (number, boolean, text, key, file, enum or variable)");
+      if (p.type != "number" && p.type != "boolean" && p.type != "text" && p.type != "key" && p.type != "file" &&
+          p.type != "enum" && p.type != "variable" && p.type != "matrix")
+        throw DescriptorError(at + ": param " + id + " has type \"" + p.type + "\" (number, boolean, text, key, file, enum, variable or matrix)");
+      if (p.type == "matrix") {
+        try {
+          parse_matrix_rows(p.default_text, id);
+        } catch (const std::invalid_argument& err) {
+          throw DescriptorError(at + ": " + err.what());
+        }
+      }
       if (p.type == "enum") {
         p.options = v.value("options", std::vector<std::string>{});
         if (p.options.empty()) throw DescriptorError(at + ": enum param " + id + " needs options");
@@ -191,6 +199,13 @@ CatalogEntry from_template(const json& e, const std::string& at, const Registry&
     else p->default_text = value.get<std::string>();
     if (p->type == "enum" && p->option(p->default_text) < 0)
       throw DescriptorError(at + ": " + id + " must be one of its options, not \"" + p->default_text + "\"");
+    if (p->type == "matrix") {
+      try {
+        parse_matrix_rows(p->default_text, id);
+      } catch (const std::invalid_argument& err) {
+        throw DescriptorError(at + ": " + err.what());
+      }
+    }
   }
   for (const auto& [key, value] : config.items()) {
     if (!t->config.contains(key) && !t->extendable) throw DescriptorError(at + ": " + name + " has no config \"" + key + "\"");

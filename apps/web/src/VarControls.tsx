@@ -1,4 +1,5 @@
 import { useContext, useState } from "react";
+import { parseMatrix } from "./bindings";
 import { NumberField } from "./NumberField";
 import type { Variable } from "./protocol";
 import { VarsContext } from "./VarsContext";
@@ -60,6 +61,21 @@ function VarControl({ v }: { v: Variable }) {
           <option key={o}>{o}</option>
         ))}
       </select>
+    );
+  } else if (v.type === "matrix") {
+    const raw = String(now ?? "");
+    const parsed = parseMatrix(raw);
+    const bad = "error" in parsed;
+    control = (
+      <input
+        className="var-value well text matrix"
+        aria-label={v.name}
+        disabled={off}
+        value={raw}
+        aria-invalid={bad}
+        title={bad ? parsed.error : parsed.rows ? `${parsed.rows} × ${parsed.cols} matrix ("1 2; 3 4")` : 'Empty matrix ("1 2; 3 4")'}
+        onChange={(e) => set(e.target.value)}
+      />
     );
   } else {
     control = <input className="var-value well text" aria-label={v.name} disabled={off} value={String(now ?? "")} onChange={(e) => set(e.target.value)} />;

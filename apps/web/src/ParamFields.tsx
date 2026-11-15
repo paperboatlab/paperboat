@@ -1,7 +1,7 @@
 import { useContext, useEffect, useId, useRef, useState, type InputHTMLAttributes } from "react";
 import { Bindable, draggedVariable, NumberOrFormula, VAR_DRAG } from "./Variables";
 import { VarsContext } from "./VarsContext";
-import { isRef } from "./bindings";
+import { isRef, parseMatrix } from "./bindings";
 import type { ParamDef, ParamValue } from "./protocol";
 
 /**
@@ -92,6 +92,20 @@ function Field({
         disabled={disabled}
         value={String(value)}
         title={def.type === "file" ? "A file, relative to the backend's descriptor" : undefined}
+        onText={set}
+      />
+    );
+  }
+  if (def.type === "matrix") {
+    const parsed = parseMatrix(String(value));
+    const bad = "error" in parsed;
+    return (
+      <DraftInput
+        className="nodrag text-param matrix-param"
+        disabled={disabled}
+        value={String(value)}
+        aria-invalid={bad}
+        title={bad ? parsed.error : parsed.rows ? `${parsed.rows} × ${parsed.cols} matrix ("1 2; 3 4")` : 'Empty matrix ("1 2; 3 4")'}
         onText={set}
       />
     );

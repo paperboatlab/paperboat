@@ -41,6 +41,7 @@ std::string fails(std::initializer_list<json> items) {
 const tk::ParamDef kNumber{.id = "kp", .default_value = 1};
 const tk::ParamDef kBoolean{.id = "on", .default_value = 0, .type = "boolean"};
 const tk::ParamDef kText{.id = "label", .type = "text"};
+const tk::ParamDef kMatrix{.id = "values", .type = "matrix", .default_text = "1 0; 0 1"};
 const tk::ParamDef kEnum{.id = "op", .type = "enum", .default_text = ">", .options = {">", "<"}};
 const tk::ParamDef kKey{.id = "key", .type = "key", .default_text = "Space"};
 
@@ -78,6 +79,8 @@ TEST_CASE("a variable list that doesn't hold says why, in words") {
   CHECK_THAT(fails({{{"name", "m"}, {"type", "enum"}, {"value", "a"}, {"options", {"a"}}}, formula("x", "m + 1")}),
              ContainsSubstring("formulas take numbers and booleans"));
   CHECK_THAT(fails({{{"name", "s"}, {"type", "text"}, {"expr", "1"}}}), ContainsSubstring("only a number or a boolean can be a formula"));
+  CHECK_THAT(fails({{{"name", "A"}, {"type", "matrix"}, {"value", "1 2; 3"}}}), ContainsSubstring("row 1 has 1 columns, expected 2"));
+  CHECK_THAT(fails({{{"name", "A"}, {"type", "matrix"}, {"value", "1 x"}}}), ContainsSubstring("\"x\" is not a finite number"));
   CHECK_THAT(fails({number("len", 5, {{"max", 3}})}), ContainsSubstring("len is 5, above its maximum 3"));
   CHECK_THAT(fails({number("n", 2.5, {{"whole", true}})}), ContainsSubstring("not a whole number"));
   CHECK(fails({number("len", 1), formula("short", "len - 2")}) == "(no error)");  // no range: anything goes
@@ -89,13 +92,15 @@ TEST_CASE("a param refers to a variable, or holds a formula; checked against the
   const tk::Variables vars(json::array({number("kp", 40), {{"name", "on"}, {"type", "boolean"}, {"value", true}},
                                         {{"name", "op"}, {"type", "enum"}, {"value", "<"}, {"options", {">", "<", "=="}}},
                                         {{"name", "eq"}, {"type", "enum"}, {"value", "=="}, {"options", {">", "<", "=="}}},
-                                        {{"name", "label"}, {"type", "text"}, {"value", "θ"}}}));
+                                        {{"name", "label"}, {"type", "text"}, {"value", "θ"}},
+                                        {{"name", "A"}, {"type", "matrix"}, {"value", "1 2; 3 4"}}}));
   CHECK(vars.value_for(3.5, kNumber, "pid") == 3.5);  // a literal stays
   CHECK(vars.value_for({{"var", "kp"}}, kNumber, "pid") == 40.0);
   CHECK(vars.value_for({{"expr", "kp / 4"}}, kNumber, "pid") == 10.0);
   CHECK(vars.value_for({{"expr", "kp > 50"}}, kBoolean, "pid") == false);
   CHECK(vars.value_for({{"var", "op"}}, kEnum, "cmp") == "<");
   CHECK(vars.value_for({{"var", "label"}}, kText, "plot") == "θ");
+  CHECK(vars.value_for({{"var", "A"}}, kMatrix, "mat") == "1 2; 3 4");
   auto fails_for = [&](const json& given, const tk::ParamDef& def) -> std::string {
     try {
       vars.value_for(given, def, "pid");
@@ -110,6 +115,8 @@ TEST_CASE("a param refers to a variable, or holds a formula; checked against the
   CHECK_THAT(fails_for({{"var", "eq"}}, kEnum), ContainsSubstring("eq is \"==\", not one of: >, <"));
   CHECK_THAT(fails_for({{"expr", "kp"}}, kText), ContainsSubstring("only number and boolean params take a formula"));
   CHECK_THAT(fails_for({{"var", "label"}}, kKey), ContainsSubstring("pid.key is key"));
+  CHECK_THAT(fails_for({{"var", "label"}}, kMatrix), ContainsSubstring("pid.values is matrix, but label is a text"));
+  CHECK_THAT(fails_for({{"var", "A"}}, kText), ContainsSubstring("pid.label is text, but A is a matrix"));
   CHECK_THAT(fails_for({{"var", "kp"}, {"expr", "kp"}}, kNumber), ContainsSubstring("a reference is"));
 }
 

@@ -475,6 +475,14 @@ TEST_CASE("a boolean param is a number to the block and true or false in the cat
   CHECK(tk::get_or(catalog.find("boolean")->make()->step({}, {}), "y") == 0.0);
 }
 
+TEST_CASE("a matrix param is typed matrix and validates default syntax") {
+  const auto catalog = tk::load_descriptor(descriptor("[[blocks]]\nuse = \"math/matrix_constant\"\ndefaults = { values = \"1 2; 3 4\" }\n"));
+  const auto msg = nlohmann::json::parse(tk::catalog_message(catalog));
+  CHECK(msg["blocks"][0]["params"][0] == nlohmann::json{{"id", "values"}, {"type", "matrix"}, {"default", "1 2; 3 4"}});
+  CHECK_THROWS_WITH(tk::load_descriptor(descriptor("[[blocks]]\nuse = \"math/matrix_constant\"\ndefaults = { values = \"1 2; 3\" }\n")),
+                    ContainsSubstring("row 1 has 1 columns, expected 2"));
+}
+
 TEST_CASE("a descriptor defines a block on a C++ parent: new params and its expression") {
   const auto catalog = tk::load_descriptor(descriptor(R"toml(
 [[blocks]]

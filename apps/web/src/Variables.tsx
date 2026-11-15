@@ -3,7 +3,7 @@ import { useDismiss } from "@paperboat/shared/components";
 import { parseNumber } from "./NumberField";
 import type { ParamDef, ParamValue, Variable } from "./protocol";
 import { VarsContext } from "./VarsContext";
-import { badName, emptyOf, fits, freeName, isRef, type Ref, type Use } from "./bindings";
+import { badName, emptyOf, fits, freeName, isRef, parseMatrix, type Ref, type Use } from "./bindings";
 
 
 /** A variable being dragged from the sheet onto a field (dataTransfer can't be read on dragover). */
@@ -18,8 +18,8 @@ const live = (v: Variable) => (v.value === undefined ? (v.note ?? "–") : typeo
 /** A value short enough for a block face: a matrix ("1 2; 3 4") as its shape, "2×2". */
 const brief = (v: unknown, type?: string) => {
   if (type !== "matrix" || typeof v !== "string") return show(v);
-  const rows = v.split(";");
-  return `${rows.length}×${rows[0].trim().split(/[\s,]+/).length}`;
+  const parsed = parseMatrix(v);
+  return "error" in parsed ? show(v) : `${parsed.rows}×${parsed.cols}`;
 };
 
 // ---------------------------------------------------------------------------------------
@@ -248,6 +248,21 @@ function ValueField({ v, onChange, disabled, wide }: { v: Variable; onChange: (v
         ))}
       </select>
     );
+  if (v.type === "matrix") {
+    const raw = String(v.value ?? "");
+    const parsed = parseMatrix(raw);
+    const bad = "error" in parsed;
+    return (
+      <input
+        className="var-value well text matrix"
+        disabled={disabled}
+        value={raw}
+        aria-invalid={bad}
+        title={bad ? parsed.error : parsed.rows ? `${parsed.rows} × ${parsed.cols} matrix ("1 2; 3 4")` : 'Empty matrix ("1 2; 3 4")'}
+        onChange={(e) => set(e.target.value)}
+      />
+    );
+  }
   return <input className="var-value well text" disabled={disabled} value={String(v.value ?? "")} onChange={(e) => set(e.target.value)} />;
 }
 
@@ -320,7 +335,7 @@ function OptionalNumber({ value, onChange, label }: { value?: number; onChange: 
 }
 
 const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
-const TYPES: Variable["type"][] = ["number", "boolean", "enum", "text", "file"];
+const TYPES: Variable["type"][] = ["number", "boolean", "enum", "text", "file", "matrix"];
 
 // ---------------------------------------------------------------------------------------
 // The sheet: every variable, beside whatever page is open.

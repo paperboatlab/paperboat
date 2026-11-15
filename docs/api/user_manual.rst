@@ -174,8 +174,8 @@ in the inspector:
 - **Live variables from Squero Studio MX**: while MX runs next to Paperboat, its workspace
   shows in the Variables drawer with an **MX** badge (type ``number``, ``text`` or
   ``matrix``; hover a row for its full value). They are read-only and never saved in the
-  project. Drop one on a field to bind it: a ``matrix`` fits a text field such as the
-  **Matrix** block's ``values``. A run sends the value MX last broadcast in place of the
+  project. Drop one on a field to bind it: a ``matrix`` fits a matrix field such as the
+  **Matrix** block's ``values`` or a state-space matrix. A run sends the value MX last broadcast in place of the
   name, so the binding follows MX between runs. A matrix of more than 4096 values is not
   shared live: its row says so, and a run that uses it stops with that reason.
 - **Function Expressions** (:code:`f(t)`): In expression blocks (like `signal/function`), you
