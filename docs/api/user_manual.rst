@@ -445,6 +445,10 @@ Keyboard Shortcuts
      - Add a part to the Modelica diagram, or splice it into the selected wire
    * - :kbd:`Alt` + :kbd:`V` in Squero Studio
      - Open or close the interface sheet
+   * - :kbd:`Ctrl` + :kbd:`Enter` in Squero Studio
+     - Simulate the model (OM); run the cell at the cursor (MX)
+   * - :kbd:`Ctrl` + :kbd:`C` in Squero Studio
+     - Cancel the running simulation or script, when nothing is selected to copy
    * - :kbd:`Ctrl` + :kbd:`/`
      - Comment out / uncomment selected blocks
    * - :kbd:`Ctrl` + :kbd:`Shift` + :kbd:`Y`
