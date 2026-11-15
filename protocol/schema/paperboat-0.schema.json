@@ -1552,6 +1552,26 @@
       ],
       "additionalProperties": false
     },
+    "signals": {
+      "type": "object",
+      "description": "Several signal samples in one message, in the order they were taken: what a backend sends instead of one signal message each when they come faster than every 30 ms (a run as fast as it can). Read it as its signals one after another.",
+      "properties": {
+        "type": {
+          "const": "signals"
+        },
+        "list": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/signal"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "list"
+      ],
+      "additionalProperties": false
+    },
     "node.state": {
       "type": "object",
       "properties": {
@@ -1849,6 +1869,7 @@
             "run.finished",
             "run.speed",
             "signal",
+            "signals",
             "node.state",
             "node.progress",
             "metric",
@@ -2051,6 +2072,18 @@
           },
           "then": {
             "$ref": "#/$defs/signal"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "signals"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/$defs/signals"
           }
         },
         {

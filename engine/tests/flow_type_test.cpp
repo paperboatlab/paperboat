@@ -13,6 +13,7 @@
 #include "paperboat/core/backend.hpp"
 #include "paperboat/core/graph.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
+#include "received.hpp"
 
 namespace core = paperboat::core;
 namespace tk = paperboat::toolkit;
@@ -246,7 +247,7 @@ TEST_CASE("hello says which flow types the backend offers") {
   {
     core::Session session(backend, [&](const std::string& text) {
       std::lock_guard lock(mutex);
-      sent.push_back(json::parse(text));
+      receive(sent, text);
     });
   }
   REQUIRE_FALSE(sent.empty());

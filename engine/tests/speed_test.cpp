@@ -15,6 +15,7 @@
 
 #include "paperboat/core/backend.hpp"
 #include "rig.hpp"
+#include "received.hpp"
 
 namespace core = paperboat::core;
 using core::json;
@@ -161,7 +162,7 @@ TEST_CASE("run.speed: the session refuses what isn't a speed, ignores one betwee
   };
   core::Session session(backend, [&](const std::string& text) {
     std::lock_guard lock(mutex);
-    sent.push_back(json::parse(text));
+    receive(sent, text);
   });
 
   // Between runs: nothing to change, and nothing said (not an unknown message either).
@@ -184,7 +185,11 @@ TEST_CASE("run.speed: the session refuses what isn't a speed, ignores one betwee
   std::this_thread::sleep_for(std::chrono::milliseconds(150));
   const auto refused = count();
   session.on_message(R"({"type": "run.speed", "speed": -3})");  // refused: the run goes on at 1×
-  CHECK(at(refused)["level"] == "error");
+  // The next log (samples still in the batch go out just before it).
+  json refusal;
+  for (std::size_t i = refused; i < count() && refusal.is_null(); ++i)
+    if (at(i)["type"] == "log") refusal = at(i);
+  CHECK(refusal["level"] == "error");
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   session.on_message(R"({"type": "run.speed", "speed": 0})");  // max: the 10 s run ends early
   for (int i = 0; i < 500 && last()["type"] != "run.finished"; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(10));

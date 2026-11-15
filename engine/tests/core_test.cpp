@@ -20,6 +20,7 @@
 #include "paperboat/core/backend.hpp"
 #include "paperboat/core/executor.hpp"
 #include "rig.hpp"
+#include "received.hpp"
 
 namespace core = paperboat::core;
 namespace tk = paperboat::toolkit;
@@ -176,7 +177,7 @@ TEST_CASE("a session sends the handshake, checks station edits and runs") {
   {
     core::Session session(backend, [&](const std::string& text) {
       std::lock_guard lock(mutex);
-      sent.push_back(json::parse(text));
+      receive(sent, text);
     });
     std::vector<std::string> types;
     for (const auto& m : sent) types.push_back(m["type"]);
@@ -222,7 +223,7 @@ TEST_CASE("hello says the Station is hidden when the descriptor says so") {
     const core::Backend backend{.engine = "test", .catalog = catalog};
     std::vector<json> sent;
     {
-      core::Session session(backend, [&](const std::string& text) { sent.push_back(json::parse(text)); });
+      core::Session session(backend, [&](const std::string& text) { receive(sent, text); });
     }
     REQUIRE(!sent.empty());
     CHECK(sent.front()["type"] == "hello");
@@ -243,7 +244,7 @@ TEST_CASE("a descriptor with no starter graph, or an empty one, opens an empty c
     const core::Backend backend{.engine = "test", .catalog = &catalog};
     std::vector<json> sent;
     {
-      core::Session session(backend, [&](const std::string& text) { sent.push_back(json::parse(text)); });
+      core::Session session(backend, [&](const std::string& text) { receive(sent, text); });
     }
     std::vector<std::string> types;
     for (const auto& m : sent) types.push_back(m["type"]);
@@ -975,7 +976,7 @@ TEST_CASE("session reports toolkits in hello and triggers restart handler on bac
   {
     core::Session session(backend, [&](const std::string& text) {
       std::lock_guard lock(mutex);
-      sent.push_back(json::parse(text));
+      receive(sent, text);
     });
     REQUIRE_FALSE(sent.empty());
     CHECK(sent.front()["type"] == "hello");
@@ -1097,7 +1098,7 @@ TEST_CASE("variables.set during a run goes to the run, not to the scene") {
   std::mutex mutex;
   core::Session session(backend, [&](const std::string& text) {
     std::lock_guard lock(mutex);
-    sent.push_back(json::parse(text));
+    receive(sent, text);
   });
   session.on_message(R"({"type": "graph.run", "graph": )" + catalog.graph + "}");
   std::this_thread::sleep_for(std::chrono::milliseconds(150));
@@ -1362,7 +1363,7 @@ TEST_CASE("a variable a block set during a run is what the session starts the ne
   std::mutex mutex;
   core::Session session(backend, [&](const std::string& text) {
     std::lock_guard lock(mutex);
-    sent.push_back(json::parse(text));
+    receive(sent, text);
   });
   const auto finished = [&](int count) {
     for (int i = 0; i < 500; ++i) {
@@ -1390,4 +1391,48 @@ TEST_CASE("a variable a block set during a run is what the session starts the ne
     }
   }
   CHECK(first_live == 4.0);
+}
+
+TEST_CASE("a fast run's samples go out in signals batches, in order, none after the run ends") {
+  const auto& catalog = writer_catalog();
+  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.0001, .duration = 2.0, .emit_every = 1, .real_time = false}};
+  std::vector<json> raw;
+  std::mutex mutex;
+  core::Session session(backend, [&](const std::string& text) {
+    std::lock_guard lock(mutex);
+    raw.push_back(json::parse(text));
+  });
+  session.on_message(R"({"type": "graph.run", "graph": )" + catalog.graph + "}");
+  for (int i = 0; i < 1000; ++i) {
+    {
+      std::lock_guard lock(mutex);
+      if (std::ranges::any_of(raw, [](const json& m) { return m["type"] == "run.finished"; })) break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  std::lock_guard lock(mutex);
+  std::size_t batches = 0, samples = 0;
+  bool ended = false, after = false;
+  double last_t = -1;
+  bool ordered = true;
+  for (const auto& m : raw) {
+    if (m["type"] == "run.finished") ended = true;
+    const bool batch = m["type"] == "signals";
+    if (batch) ++batches;
+    if (batch || m["type"] == "signal") {
+      after = after || ended;
+      for (const auto& s : batch ? m["list"] : json::array({m})) {
+        ++samples;
+        if (s["node"] == "see-live") {
+          ordered = ordered && s["t"].get<double>() >= last_t;
+          last_t = s["t"].get<double>();
+        }
+      }
+    }
+  }
+  CHECK(ended);
+  CHECK(batches > 0);          // 20,000 passes can't each be a message
+  CHECK(batches * 10 < samples);
+  CHECK(ordered);
+  CHECK_FALSE(after);
 }

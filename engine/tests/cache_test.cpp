@@ -21,6 +21,7 @@
 #include "paperboat/core/cache.hpp"
 #include "paperboat/core/executor.hpp"
 #include "rig.hpp"
+#include "received.hpp"
 
 namespace core = paperboat::core;
 namespace tk = paperboat::toolkit;
@@ -451,7 +452,7 @@ TEST_CASE("cache: a session's run-once reuses its previous run (node.state cache
   std::mutex mutex;
   core::Session session(once_backend(), [&](const std::string& text) {
     std::lock_guard lock(mutex);
-    sent.push_back(json::parse(text));
+    receive(sent, text);
   });
   const auto finished = [&] {
     std::lock_guard lock(mutex);

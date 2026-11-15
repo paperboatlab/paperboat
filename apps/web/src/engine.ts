@@ -418,10 +418,13 @@ export function useEngine(url: string) {
         if (stopped) return;
         try {
           const msg = JSON.parse(e.data) as ServerMsg;
-          if (msg.type === "signal") {
-            // Plots read the store; React hears of a frame's samples once (#37).
-            traces.add(msg);
-            pending.push(msg);
+          if (msg.type === "signal" || msg.type === "signals") {
+            // Plots read the store; React hears of a frame's samples once (#37). A backend sends
+            // samples taken faster than every 30 ms as one `signals` batch.
+            for (const one of msg.type === "signals" ? msg.list : [msg]) {
+              traces.add(one);
+              pending.push(one);
+            }
             frame ??= requestAnimationFrame(flush);
           } else {
             flush();

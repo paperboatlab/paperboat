@@ -40,6 +40,9 @@ Message Quick Reference
      - ``signal``
      - Streaming telemetry sample emitted by a Monitor block (``t``, ``v``).
    * -
+     - ``signals``
+     - Samples taken faster than every 30 ms, batched into one message (``list`` of ``signal``).
+   * -
      - ``scene.patch``
      - Lightweight differential entity updates (positions, rotations, colors).
    * -
@@ -94,6 +97,11 @@ Backend → UI
 ``run.progress``        ``run``, ``fraction`` (0–1)
 ``run.speed``           ``run``, ``speed``: the run took a new speed (below) and goes on at it
 ``signal``              ``node``, ``t``, ``v`` (number, text or vector), ``components?``, ``port?`` (a Scope's input). A monitor's sample
+``signals``             ``list``: ``signal`` messages in the order they were taken. The C++ core sends samples
+                        that come faster than every 30 ms (a run as fast as it can) as one batch per 30 ms;
+                        slower ones go out one by one. With it ride the window's newest ``run.progress`` and
+                        its ``scene.patch`` entities merged by id. A client reads it as its signals one after
+                        another. ``--run`` output and records keep one ``signal`` per line
 ``node.state``          ``node``, ``state``: ``queued``, ``running``, ``done``, ``cached``, ``failed``
 ``node.progress``       ``node``, ``fraction`` (0–1). A block's long step, at most ~20 a second
 ``metric``              ``node``, ``series``, ``x``, ``y``, ``unit?``. ``Context::metric``

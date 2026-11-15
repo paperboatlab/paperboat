@@ -32,7 +32,12 @@ def union(parts: list[str]) -> str:
 
 def ts(s: dict, defs: dict, indent: str = "") -> str:
     if "$ref" in s:
-        return s["$ref"].split("/")[-1]
+        name = s["$ref"].split("/")[-1]
+        # A message (signals' list of signal) is a member of its union, not a type of its own.
+        for union_name, side in (("ServerMsg", "toUI"), ("ClientMsg", "toBackend")):
+            if name in defs[side]["properties"]["type"]["enum"]:
+                return f'Extract<{union_name}, {{ type: "{name}" }}>'
+        return name
     if "const" in s:
         return json.dumps(s["const"])
     if "enum" in s:
