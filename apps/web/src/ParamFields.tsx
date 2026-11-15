@@ -1,8 +1,31 @@
-import { useContext, useId } from "react";
+import { useContext, useEffect, useId, useRef, useState, type InputHTMLAttributes } from "react";
 import { Bindable, draggedVariable, NumberOrFormula, VAR_DRAG } from "./Variables";
 import { VarsContext } from "./VarsContext";
 import { isRef } from "./bindings";
 import type { ParamDef, ParamValue } from "./protocol";
+
+/**
+ * A text field that keeps its own draft while it has focus. The value comes back through the
+ * canvas store a moment after each keystroke; a plain controlled input rewritten then puts the
+ * caret at the end, so typing in the middle of `1 2 1` would jump. It follows `value` again
+ * whenever it is not being edited.
+ */
+function DraftInput({ value, onText, ...rest }: { value: string; onText: (v: string) => void } & Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+  const [draft, setDraft] = useState(value);
+  const editing = useRef(false);
+  useEffect(() => {
+    if (!editing.current) setDraft(value);
+  }, [value]);
+  return (
+    <input
+      {...rest}
+      value={draft}
+      onFocus={(e) => ((editing.current = true), rest.onFocus?.(e))}
+      onBlur={(e) => ((editing.current = false), setDraft(value), rest.onBlur?.(e))}
+      onChange={(e) => (setDraft(e.target.value), onText(e.target.value))}
+    />
+  );
+}
 
 /**
  * A param's (or a station property's) field. It can be bound to a variable (#36): drop one
@@ -64,12 +87,12 @@ function Field({
   }
   if (def.type === "file" || def.type === "text") {
     return (
-      <input
+      <DraftInput
         className="nodrag text-param"
         disabled={disabled}
         value={String(value)}
         title={def.type === "file" ? "A file, relative to the backend's descriptor" : undefined}
-        onChange={(e) => set(e.target.value)}
+        onText={set}
       />
     );
   }
@@ -102,14 +125,14 @@ function VariableName({ value, set, disabled }: { value: string; set: (v: ParamV
   const unknown = !!value && !!vars && !vars.list.some((v) => v.name === value);
   return (
     <>
-      <input
+      <DraftInput
         className="nodrag text-param"
         list={list}
         disabled={disabled}
         value={value}
         title={unknown ? `No variable called "${value}"` : "A project variable"}
         aria-invalid={unknown}
-        onChange={(e) => set(e.target.value)}
+        onText={set}
         onDragOver={(e) => e.dataTransfer.types.includes(VAR_DRAG) && !disabled && e.preventDefault()}
         onDrop={(e) => {
           const name = draggedVariable();
