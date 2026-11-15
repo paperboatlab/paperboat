@@ -140,8 +140,8 @@ class Run {
   // A signal block's (or linked block's) outputs for this pass, into outputs_.
   void give_outputs(Node& node);
   // An algebraic loop's torn outputs, solved by Newton's method (Graph::loops), into outputs_;
-  // pass_over does it as it reaches the loop. Its blocks are called many times, so each must
-  // be stateless. Throws GraphError when it can't.
+  // pass_over does it as it reaches the loop. Its blocks are called many times: a stateless one
+  // by step(), one with state by Block::outputs_for. Throws GraphError when it can't.
   void solve_loop(const Loop& loop);
 
   // What the block evaluate() is calling depends on and does besides its outputs.

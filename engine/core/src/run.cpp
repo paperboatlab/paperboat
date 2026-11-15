@@ -777,11 +777,18 @@ void Run::solve_loop(const Loop& loop) {
     throw GraphError(first, "algebraic loop through " + through + ": " + why +
                                 ". Break it with a block that doesn't pass its input straight through (a delay, an integrator)");
   };
-  for (const auto& id : loop.blocks) {
-    const auto& node = g_.nodes.at(id);
-    if (node.block && !(node.commented && node.comment_mode == "through") && !node.block->stateless())
-      fail_with(id + " keeps state, so it can't be called again to solve the loop");
-  }
+  // A block with state gives its outputs without stepping (Block::outputs_for) while the loop
+  // is solved; step() advances it once, in the pass, from the solution.
+  const auto bypassed = [](const Node& node) { return node.commented && node.comment_mode == "through"; };
+  const auto give = [&](const std::string& id) {
+    auto& node = g_.nodes.at(id);
+    const auto call = calling(id);
+    if (!node.block || bypassed(node) || node.block->stateless()) return give_outputs(node);
+    auto out = node.block->outputs_for(ctx_, inputs_of(node));
+    if (!out) fail_with(id + " keeps state and can't give its outputs without stepping (Block::outputs_for)");
+    outputs_[id] = std::move(*out);
+    validate_vector_outputs(node, outputs_[id]);
+  };
   // Each torn output as numbers: a number is one, a vector its elements.
   std::vector<std::size_t> sizes;  // per torn output; 0: a number
   const auto read = [&](bool learn) {
@@ -815,10 +822,7 @@ void Run::solve_loop(const Loop& loop) {
   };
   const auto f = [&](const std::vector<double>& x) {  // what the loop gives back for x
     write(x);
-    for (const auto& id : loop.blocks) {
-      const auto call = calling(id);
-      give_outputs(g_.nodes.at(id));
-    }
+    for (const auto& id : loop.blocks) give(id);
     return read(false);
   };
   const auto norm = [](const std::vector<double>& v) {
@@ -827,12 +831,7 @@ void Run::solve_loop(const Loop& loop) {
     return m;
   };
   // The first guess: the loop once, from last pass's values (0 on the first).
-  {
-    for (const auto& id : loop.blocks) {
-      const auto call = calling(id);
-      give_outputs(g_.nodes.at(id));
-    }
-  }
+  for (const auto& id : loop.blocks) give(id);
   std::vector<double> x = read(true);
   const std::size_t n = x.size();
   // ponytail: dense Newton with a Jacobian of differences, n + 1 loop calls per iteration;

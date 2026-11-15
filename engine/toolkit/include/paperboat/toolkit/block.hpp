@@ -462,6 +462,17 @@ class Block {
   // clock alone. The run then takes a param change by making it again with the new params,
   // and a run-once may reuse its outputs (unless its BlockDef::cacheable says otherwise).
   virtual bool stateless() const { return false; }
+  // False for an instance whose outputs this step don't depend on its inputs this step, though
+  // its BlockDef::feedthrough says they may (a strictly proper transfer function): the run
+  // then treats it as a block without feedthrough (outputs() during the pass, step() after),
+  // so a feedback loop through it is not an algebraic loop. Asked once, when the graph is made.
+  virtual bool feedthrough() const { return true; }
+  // What step() would return for `in` now, without changing its state (Simulink's output
+  // function, apart from its update). The run calls it many times per pass to solve an
+  // algebraic loop through a block with state, then step() once with the solution. None (the
+  // default): it can't, and such a block in an algebraic loop fails the run. A stateless block
+  // needn't: step() is called instead.
+  virtual std::optional<Values> outputs_for(const Context& /*ctx*/, const Values& /*in*/) const { return std::nullopt; }
   // Its linear model at the operating inputs `in` (pb#370: a toolkit's linear analysis reads
   // it). The default is none: an analysis may linearize a stateless block by differences of
   // step(), and names any other block it can't.
