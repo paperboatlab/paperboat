@@ -37,7 +37,9 @@ void add_if(Registry& registry) {
     return std::make_unique<Branch>([](const Values& in, const Values&) { return holds(in, "cond"); }, p);
   };
   t.def.cacheable = true;  // a pure function of its params and inputs (a run-once reuses it)
-  t.def.view = {.compact = true, .icon = nlohmann::json::parse(R"({"w":1,"h":1,"g":[{"t":"line","p":[[10,30],[35,30]]},{"t":"line","p":[[10,70],[35,70]]},{"t":"ellipse","x":30,"y":25,"w":10,"h":10,"fill":"ink"},{"t":"ellipse","x":30,"y":65,"w":10,"h":10,"fill":"ink"},{"t":"line","p":[[35,30],[70,50]]},{"t":"line","p":[[70,50],[90,50]]},{"t":"line","p":[[50,10],[50,35]],"stroke":"muted","dash":"dash"}]})")};  // a selector switch; a Step-flow If keeps its card
+  // Each line meets its own port dot: cond (top, dashed) works the switch, a (middle) runs
+  // through to y, b (bottom) waits at an open contact. Ports sit at 1/4, 1/2 and 3/4 of the plate.
+  t.def.view = {.compact = true, .icon = nlohmann::json::parse(R"({"w":1,"h":1,"g":[{"t":"line","p":[[10,15],[50,15],[50,40]],"stroke":"muted","dash":"dash"},{"t":"line","p":[[10,50],[30,50]]},{"t":"ellipse","x":30,"y":45,"w":10,"h":10,"fill":"ink"},{"t":"line","p":[[40,50],[90,50]]},{"t":"line","p":[[10,85],[30,85]]},{"t":"ellipse","x":30,"y":80,"w":10,"h":10}]})")};  // a Step-flow If keeps its card
   registry.add(std::move(t));
 }
 
