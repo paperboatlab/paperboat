@@ -406,6 +406,22 @@ omc builds it. The dock's *Export backend* writes the real thing.
 the model and plots chosen variables. Switch variables on and off with the chips under the plot.
 Nothing leaves Studio: no block, board or backend is involved; put the model in a flow by exporting it.
 
+Help
+----
+
+The **Help** key at the end of the menus, or :kbd:`F1`, opens the same Help window in Paperboat
+and both Squero Studios: a search field, the matching topics, and the chosen page.
+
+- **Paperboat** lists a reference page for every block the backend offers, written from its
+  template: what it does, its inputs and outputs, and its parameters with their defaults and units.
+  :kbd:`F1` with a block selected opens that block's page.
+- **Squero Studio MX** shows Julia docstrings from the kernel (:kbd:`F1` on a word in the editor,
+  or ``?name``, ``help name`` and ``doc name`` in the console).
+- **Squero Studio OM** shows the Modelica library's own documentation; :kbd:`F1` with a part
+  selected opens its class, and links between classes stay in Help.
+
+Every app also lists its **Keyboard shortcuts**, read from its menus.
+
 Keyboard Shortcuts
 ------------------
 
@@ -419,6 +435,8 @@ Keyboard Shortcuts
      - Start or pause simulation run
    * - :kbd:`Ctrl` + :kbd:`K` (or :kbd:`Cmd` + :kbd:`K`)
      - Open Command Search palette
+   * - :kbd:`F1`
+     - Open Help, on the selected block, part or word
    * - :kbd:`/`
      - Quick add block at cursor (on Flow canvas)
    * - :kbd:`?`
