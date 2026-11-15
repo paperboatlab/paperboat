@@ -155,8 +155,8 @@ when its folder goes::
 
 The block pages are generated: ``docs/site/build.py`` takes the toolkit's catalog (the
 ``BlockDef`` list a backend sends; ``paperboat-catalog`` dumps it) and writes a page per block
-with its description, ports and params, and the block's ``doc.rst`` (or ``docs/blocks/<type>.rst``)
-as its prose. Write only what the catalog can't say. Build a toolkit's site locally with::
+with its description, block graphic (compact plate and card), ports and params, and the block's
+``doc.rst`` (or ``docs/blocks/<type>.rst``) as its prose. Write only what the catalog can't say. Build a toolkit's site locally with::
 
    python3 docs/site/build.py engine/toolkit/src/math/docs /tmp/math \
        --name toolkits/math --engine engine/build/tools/paperboat-catalog --blocks engine/toolkit/src/math
