@@ -25,7 +25,7 @@ exclude_patterns = ["_build"]
 
 html_theme = "shibuya"
 html_static_path = [str(HERE.parent / "_static")]
-html_css_files = ["fonts.css"]
+html_css_files = ["fonts.css", "blocks.css"]
 html_title = project
 html_baseurl = os.environ.get("PB_SITE_URL", ORG + SITE + "/")
 html_favicon = str(HERE.parent / "_static/favicon.svg")

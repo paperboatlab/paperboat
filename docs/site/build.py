@@ -22,6 +22,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from block_graphic import render_block_preview
+
 HERE = Path(__file__).resolve().parent
 
 
@@ -55,7 +57,7 @@ def param_row(p: dict) -> list[str]:
     return [f"``{p['id']}``", esc(p.get("type", "")), f"``{default}``" if default != "" else "", notes]
 
 
-def block_page(b: dict, prose: str) -> str:
+def block_page(b: dict, prose: str, connectors: dict | None = None) -> str:
     title = esc(b.get("label") or b["type"])
     facts = [f"``{b['type']}``"] + [esc(b["group"])] * bool(b.get("group"))
     if b.get("feedthrough") is False:
@@ -63,6 +65,8 @@ def block_page(b: dict, prose: str) -> str:
     if b.get("elementwise"):
         facts.append("element by element: vectors in, vectors out")
     out = f"{title}\n{'=' * len(title)}\n\n{esc(b.get('description', ''))}\n\n{' · '.join(facts)}\n\n"
+    preview = render_block_preview(b, connectors)
+    out += f".. raw:: html\n\n{indent(preview)}\n\n"
     if prose.strip():
         out += f".. container:: pb-prose\n\n{indent(prose)}\n\n"
     head = ["Port", "Type", "Unit", "Components"]
@@ -79,6 +83,7 @@ def block_page(b: dict, prose: str) -> str:
 
 def write_blocks(src: Path, catalog: dict, blocks_dir: Path | None) -> None:
     blocks = [b for b in catalog.get("blocks", []) if not b.get("linked")]
+    connectors = catalog.get("connectors")
     out = src / "blocks"
     out.mkdir(exist_ok=True)
     groups: dict[str, list[dict]] = {}
@@ -87,7 +92,7 @@ def write_blocks(src: Path, catalog: dict, blocks_dir: Path | None) -> None:
         fallback = out / f"{b['type']}.rst"
         prose = own.read_text() if own and own.exists() else fallback.read_text() if fallback.exists() else ""
         fallback.parent.mkdir(parents=True, exist_ok=True)
-        fallback.write_text(block_page(b, prose))
+        fallback.write_text(block_page(b, prose, connectors))
         groups.setdefault(b.get("group") or "blocks", []).append(b)
     index = "Blocks\n======\n\nEvery block of this toolkit, from its catalog.\n\n"
     for group, members in groups.items():

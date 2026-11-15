@@ -40,8 +40,9 @@ def _html(app, children, url):
 
 def _summary(children):
     # Its own text first; a section that is only subsections is summed up by them.
-    own = [c for c in children if not isinstance(c, nodes.section)]
-    text = " ".join(c.astext() for c in (own or children))
+    # Skip raw HTML blocks (such as the block preview) so markup never leaks into summaries.
+    own = [c for c in children if not isinstance(c, (nodes.section, nodes.raw))]
+    text = " ".join(c.astext() for c in (own or [c for c in children if not isinstance(c, nodes.raw)]))
     text = " ".join(text.split())
     return text[:157] + "…" if len(text) > 160 else text
 
