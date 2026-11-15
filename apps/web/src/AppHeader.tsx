@@ -40,6 +40,8 @@ type Props = {
   consoleRef?: Ref<HTMLButtonElement>;
   aboutShown: boolean;
   onAbout: () => void;
+  helpShown: boolean;
+  onHelp: () => void;
   mode: Mode;
   setMode: (m: Mode) => void;
   allowedModes: Mode[];
@@ -51,13 +53,14 @@ type Props = {
   setThemeChoice: (t: Theme) => void;
 };
 
-export function AppHeader({ state, running, commands, solver, projectTitle, dirty, onRenameProject, installToolkit, uninstallToolkit, requestedToolkits, restartBackend, toolkitVersions, errors, consoleShown, onConsole, consoleRef, aboutShown, onAbout, mode, setMode, allowedModes, projectLock, locked, onLock, onBackend, themeChoice, setThemeChoice }: Props) {
+export function AppHeader({ state, running, commands, solver, projectTitle, dirty, onRenameProject, installToolkit, uninstallToolkit, requestedToolkits, restartBackend, toolkitVersions, errors, consoleShown, onConsole, consoleRef, aboutShown, onAbout, helpShown, onHelp, mode, setMode, allowedModes, projectLock, locked, onLock, onBackend, themeChoice, setThemeChoice }: Props) {
   return (
     <AppBar
       brand={<Wordmark running={running} />}
       commands={commands}
       menuLabels={solver ? { run: `Run (${solver})` } : undefined}
       about={{ title: "About Paperboat", shown: aboutShown, onOpen: onAbout }}
+      help={{ shown: helpShown, onOpen: onHelp }}
       project={{ name: projectTitle, dirty, onRename: onRenameProject }}
     >
       <BarEnd

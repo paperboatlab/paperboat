@@ -34,7 +34,7 @@ import { count } from "./words";
 import { AppHeader } from "./AppHeader";
 import { StationView } from "./StationView";
 import { useBackendKeys } from "./backendKeys";
-import { MODES, PAGES, Panel, Rail, useThemeChoice, type Drawer, type Mode, type Page } from "./Shell";
+import { HelpWindow, MODES, PAGES, Panel, Rail, useThemeChoice, type Drawer, type Mode, type Page } from "./Shell";
 import type { StationControls } from "./StationGraph";
 import { withObject } from "./StationPanel";
 import { BackendWindow, Dock } from "./Dock";
@@ -42,7 +42,8 @@ import { ReplayBar } from "./ReplayBar";
 import { formatProbe, parseRecord, recordOf } from "./replay";
 import { pickText, saveText } from "./projectFiles";
 import { CommandSearch } from "./Menus";
-import { useShortcuts } from "./commands";
+import { helpCommand, useShortcuts } from "./commands";
+import { paperboatHelp } from "./help";
 import { MissingToolkitsDialog } from "./Toolkits";
 import { useUndo } from "./undo";
 import { LockDialog } from "./LockDialog";
@@ -106,6 +107,9 @@ export function App() {
   const [consoleShown, setConsoleShown] = useState(false);
   const consoleKey = useRef<HTMLButtonElement>(null);
   const [aboutShown, setAboutShown] = useState(false);
+  const [helpQuery, setHelpQuery] = useState<string | null>(null);
+  // A new provider when the backend's blocks change, so an open Help window lists them.
+  const helpProvider = useMemo(() => paperboatHelp(() => state.blocks), [state.blocks]);
   useEffect(() => setRunSettings({}), [state.engine]); // another backend: its own defaults
 
   // The Flow sheet's flow type, if one was chosen (#9); null: taken from its blocks.
@@ -427,14 +431,17 @@ export function App() {
 
   // ---- The commands (#78): what the menus, the command search and the shortcuts all run ----
   const { usesSolvers, currentSolver, solvers } = solverChoice(state, nodes, runSettings);
-  const commands = menuCommands({
+  // F1: the selected text, else the selected block's label.
+  const helpContext = () =>
+    window.getSelection()?.toString().trim().split("\n")[0].slice(0, 80) || nodes.filter(isBlock).find((n) => n.selected)?.data.def.label || "";
+  const commands = [...menuCommands({
     state, send, openFile, saveProject, lastSession, restore, recent, openProject, projectLock, unlocked, locked, lockedArrange, setLockModalOpen, setBackendOpen, restartBackend,
     history, undoOpen, flow, stationCanvas, setBrowser, running, variables, varsShown, setVarsShown,
     setSearchOpen, mode, setMode, allowedModes, pages, page, setPage, open, stationShown, setStationShown, stationDrawer, flowDrawer, view, themeChoice, setThemeChoice, consoleShown, setConsoleShown, aboutShown, setAboutShown, errors,
     gridOn, setGridChoice, cameraProjection, setCameraProjection, arrangeCanvas, arrange, setArrange,
     canRun, whyNotRun, run, usesSolvers, currentSolver, solvers, setRunSettings, setSolverOpen,
     loadRecord, saveRecord, startReplay: replayApi.start,
-  });
+  }), helpCommand(() => setHelpQuery(helpContext()))];
   useShortcuts(commands);
 
   // Analyses (pb#370): analysesOffered only when the backend lists one and a toolkit's web part shows it.
@@ -474,6 +481,8 @@ export function App() {
         consoleRef={consoleKey}
         aboutShown={aboutShown}
         onAbout={() => setAboutShown(!aboutShown)}
+        helpShown={helpQuery !== null}
+        onHelp={() => setHelpQuery("")}
         mode={mode}
         setMode={setMode}
         allowedModes={allowedModes}
@@ -633,6 +642,7 @@ export function App() {
       )}
       {consoleShown && <ConsoleWindow logs={state.logs} errors={errors} onBlock={showBlock} onClose={() => setConsoleShown(false)} triggerRef={consoleKey} />}
       {aboutShown && <AboutWindow state={state} onClose={() => setAboutShown(false)} />}
+      {helpQuery !== null && <HelpWindow app="Paperboat" provider={helpProvider} commands={commands} query={helpQuery} onClose={() => setHelpQuery(null)} />}
       {browser === "flow" && (
         <BrowserWindow
           title="Add a block"

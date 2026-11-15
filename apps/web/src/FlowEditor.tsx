@@ -449,8 +449,8 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
   );
 }
 
-/** What the canvas does with a pointer and keys, one line each. */
-const GESTURES: [string, string][] = [
+/** What the canvas does with a pointer and keys, one line each (the canvas's ? key and Help). */
+export const GESTURES: [string, string][] = [
   ["Add a block", "`/` or double-click the canvas"],
   ["Select", "Click a block · `Ctrl`-drag a box · `Ctrl`-click adds"],
   ["Rotate", "`R` turns clockwise · `Shift+R` counter-clockwise"],
