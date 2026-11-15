@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDismiss, useFocusReturn } from "@paperboat/shared/components";
-import { PackagePanel, PackageWindow } from "@paperboat/shared/packages";
+import { newerRelease, PackagePanel, PackageWindow } from "@paperboat/shared/packages";
 import { missingRequiredToolkits } from "./engine";
 import type { ToolkitStatus } from "./protocol";
 import { Spinner } from "./Spinner";
@@ -170,9 +170,11 @@ export function ToolkitsButton({
                   version: versionOf(t),
                   status: busyOf(t) ? `${busyOf(t)}…` : undefined,
                   keep: t.required ? "Required by this backend: it can't be removed" : undefined,
+                  update: newerRelease(versionOf(t), t.versions),
                 })),
               empty: "No optional toolkits installed. Add one from the registry.",
               remove: connected ? (name) => onUninstall(name) : undefined,
+              update: connected ? (name, v) => onInstall(name, v) : undefined,
               actions: [{ label: "Restart backend", title: "Restart the backend after installing or updating", disabled: !connected, run: () => (setOpen(false), onRestart()) }],
             }}
             registry={{
