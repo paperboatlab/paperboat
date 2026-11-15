@@ -236,6 +236,13 @@ Server::Server(const Backend& backend, int port) : state_(std::make_unique<State
             if (auto it = s.sessions.find(id); it != s.sessions.end()) gone = std::move(it->second), s.sessions.erase(it);
           }
           s.clear_remote(id);
+          // A run's own send can be what finds the socket closed: this callback then runs on the
+          // run's thread, which can't join itself (that aborted the backend). Mute the session and
+          // let another thread stop and join it.
+          if (gone && gone->on_own_thread()) {
+            gone->close();
+            std::thread([dying = std::move(gone)]() mutable { dying.reset(); }).detach();
+          }
         } else if (msg->type == ix::WebSocketMessageType::Message) {
           Session* session = nullptr;
           {
