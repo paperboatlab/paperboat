@@ -183,10 +183,16 @@ block is instantiated:
    - `vector` → an elementwise block's `signal` port (marked `broadcast`)
    - `numbers` (a list of numbers, #24) → `numbers`, `vector` or a `broadcast` port, one unit
    - `points` (a list of points, #24) → `points`, coordinates per point and their units matching
-3. **Cycle Detection**: Direct feedthrough cycles (algebraic loops) in Signal flows are
-   prohibited. A loop is permitted only if it is broken by a state-holding block (such as an
-   explicit `Delay` block, a `Step` flow path boundary, or a Station object's linked block
-   which evaluates in two decoupled stages: `read()` before the pass and `step()` after).
+3. **Algebraic Loops**: A loop broken by a block that reads its inputs after the pass (a
+   block without feedthrough such as `Delay` or `Integrator`, a `Step` block, or a Station
+   object's linked block: `read()` before the pass, `step()` after) is ordinary feedback. A
+   cycle of feedthrough blocks is an algebraic loop: the sort groups its blocks (a `Loop` in
+   `Graph::loops`), tears it at the first block left in graph order, and runs them together.
+   Each pass, as the run reaches the loop, it solves for the torn outputs by Newton's method
+   with a Jacobian of differences, then runs the loop's blocks once from the solution. Every
+   block in a loop must be stateless (`Block::stateless`), since solving calls it many times
+   per pass; torn outputs carry numbers or vectors. A block with state, a singular loop or
+   one that doesn't converge in 50 iterations fails the run naming a block in it.
 4. **Vector Lanes**: An elementwise block (`BlockDef::elementwise`) fed a vector, straight or
    through other elementwise blocks, runs as N lanes: N instances, each given its element of
    every vector input and every number input whole, their outputs gathered into vectors of N.

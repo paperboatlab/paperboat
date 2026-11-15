@@ -137,6 +137,12 @@ class Run {
   // What a block whose outputs may be reused is, for the cache: type, ports, params, text,
   // lanes, the run's dt and solver, its files. None for a block that is always called.
   std::optional<std::string> cache_signature(const Node& node) const;
+  // A signal block's (or linked block's) outputs for this pass, into outputs_.
+  void give_outputs(Node& node);
+  // An algebraic loop's torn outputs, solved by Newton's method (Graph::loops), into outputs_;
+  // pass_over does it as it reaches the loop. Its blocks are called many times, so each must
+  // be stateless. Throws GraphError when it can't.
+  void solve_loop(const Loop& loop);
 
   // What the block evaluate() is calling depends on and does besides its outputs.
   struct Recording {

@@ -165,7 +165,10 @@ TEST_CASE("a wire into a linked block is not a cycle; a missing station object f
 
   const json loop = {{"nodes", {{{"id", "a"}, {"type", "gain"}}, {{"id", "b"}, {"type", "gain"}}}},
                      {"edges", {{{"from", {"a", "y"}}, {"to", {"b", "u"}}}, {{"from", {"b", "y"}}, {"to", {"a", "u"}}}}}};
-  CHECK_THROWS_WITH(core::prepare_graph(loop, rig::catalog(), station), ContainsSubstring("cycle"));
+  const auto looped = core::prepare_graph(loop, rig::catalog(), station);  // an algebraic loop, solved by the run
+  REQUIRE(looped.loops.size() == 1);
+  CHECK(looped.loops.at("a").blocks == std::vector<std::string>{"a", "b"});
+  CHECK(looped.loops.at("a").torn == std::vector<core::PortRef>{{"b", "y"}});
 }
 
 TEST_CASE("a session sends the handshake, checks station edits and runs") {
@@ -918,7 +921,7 @@ TEST_CASE("graph.run's settings override the backend's run settings") {
   CHECK(steps_seen >= 5);
 }
 
-TEST_CASE("a feedback loop through a block without feedthrough runs; an algebraic loop fails, naming a block") {
+TEST_CASE("a feedback loop through a block without feedthrough runs; an unsolvable algebraic loop fails, naming a block") {
   // x' = -k x as a loop: integrator → gain (k = -2) → back into the integrator. No station
   // object closes it: the integrator gives its state before it reads its input.
   const json loop = {
@@ -945,6 +948,37 @@ TEST_CASE("a feedback loop through a block without feedthrough runs; an algebrai
   }));
   CHECK(std::ranges::any_of(bad.messages, [](const json& m) {
     return m["type"] == "log" && m["text"].get<std::string>().find("algebraic loop") != std::string::npos;
+  }));
+}
+
+TEST_CASE("an algebraic loop of stateless blocks is solved each pass; a block with state in one fails") {
+  static const tk::Catalog catalog =
+      tk::load_descriptor("domain = \"test\"\nimport = [\"base\", \"math\", \"dashboard\"]\n", tk::builtins());
+  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.05, .emit_every = 1, .real_time = false}};
+  // y = 2 (r - y), r = 1: y = 2/3. The monitor sits outside the loop, after it.
+  const json loop = {
+      {"nodes",
+       {{{"id", "r"}, {"type", "constant"}, {"params", {{"value", 1.0}}}},
+        {{"id", "e"}, {"type", "sum"}, {"params", {{"signs", "+-"}}}},
+        {{"id", "k"}, {"type", "gain"}, {"params", {{"k", 2.0}}}},
+        {{"id", "plot"}, {"type", "graph"}}}},
+      {"edges",
+       {{{"from", {"r", "y"}}, {"to", {"e", "a"}}},
+        {{"from", {"k", "y"}}, {"to", {"e", "b"}}},
+        {{"from", {"e", "y"}}, {"to", {"k", "u"}}},
+        {{"from", {"k", "y"}}, {"to", {"plot", "in"}}}}}};
+  Collected out;
+  REQUIRE(core::run("r", loop, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK_THAT(out.last_signal("plot"), WithinAbs(2.0 / 3.0, 1e-9));
+
+  // A PD controller keeps its last error: it can't be called again within a pass.
+  const json stateful = {{"nodes", {{{"id", "c"}, {"type", "pd"}}, {{"id", "k"}, {"type", "gain"}, {"params", {{"k", 0.5}}}}}},
+                         {"edges", {{{"from", {"c", "u"}}, {"to", {"k", "u"}}}, {{"from", {"k", "y"}}, {"to", {"c", "e"}}}}}};
+  Collected bad;
+  const core::Backend rig_backend{.engine = "test", .catalog = &rig::catalog(), .run = backend.run};
+  CHECK(core::run("r", stateful, nullptr, rig_backend, bad.emit(), nullptr, {}) == "failed");
+  CHECK(std::ranges::any_of(bad.messages, [](const json& m) {
+    return m["type"] == "log" && m["text"].get<std::string>().find("keeps state") != std::string::npos;
   }));
 }
 
@@ -1203,14 +1237,14 @@ TEST_CASE("commented out blocks are excluded from simulation and do not create c
   static const tk::Catalog catalog = tk::load_descriptor("domain = \"test\"\nimport = [\"math\", \"dashboard\"]\n", tk::builtins());
   const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.1, .emit_every = 1, .real_time = false}};
 
-  // Loop a -> b -> a normally causes a cycle error.
+  // Loop a -> b -> a is an algebraic loop.
   const json loop_normal = {
       {"nodes", {{{"id", "a"}, {"type", "gain"}, {"params", {{"k", 2.0}}}},
                  {{"id", "b"}, {"type", "gain"}, {"params", {{"k", 3.0}}}}}},
       {"edges", {{{"from", {"a", "y"}}, {"to", {"b", "u"}}},
                  {{"from", {"b", "y"}}, {"to", {"a", "u"}}}}}};
   core::Station empty;
-  CHECK_THROWS_WITH(core::prepare_graph(loop_normal, catalog, empty), ContainsSubstring("cycle"));
+  CHECK(core::prepare_graph(loop_normal, catalog, empty).loops.size() == 1);
 
   // With block 'a' commented out (mode = "out"), no cycle error occurs and b receives default 0.0.
   const json loop_commented = {

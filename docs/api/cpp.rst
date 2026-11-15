@@ -287,7 +287,8 @@ initializers may leave any out.
       ``false`` for a block whose outputs this step don't depend on its inputs this step (an
       integrator, a delay). Its :cpp:class:`Block` gives ``outputs()`` during the pass and
       takes its inputs in ``step()`` after it, so a feedback loop may pass through it. A loop
-      with no such block is an algebraic loop, and the run fails naming a block in it.
+      with no such block is an algebraic loop: the run solves it each pass if each of its
+      blocks is stateless, and otherwise fails naming a block in it.
 
    .. cpp:member:: std::vector<Form> forms
 
@@ -601,7 +602,8 @@ What runs
       ``set_param`` returns false the run then makes it again with the new params. A block
       that is neither takes the change with the next run (the Console says so, once). Unless
       its :cpp:member:`BlockDef::cacheable` says otherwise, a run-once may reuse a stateless
-      block's outputs from an earlier run.
+      block's outputs from an earlier run. Only stateless blocks may sit in an algebraic loop:
+      the run calls them many times per pass to solve it.
 
 .. cpp:class:: Step
 

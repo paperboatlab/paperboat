@@ -1,7 +1,7 @@
 """Protocol smoke test for any Paperboat backend.
 
 Connects to a running backend, checks the handshake, then runs the backend's own starter
-graph (from graph.load), a graph with a cycle, one with a block the backend doesn't have,
+graph (from graph.load), a graph with an algebraic loop, one with a block the backend doesn't have,
 and a cancelled run. Every message either way is checked against the protocol's JSON
 Schema (schema/paperboat-0.schema.json). Knows no domain, so every backend (simulation or
 not, any language, the C++ engine) must pass it. Exits non-zero on failure.
@@ -51,7 +51,7 @@ async def send(ws: ClientConnection, msg: dict, check_schema: bool = True) -> No
 def cycle_graph(blocks: list[dict]) -> dict:
     """Two copies of any block with a signal input and output, wired into a loop.
 
-    Step ports are skipped: a loop of steps is allowed (Repeat), a loop of signals is not.
+    Step ports are skipped: a loop of steps is a Repeat; a loop of signals is an algebraic loop.
     """
     def signal_ports(ports: list[dict]) -> list[str]:
         return [p["id"] for p in ports if p.get("type", "signal") != "step"]
@@ -138,9 +138,15 @@ async def main() -> None:
         else:
             await starter_and_cancel(ws, starter, monitors, hello["run"].get("duration", 10.0))
 
+        # An algebraic loop is solved, or (a block with state in it, no single solution)
+        # fails naming one of its blocks; either way the run ends.
         msgs = await run_until_finished(ws, cycle_graph(catalog["blocks"]))
-        check(msgs[-1]["status"] == "failed", f"cycle run status {msgs[-1]['status']}")
-        print("ok  cycle rejected")
+        status = msgs[-1]["status"]
+        check(status in ("done", "failed"), f"cycle run status {status}")
+        if status == "failed":
+            check(any(m["type"] == "node.state" and m["node"] in ("c1", "c2") and m["state"] == "failed" for m in msgs),
+                  "failed algebraic loop names none of its blocks")
+        print(f"ok  algebraic loop {'solved' if status == 'done' else 'rejected, block named'}")
 
         # A block the backend doesn't have (an old graph, another backend's): the run fails
         # and names it, so the UI can mark it.

@@ -34,6 +34,7 @@ struct Node {
   bool commented = false;
   std::string comment_mode = "out";  // "out" (omitted from execution) or "through" (bypassed)
   std::string comment = {};          // user notes or documentation
+  bool in_loop = false;              // one of an algebraic loop's blocks (Graph::loops)
 };
 
 // A fresh instance of a signal block `node` (as it was made: lanes, if it runs as lanes).
@@ -77,6 +78,13 @@ struct Story {
   std::vector<PortRef> release;    // outputs that read as unwired once the path leaves
 };
 
+// An algebraic loop: blocks with feedthrough wired in a cycle. Each pass the run solves for the
+// `torn` outputs (x = what the blocks give back for x), then runs `blocks` once in this order.
+struct Loop {
+  std::vector<std::string> blocks;  // in the order they run once `torn` is known
+  std::vector<PortRef> torn;        // outputs read before the blocks that give them have run
+};
+
 struct Graph {
   std::map<std::string, Node, std::less<>> nodes;
   std::vector<std::string> order;            // signal blocks outside stories, dependencies first
@@ -87,6 +95,7 @@ struct Graph {
   std::map<std::string, Story, std::less<>> stories;  // by group id (also its node's id)
   std::map<std::string, std::string> story_of;        // block id → its story's id
   std::deque<toolkit::CatalogEntry> own;     // definitions the graph makes (a story's node)
+  std::map<std::string, Loop, std::less<>> loops;     // algebraic loops, by their first block's id
 };
 
 // Check `graph` against the catalog and the station; make its blocks. `groups` (optional):
@@ -97,9 +106,9 @@ struct Graph {
 // The graph's `flow`, if given, is its sheet's flow type: each block must work in it (a story's
 // blocks in a Signal flow; toolkit::flow_mismatch).
 // Wires must join ports of one type (step, signal, image…); a step output leads to one block;
-// signal wires may not loop (linked blocks have no feedthrough, so wires into them don't
-// count). Throws GraphError.
-// `loops`: allow algebraic loops (an analysis solves them; a run can't), blocks in one in graph order.
-Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station& station, bool loops = false);
+// a cycle of signal wires through blocks with feedthrough (an algebraic loop; wires into linked
+// blocks, steps and blocks without feedthrough don't count) becomes a Loop the run solves.
+// Throws GraphError.
+Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station& station);
 
 }  // namespace paperboat::core
