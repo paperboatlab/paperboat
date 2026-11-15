@@ -2,7 +2,7 @@
 // done to them all at once.
 
 import { NodeToolbar, Position } from "@xyflow/react";
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { useDismiss } from "@paperboat/shared/components";
 import type { Expose, GroupData, GroupNode } from "./groups";
 import { isBlock, portsOf, type BlockNode, type FlowNode, type Wire } from "./flowModel";
@@ -35,6 +35,8 @@ type Props = {
 };
 
 export function SelectionDialog({ pickedNodes, pickedBlocks, pickedWires, pickedFrames, isVisible, roomAbove, allCommented, kept, canGroup, canFrame, canStory, toggleComment, removePicked, group, ungroup, update, levelGroup, pickedBlock, analyse }: Props) {
+  /** The group unfolded by hover or focus: its actions slide out in brackets, the rest of the bar dims. */
+  const [open, setOpen] = useState<string | null>(null);
   const counted = (n: number, one: string) => (n ? [`${n} ${one}${n === 1 ? "" : "s"}`] : []);
   const summary = [
     ...counted(pickedNodes.filter(isBlock).length, "block"),
@@ -47,70 +49,54 @@ export function SelectionDialog({ pickedNodes, pickedBlocks, pickedWires, picked
       isVisible={isVisible}
       position={roomAbove ? Position.Top : Position.Bottom}
       offset={14}
-      className="selection-dialog nodrag nopan nowheel"
+      className={`selection-dialog nodrag nopan nowheel${open ? " hud-on" : ""}`}
     >
       <span className="lbl">{summary}</span>
-      <button
-        className="key small"
-        disabled={pickedBlocks.length === 0}
-        title={allCommented ? "Uncomment selected blocks (Ctrl+/)" : "Comment out selected blocks (Ctrl+/)"}
-        onClick={() => toggleComment("out")}
-      >
-        {allCommented ? "Uncomment" : "Comment"}
-      </button>
-      <button
-        className="key small"
-        disabled={pickedBlocks.length === 0}
-        title="Bypass (comment through) selected blocks (Ctrl+Shift+Y)"
-        onClick={() => toggleComment("through")}
-      >
-        Bypass
-      </button>
-      <button
-        className="key small"
-        disabled={kept === pickedNodes.length && pickedWires.length === 0}
-        title="Delete the selection (Delete)"
-        onClick={removePicked}
-      >
-        Delete
-      </button>
-      <button
-        className="key small"
-        disabled={!canGroup}
-        title={canGroup ? "Make the selection a subsystem: one block here, its insides on their own level (double-click it to open)" : "Pick blocks or groups in the same place (not some in a frame)"}
-        onClick={() => group("subsystem")}
-      >
-        Group
-      </button>
-      <button
-        className="key small"
-        disabled={!canStory}
-        title={canStory ? "Make the selected blocks a story: one step of a Step flow" : "A story holds signal blocks only: no step ports"}
-        onClick={() => group("story")}
-      >
-        Story
-      </button>
-      <button className="key small" disabled={!canFrame} title="Draw a frame round the selected blocks (tidy; they stay on this level and run as before)" onClick={() => group("visual")}>
-        Frame
-      </button>
-      <button
-        className="key small"
-        disabled={pickedFrames.length === 0}
-        title="Ungroup: put the selected groups' blocks back on this level"
-        onClick={() => pickedFrames.forEach((f) => ungroup(f.id))}
-      >
-        Ungroup
-      </button>
-      {analyse && (
+      <div className="hud" onPointerLeave={() => setOpen(null)}>
+        <HudGroup
+          id="comment"
+          label={allCommented ? "Uncomment" : "Comment"}
+          open={open}
+          setOpen={setOpen}
+          items={[
+            { label: allCommented ? "Uncomment" : "Comment out", keys: "Ctrl+/", title: "Leave the blocks out of the run", disabled: pickedBlocks.length === 0, run: () => toggleComment("out") },
+            { label: "Bypass", keys: "Ctrl+Shift+Y", title: "Pass each block's input straight to its output", disabled: pickedBlocks.length === 0, run: () => toggleComment("through") },
+          ]}
+        />
+        <HudGroup
+          id="group"
+          label="Group"
+          open={open}
+          setOpen={setOpen}
+          items={[
+            { label: "Subsystem", title: canGroup ? "One block here, its insides on their own level (double-click it to open)" : "Pick blocks or groups in the same place (not some in a frame)", disabled: !canGroup, run: () => group("subsystem") },
+            ...(canStory ? [{ label: "Story", title: "One step of a Step flow", run: () => group("story") }] : []),
+            { label: "Frame", title: "A frame round them: tidy, they stay on this level and run as before", disabled: !canFrame, run: () => group("visual") },
+            ...(pickedFrames.length ? [{ label: "Ungroup", title: "Put the selected groups' blocks back on this level", run: () => pickedFrames.forEach((f) => ungroup(f.id)) }] : []),
+          ]}
+        />
+        {analyse && (
+          <button
+            className="key small hud-key"
+            disabled={pickedBlocks.length + pickedFrames.length === 0}
+            title="Analyse the selection outside the flow: its inputs fed from outside, its outputs read outside"
+            onClick={analyse}
+            onPointerEnter={() => setOpen(null)}
+          >
+            Analyse
+          </button>
+        )}
         <button
-          className="key small"
-          disabled={pickedBlocks.length + pickedFrames.length === 0}
-          title="Analyse the selection outside the flow: its inputs fed from outside, its outputs read outside"
-          onClick={analyse}
+          className="key small icon-key hud-delete"
+          disabled={kept === pickedNodes.length && pickedWires.length === 0}
+          title="Delete the selection (Delete)"
+          aria-label="Delete the selection"
+          onClick={removePicked}
+          onPointerEnter={() => setOpen(null)}
         >
-          Analyse
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5M7 7v4M9 7v4" /></svg>
         </button>
-      )}
+      </div>
       {levelGroup && pickedBlock && <ExposeMenu block={pickedBlock} group={levelGroup} set={(expose) => update(levelGroup.id, { expose })} />}
       {kept > 0 && (
         <span className="lbl kept" title="Linked blocks come from the backend's own graph">
@@ -150,5 +136,37 @@ function ExposeMenu({ block, group, set }: { block: BlockNode; group: GroupNode;
         ))}
       </div>
     </details>
+  );
+}
+
+type HudItem = { label: string; keys?: string; title: string; disabled?: boolean; run: () => void };
+
+/**
+ * One group of the selection bar: its name, and its actions folded away until it is hovered or
+ * focused. Then they slide out one after another inside corner brackets, each with its keys. A
+ * click on the name pins it open (touch), Escape folds it.
+ */
+function HudGroup({ id, label, items, open, setOpen }: { id: string; label: string; items: HudItem[]; open: string | null; setOpen: (id: string | null) => void }) {
+  const on = open === id;
+  return (
+    <div
+      className={`hud-group${on ? " on" : ""}`}
+      onPointerEnter={() => setOpen(id)}
+      onFocus={() => setOpen(id)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(null); }}
+      onKeyDown={(e) => { if (e.key === "Escape" && on) { e.stopPropagation(); setOpen(null); } }}
+    >
+      <button className="hud-head" aria-expanded={on} onClick={() => setOpen(on ? null : id)}>
+        {label}
+      </button>
+      <span className="hud-items" role="group" aria-label={label} inert={!on}>
+        {items.map((item, i) => (
+          <button key={item.label} className="hud-item" style={{ "--i": i } as CSSProperties} disabled={item.disabled} title={item.title} onClick={item.run}>
+            {item.label}
+            {item.keys && <kbd>{item.keys}</kbd>}
+          </button>
+        ))}
+      </span>
+    </div>
   );
 }

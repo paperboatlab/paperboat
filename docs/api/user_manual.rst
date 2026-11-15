@@ -210,12 +210,12 @@ During iterative testing, tuning, and debugging, you can temporarily disable or 
 without deleting them, losing parameters, or rewiring ports:
 
 - **Comment Out** (:kbd:`Ctrl` + :kbd:`/` or :menuselection:`Edit --> Comment out`):
-  Select one or more blocks and press :kbd:`Ctrl` + :kbd:`/` (or click **Comment** on the
+  Select one or more blocks and press :kbd:`Ctrl` + :kbd:`/` (or **Comment ▸ Comment out** on the
   floating selection toolbar). The blocks dim to muted opacity with a ``// commented`` tag,
   and connected wires dim. Commented-out blocks are excluded from simulation; downstream blocks
   cleanly receive default unwired values (:code:`0.0`). Feedback loops through commented-out
   blocks do not produce algebraic loop cycle errors.
-- **Comment Through / Bypass** (:kbd:`Ctrl` + :kbd:`Shift` + :kbd:`Y` or click **Bypass**):
+- **Comment Through / Bypass** (:kbd:`Ctrl` + :kbd:`Shift` + :kbd:`Y`, or **Comment ▸ Bypass** in the selection bar):
   Bypasses the block's internal computation and passes signals directly from input ports
   to matching output ports (e.g. single-input single-output blocks like PID controllers,
   gains, delays, or filters pass ``in`` directly to ``out``). In Step flows, execution tokens
