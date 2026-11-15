@@ -1,26 +1,14 @@
-// Paperboat's side of the shared Help window: a few guide pages, the manual, and a reference page
-// for every block the backend offers, written from its template (what it does, ports, params).
-import { matches, type BlockDef, type HelpItem, type HelpPage, type HelpProvider, type ParamDef, type PortDef } from "@paperboat/shared";
+// Paperboat's side of the shared Help window: a reference page for every block the backend offers,
+// written from its template (what it does, ports, params) with its toolkit's prose under it, and
+// the docs of the engine and every toolkit (paperboatlab.github.io), searched with them.
+import { docsHelp, DOCS_URL, loadDocs, matches, type BlockDef, type HelpItem, type HelpPage, type HelpProvider, type ParamDef, type PortDef } from "@paperboat/shared";
 
-export const DOCS = "https://paperboatlab.github.io/paperboat/";
+/** The org's docs site; VITE_DOCS_URL points Help at another build (a local one, to try docs out). */
+export const DOCS: string = import.meta.env?.VITE_DOCS_URL ?? DOCS_URL;
 
-const GUIDES: (HelpItem & { text: string; link?: HelpPage["link"] })[] = [
-  {
-    id: "guide:start", title: "Getting started", kind: "guide", summary: "Station, Flow, Board and the view modes",
-    text: `A project has three pages: the Station (the 3D scene), the Flow (the block diagram) and the Board (instruments and controls).
-
-- Add a block with \`/\` or a double-click on the Flow; wire an output port to an input port.
-- Run starts the simulation in the backend; the Board's scopes, displays and graphs show it live.
-- Navigator shows one page at a time; Commander puts the Station and Flow over the Board; Lookout puts the Board in the middle.
-- Toolkits (top bar) installs more blocks; the Console lists what the backend says.`,
-    link: { label: "User manual", href: `${DOCS}user_manual.html` },
-  },
-  {
-    id: "guide:manual", title: "User manual", kind: "guide", summary: "the whole manual, online",
-    text: "The manual covers every page, the canvas, the Board, projects, runs and keyboard shortcuts in depth.",
-    link: { label: "Open the user manual", href: `${DOCS}user_manual.html` },
-  },
-];
+type Docs = ReturnType<typeof docsHelp>;
+/** The engine's and the toolkits' docs, fetched on Help's first look and kept for the session. */
+const engineDocs: Docs = docsHelp(() => loadDocs((s) => s.site === "paperboat" || s.site.startsWith("toolkits/"), DOCS), DOCS);
 
 const BLOCK = "block:";
 
@@ -45,20 +33,22 @@ export function blockPage(b: BlockDef): HelpPage {
   return { title: b.label, kind: b.group ?? "block", text: parts.join("\n\n") };
 }
 
-/** The Help provider: guides, then blocks matched by label, type, group or description. */
-export function paperboatHelp(blocks: () => readonly BlockDef[]): HelpProvider {
+/** The Help provider: blocks matched by label, type, group or description, and the docs. */
+export function paperboatHelp(blocks: () => readonly BlockDef[], docs: Docs = engineDocs): HelpProvider {
   const item = (b: BlockDef): HelpItem => ({ id: BLOCK + b.type, title: b.label, kind: b.group ?? "block", summary: b.description ?? b.type });
   return {
-    items(query) {
-      const guides = GUIDES.filter((g) => matches(g, query));
-      const found = blocks().filter((b) => !b.linked && (matches(item(b), query) || b.type.includes(query.toLowerCase())));
-      return [...guides, ...found.map(item)];
+    async items(query) {
+      const found = blocks().filter((b) => !b.linked && (matches(item(b), query) || b.type.includes(query.toLowerCase()))).map(item);
+      const pages = await docs.items(query);
+      // No query: the docs' contents first; a query: the blocks it names first.
+      return query.trim() ? [...found, ...pages] : [...pages, ...found];
     },
-    page(id) {
-      const guide = GUIDES.find((g) => g.id === id);
-      if (guide) return { title: guide.title, kind: "guide", text: guide.text, link: guide.link };
+    async page(id) {
       const b = blocks().find((one) => BLOCK + one.type === id);
-      return b ? blockPage(b) : null;
+      if (!b) return docs.page(id);
+      const prose = await docs.blockProse(b.type, b.group);
+      return prose ? { ...blockPage(b), html: `<h3>Notes</h3>${prose}` } : blockPage(b);
     },
+    link: (href) => docs.link?.(href) ?? null,
   };
 }

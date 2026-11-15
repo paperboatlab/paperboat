@@ -1,52 +1,38 @@
-# Sphinx configuration for the Paperboat documentation (docs/api).
-# Build: npm run docs   (or ./scripts/build_docs.sh)
-#
-# The theme is Shibuya, styled with Paperboat fonts and orange accent.
+# The engine's docs site: the shared settings (docs/site/pbsite.py) plus its top-bar menus.
+# Build: npm run docs   (or python3 docs/site/build.py docs/api <out>)
 
-project = "Paperboat"
-author = "Paperboat"
-release = "0"
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.environ.get("PB_SITE_DIR") or str(Path(__file__).resolve().parents[1] / "site"))
+from pbsite import *  # noqa: E402,F401,F403
+from pbsite import ORG, html_theme_options  # noqa: E402
+
+project = html_title = "Paperboat"
 version = "0 (protocol paperboat/0)"
-
-extensions = ["sphinx.ext.githubpages"]
-exclude_patterns = ["_build"]
-
-html_theme = "shibuya"
-html_static_path = ["../_static"]
-html_css_files = ["fonts.css"]
-html_title = "Paperboat"
-html_baseurl = "https://paperboatlab.github.io/paperboat/"
-html_favicon = "../_static/favicon.svg"
-html_show_sphinx = False
-highlight_language = "none"
-primary_domain = None
 cpp_index_common_prefix = ["paperboat::"]
 
-html_theme_options = {
-    "accent_color": "orange",
-    "color_mode": "auto",
-    "light_logo": "_static/logo-light.svg",
-    "dark_logo": "_static/logo-dark.svg",
-    "github_url": "https://github.com/paperboatlab/paperboat",
-    "nav_links": [
-        {
-            "title": "Manuals",
-            "children": [
-                {"title": "User Manual", "url": "user_manual"},
-                {"title": "Technical Manual", "url": "technical_manual"},
-                {"title": "Tutorials", "url": "tutorials"},
-                {"title": "Quickstart", "url": "quickstart"},
-            ],
-        },
-        {
-            "title": "API Reference",
-            "children": [
-                {"title": "C++ SDK", "url": "cpp"},
-                {"title": "Python SDK", "url": "python"},
-                {"title": "Toolkit", "url": "toolkit"},
-                {"title": "Protocol", "url": "protocol"},
-                {"title": "Descriptors", "url": "descriptor"},
-            ],
-        },
-    ],
-}
+html_theme_options["github_url"] = "https://github.com/paperboatlab/paperboat"
+html_theme_options["nav_links"] = [
+    {
+        "title": "Manuals",
+        "children": [
+            {"title": "User Manual", "url": "user_manual"},
+            {"title": "Technical Manual", "url": "technical_manual"},
+            {"title": "Tutorials", "url": "tutorials"},
+            {"title": "Quickstart", "url": "quickstart"},
+        ],
+    },
+    {
+        "title": "API Reference",
+        "children": [
+            {"title": "C++ SDK", "url": "cpp"},
+            {"title": "Python SDK", "url": "python"},
+            {"title": "Writing a toolkit", "url": "toolkit"},
+            {"title": "Protocol", "url": "protocol"},
+            {"title": "Descriptors", "url": "descriptor"},
+        ],
+    },
+    {"title": "All docs", "url": ORG},
+]

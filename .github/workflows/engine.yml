@@ -55,6 +55,21 @@ jobs:
         run: |
           ctest --test-dir engine/build --output-on-failure
           python3 scripts/check_bundle.py --self-test
+      # Each built-in package's docs site (engine/toolkit/src/<package>/docs), its block pages from
+      # the catalog this build dumps. The org site (paperboatlab.github.io) builds them the same way.
+      - uses: actions/setup-python@v5
+        if: matrix.sundials == 'ON' && matrix.shared == 'OFF'
+        with:
+          python-version: "3.12"
+      - name: Toolkit docs (Sphinx, warnings as errors)
+        if: matrix.sundials == 'ON' && matrix.shared == 'OFF'
+        run: |
+          pip install sphinx shibuya
+          for docs in engine/toolkit/src/*/docs; do
+            pkg=$(basename "$(dirname "$docs")")
+            python3 docs/site/build.py "$docs" "$RUNNER_TEMP/docs/$pkg" --name "toolkits/$pkg" \
+              --engine engine/build/tools/paperboat-catalog --blocks "$(dirname "$docs")"
+          done
 
 
   engine-macos:

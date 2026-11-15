@@ -314,15 +314,11 @@ all three. `docs/gen_tokens.py` writes `docs/_static/tokens.css` from `src/token
 font imports become `@font-face` rules for the Geist files in `docs/_static/fonts`, so the
 docs make no network requests); CI fails if it is out of date. Run it after changing a token.
 
-- **API reference:** a theme on Sphinx's `basic` (`docs/api/_themes/paperboat`), rules in
-  `docs/_static/docs.css`. The rail on the left holds the contents (the current page boxed in
-  ink, the rest grey), search (a well and a key) and the theme choice; the page is a panel.
-  Text is 15px sans (reading, not UI), code is mono in a recessed grey well, signatures are
-  raised grey plates with the name in weight, tables have hairlines only. Links are ink with
-  an underline, never blue; code has no colour beyond ink and grey. Notes are plates with a
-  hairline: the signal colour for a warning, red for danger.
-- **Themes:** light and dark follow the system; `[ auto ]  light  dark` in the rail picks one
-  (kept in this browser, key `paperboat.docs.theme`, also read by the plan page).
+- **Docs sites:** the Shibuya Sphinx theme with the app's fonts and orange accent
+  (`docs/site/pbsite.py`), shared by every site on the org site (the engine, each toolkit, each
+  program). The org site's hub (`paperboatlab.github.io`) is flat mono like the app: grey
+  panels, hairline cards, ink, and the signal colour only for a failed or stale site.
+- **Themes:** light and dark follow the system; the theme key in the top bar picks one.
 - **Plan page:** its own names (`--bg`, `--accent`…) are aliases of the tokens, so it needs no
   palette of its own: ink and grey, with the signal colour for what is live.
 - A docs-only value is not allowed: it goes in as a token first, like any other.
