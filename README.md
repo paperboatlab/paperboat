@@ -8,7 +8,7 @@
 <p align="center">A framework for engineering apps: set up a scene, wire a node graph, run it and<br>
 watch the results live. Backends are written in C++ or Python; the web UI builds itself from
 what they send.<br><br>
-📖 <strong>Documentation website: <a href="https://paperboatlab.github.io/paperboat/">https://paperboatlab.github.io/paperboat/</a></strong></p>
+📖 <strong>Documentation: <a href="https://paperboatlab.github.io/">paperboatlab.github.io</a></strong> (the engine, every toolkit and every program)</p>
 
 <p align="center"><img src=".github/readme/demo.gif" width="100%" alt="Paperboat demo in two parts. A 3D cart-pole: on the Station its initial angle theta0 is raised from 0.15 to 0.5 rad, the Flow page shows the two PIDs that balance it, Run is pressed on the Station, the cart swings back under the pole and centres, and the Board plots x and theta with their readouts. Then a 2D runner: on the Flow page the Jump strength goes from 10 to 12, Run is pressed on its Station, the runner jumps the crates, and the Board plots its jumps (y) and its height"></p>
 
@@ -28,14 +28,16 @@ Linux alone. Everything runs on `dev` and `main`.
 
 ## Documentation
 
-Full documentation, guides, and API references are hosted on GitHub Pages:  
-👉 **[paperboatlab.github.io/paperboat](https://paperboatlab.github.io/paperboat/)**
+Every repository's docs are one site, **[paperboatlab.github.io](https://paperboatlab.github.io/)**:
+the engine's at **[/paperboat](https://paperboatlab.github.io/paperboat/)**, each toolkit's at
+`/toolkits/<name>/` and each program's at `/apps/<name>/`. The app's Help window (F1) searches them.
 
 - **[User Manual](https://paperboatlab.github.io/paperboat/user_manual.html)** — UI, view modes (Navigator, Commander, Lookout), Station, Flow, and Board
 - **[Technical Manual](https://paperboatlab.github.io/paperboat/technical_manual.html)** — Engine architecture, WebSocket protocol (`paperboat/0`), graph scheduling
 - **[Tutorials](https://paperboatlab.github.io/paperboat/tutorials.html)** — Step-by-step guides for custom C++ and Python backends
 - **[Quickstart](https://paperboatlab.github.io/paperboat/quickstart.html)** — Navigation, controls, and keyboard shortcuts
-- **[API Reference](https://paperboatlab.github.io/paperboat/cpp.html)** — C++ SDK, Python SDK, Toolkit, Descriptors, and Protocol
+- **[API Reference](https://paperboatlab.github.io/paperboat/cpp.html)** — C++ SDK, Python SDK, writing a toolkit, Descriptors, and Protocol
+- **[Toolkits](https://paperboatlab.github.io/#toolkits)** — every block, by package, with its ports and params
 
 Every app follows one shape:
 
@@ -73,7 +75,8 @@ protocol/                 WebSocket protocol spec, JSON Schema, smoke_test.py an
   09-modular-synth-cpp/        vector wires [6], six-voice synth, Scope and Speaker (C++)
   10-train-pantograph-cpp/     active pantograph regulator, catenary, arcing (C++/Modelica)
   legacy/                      the nine earlier backends, archived for reference
-docs/                     plan, and the API reference (docs/api; live at https://paperboatlab.github.io/paperboat/)
+docs/                     plan, the API reference (docs/api; live at https://paperboatlab.github.io/paperboat/) and
+                          site/, the builder every docs site uses (HTML and the Help bundle)
 ```
 
 The UI has no domain code. The backend sends a block catalog, a scene and a starter

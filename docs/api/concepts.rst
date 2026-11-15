@@ -56,6 +56,21 @@ a domain registers its own in a package
 named after the domain. A **descriptor** (:doc:`descriptor`) picks which packages and
 templates an app offers, customises them and holds the starters. It never defines a block.
 
+.. _elementwise:
+
+Elementwise blocks
+------------------
+
+A block marked ``elementwise`` (a catalog flag; its signal ports carry ``broadcast``) is
+written for one number but takes a vector wire too: Gain on a 6-vector scales all six.
+With only numbers in, it works as before. With a vector in, every vector into it must
+have one length N, numbers broadcast to every element, and the outputs are vectors of N
+with the input vector's component labels. Stateful ones keep one state per element: an
+Integrator fed a 3-vector holds three integrals, a PID three controllers. The length is
+found from the wires before the run, so a vector loop through an Integrator works; if it
+can't be (a vector of a length known only at run time feeding an Integrator), the run fails
+naming the block. A block's reference page says when it is elementwise.
+
 Flow types and run styles
 -------------------------
 

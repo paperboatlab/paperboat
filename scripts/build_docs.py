@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build Paperboat Sphinx documentation (docs/api -> docs/api/_build).
+"""Build the engine's docs site (docs/api -> docs/api/_build) with docs/site/build.py.
 
 Usage:
     python3 scripts/build_docs.py               # Build docs with warnings as errors
@@ -51,19 +51,12 @@ def build_docs(clean: bool = False, extra_args: list[str] | None = None) -> int:
     """Run sphinx-build."""
     sync_tokens()
 
-    if clean and BUILD_DIR.exists():
+    if BUILD_DIR.exists():  # build.py always rebuilds every page (help.json needs them all)
         print(f"[clean] Removing {BUILD_DIR.relative_to(ROOT)}...")
         shutil.rmtree(BUILD_DIR)
 
-    cmd = [
-        "sphinx-build",
-        "-W",  # Treat warnings as errors
-        "-b", "html",
-    ]
-    if clean:
-        cmd.extend(["-a", "-E"])
-
-    cmd.extend([str(DOCS_DIR), str(BUILD_DIR)])
+    # The same builder as the org site (docs/site/build.py): HTML plus help.json.
+    cmd = [sys.executable, str(ROOT / "docs/site/build.py"), str(DOCS_DIR), str(BUILD_DIR)]
     if extra_args:
         cmd.extend(extra_args)
 

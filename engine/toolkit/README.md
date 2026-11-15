@@ -7,16 +7,17 @@ its domain state).
 
 ## Templates
 
-| Package   | Templates |
-| --------- | --------- |
-| `base`    | What every domain needs, in every flow type. Values of each datatype: `constant` (Number, a float), `text` (Text), `boolean` (Boolean: 1 or 0), `variable` (a project variable's value by its `name`; live if the variable is `tunable`) · input: `key` (1 while its `key` param's key is held, from the UI's `input` messages) · logic, as magic blocks (two forms, picked by the `form` param: `signal` computes `y`, `step` branches `in` → `yes`/`no`): `if` (signal: `a` while `cond` holds, else `b`), `and`, `or`, `not`, `compare` (`op`) |
-| `signal`  | Signals f(t): t is the block's input `t` when wired (a step's `progress`), else the run clock. C++: `clock`, `fft` (the amplitude spectrum of the last N samples via pocketfft, and its strongest frequency), and the abstract parent `generator` (f is an expression). TOML definitions on it (`src/signal/blocks.toml`): `sine`, `step`, `ramp`, `square`, `ease` (shape a 0–1 progress; `shape`: in-out, in, out, linear), `function` (f(t): type f on the block; its free names are its inputs, with t as the clock when unwired) |
-| `math`    | Pointwise arithmetic on signals: `gain`, `sum`, `threshold`, `saturation`, and special functions from Boost.Math: `erf`, `gamma` (gamma/log-gamma/digamma), `bessel` (J/Y/I/K, of any order), `distribution` (normal/uniform/exponential pdf, cdf or quantile). Matrices on `matrix` ports: `matrix_constant` (MATLAB-style rows), `transpose`, `inverse` and `determinant` (Eigen), `multiply`, `solve`, `scale`, `identity`, `size` |
-| `dashboard` | Monitors, shown on the Dashboard as instruments: `graph` (plots its input over time), `display` (its latest value as a number or text), `scope`, `lamp` (on while its input passes `threshold` by `op`; `latch`; outputs `y`), `view3d` (the Station's 3D scene, objects and meshes), and the `switch` control |
-| `step`    | The path of a Step flow (`flows = ["step"]`), with step ports. Hats: `start` (once), `when` (each time signal `cond` rises, e.g. a key; a path alongside the others). Then `wait` (`seconds`), `repeat` (leaves by `loop` `times` times, then `done`), `stop` (ends the whole run). Branch with a `base` logic block in its step form |
-| `optimization` | External optional toolkit (`paperboat-toolkit-optimization`, installed into `engine/toolkit/optimization`; `paperboat::toolkit_optimization`, `register_optimization`). Step blocks from a JSON file: `qp` (min ½xᵀPx + qᵀx), `lp` (min cᵀx) and `nlp` (min f(x), Ipopt when built), with `l ≤ Ax ≤ u`; step `in`/`out` and outputs `x`, `objective`, `iterations`, `status` |
-| `control` (external) | External optional toolkit (`paperboat-toolkit-control`, installed into `engine/toolkit/control`; `paperboat::toolkit_control`, `register_control`). Clock dynamics (`flows = ["signal", "step"]`): `pid`, and without direct feedthrough (a feedback loop may pass through them) `integrator`, `lag`, `delay` (`steps`, `initial`). Links the optimization `Workspace` for per-step Signal blocks: `mpc` (condensed QP from `A`, `B`, `Q`, `R`, `N`, `u` bounds), `lp_step` (LP every step), `nmpc` (NLP every step, needs Ipopt); outputs `u`, `status`, `iterations`, `solve_time` |
-| `opencv`  | External optional toolkit (`paperboat-toolkit-opencv`, installed into `engine/toolkit/opencv`; `paperboat::toolkit_opencv`, `register_opencv`). Image stages on `image` ports: geometry (`resize`, `crop`, `flip`, `rotate`), colour/tone (`gray`, `convert`, `normalize`, `equalize`, `clahe`), filters/edges (`blur`, `median`, `threshold`, `adaptive_threshold`, `hsv_range`, `canny`, `sobel`, `laplacian`, `erode`, `dilate`, `open`, `close`, `invert`, `distance`), algebra (`bitwise`, `blend`, `absdiff`, `background`), analysis (`stats`, `centroid`, `contours`, `hough_lines`, `hough_circles`, `template_match`), annotation/output (`draw`, `save`) · monitor: `view` (an image instrument) · station: `image` (a picture from a `file` prop; its linked block outputs it) · examples: `ocv-01`…`ocv-03` under `examples/` |
+Every package's blocks, with their ports and params, are on its docs site, generated from the
+catalog: [base](https://paperboatlab.github.io/toolkits/base/),
+[signal](https://paperboatlab.github.io/toolkits/signal/),
+[math](https://paperboatlab.github.io/toolkits/math/),
+[string](https://paperboatlab.github.io/toolkits/string/),
+[list](https://paperboatlab.github.io/toolkits/list/),
+[dashboard](https://paperboatlab.github.io/toolkits/dashboard/),
+[step](https://paperboatlab.github.io/toolkits/step/), and the optional toolkits on
+[paperboatlab.github.io](https://paperboatlab.github.io/#toolkits). `paperboat-catalog --templates`
+lists them here. A package's docs live in its folder (`src/<package>/docs/`), a block's notes in
+the block's folder (`<block>/doc.rst`).
 
 ## Package layout
 
