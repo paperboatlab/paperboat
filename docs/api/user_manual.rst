@@ -279,8 +279,10 @@ The Run Dock floats gracefully at the bottom of the canvas, rendered in semi-tra
 
 - **Run / Pause**: Click :kbd:`▶ Run` or press :kbd:`Space`.
 - **Cancel**: Click :kbd:`■ Cancel` to stop the current run immediately.
-- **Duration**: Edit the run duration in seconds (e.g., `10 s`). Set to `0` or leave empty
-  for continuous runs if supported by the backend.
+- **Duration**: Edit the run duration in seconds (e.g., `10 s`). The :kbd:`∞` key beside it (or
+  `0`) runs until you cancel or the flow stops; click the :kbd:`∞` that then takes the field's
+  place to set a duration again. A long run's plots keep their whole span at one even resolution,
+  so a run at `Max` for thousands of seconds still draws a step's edge where it happened.
 - **Speed Multiplier**: Toggle execution pacing between `0.5×`, `1×`, `2×`, or uncapped `Max`.
 - **Solver**: the Run menu picks the run's solver (`RK4`, `RK45`, `RK2`, `Euler`,
   `Discrete`, and the implicit `CVODE` and `IDA` for stiff systems: chemistry, circuits,

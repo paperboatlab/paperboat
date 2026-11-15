@@ -38,6 +38,11 @@ export function RunOptions({ defaults, value, onChange }: { defaults: RunSetting
         <NumberField className="run-duration" value={duration} valid={(v) => v >= 0} onChange={(duration) => set({ duration })} />
       )}
       s
+      {!isInfinite && (
+        <button type="button" className="key small run-forever" aria-pressed="false" title="Run until stopped (0 s)" onClick={() => set({ duration: 0 })}>
+          ∞
+        </button>
+      )}
       <select value={speed} title="Times real time; during a run, it changes the run at once" onChange={(e) => set({ speed: Number(e.target.value) })}>
         {SPEEDS.map((x) => (
           <option key={x} value={x}>
