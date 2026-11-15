@@ -29,6 +29,10 @@ class Session {
   void on_message(const std::string& text);
   /** Send a server message to this connection (the server's shared variables use it). */
   void send_message(const json& message);
+  /** True on this session's own run or toolkit thread: a send there can be what closes the socket. */
+  bool on_own_thread() const;
+  /** The socket is gone: every later send is dropped. */
+  void close();
 
  private:
   struct State;

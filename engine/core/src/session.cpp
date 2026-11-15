@@ -44,6 +44,7 @@ struct Session::State {
   std::optional<double> speed;  // the speed the UI asked for during a run (run.speed, #219), until the run takes it
   int runs = 0;
   std::atomic<int> live_run{0};  // the number of the run that is going, else 0
+  std::atomic<bool> closed{false};  // the socket closed: sends are dropped
   RunCache cache;  // what runs that evaluate once keep for the next run of this session
   std::mutex toolkit_mutex;
   std::string busy_toolkit;
@@ -51,7 +52,9 @@ struct Session::State {
   std::jthread toolkit_task;
   std::jthread run;  // declared last: destroyed (stopped and joined) before the rest
 
-  void emit(const json& msg) { send(msg.dump()); }
+  void emit(const json& msg) {
+    if (!closed) send(msg.dump());
+  }
   void log(const std::string& level, const std::string& text) {
     emit({{"type", "log"}, {"level", level}, {"text", text}});
   }
@@ -127,7 +130,16 @@ Session::Session(const Backend& backend, Send send, Remote remote)
   }
 }
 
-void Session::send_message(const json& message) { state_->send(message.dump()); }
+void Session::send_message(const json& message) {
+  if (!state_->closed) state_->send(message.dump());
+}
+
+bool Session::on_own_thread() const {
+  const auto me = std::this_thread::get_id();
+  return state_->run.get_id() == me || state_->toolkit_task.get_id() == me;
+}
+
+void Session::close() { state_->closed = true; }
 
 Session::~Session() = default;
 
