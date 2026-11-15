@@ -1,8 +1,9 @@
 /**
  * The trace store (#37): every plotted channel's history, in typed arrays outside React
- * state. Append is O(1); a buffer that fills keeps every other sample (and the latest), so a
- * long run keeps its whole span at half the resolution, as the old `append` did. Readers
- * re-read on `version`, which the app ticks at most once per animation frame.
+ * state. Append is O(1); a buffer that fills keeps every other sample and from then on takes
+ * only every other new one, so a long run keeps its whole span at one even resolution (and
+ * the latest sample, so a live plot reaches now). Readers re-read on `version`, which the app
+ * ticks at most once per animation frame.
  *
  * A host service: the app keeps the history of every monitor's signals and hands an instrument
  * its channels (`state.traces`); a toolkit's instruments (a graph, a scope) only draw them.
@@ -17,30 +18,40 @@ export class TraceBuffer {
   v: Float64Array;
   n = 0;
   readonly cap: number;
+  /** Every how many samples one is kept: doubles each time the buffer thins. */
+  private stride = 1;
+  /** Samples pushed so far: which of them fall on the stride. */
+  private seen = 0;
+  /** Whether the last element is only the latest sample, off the stride: replaced by the next. */
+  private provisional = false;
   constructor(cap = MAX_POINTS) {
     this.cap = cap;
     this.t = new Float64Array(cap);
     this.v = new Float64Array(cap);
   }
   push(t: number, v: number): void {
+    if (this.provisional) this.n--;
+    // On the stride the sample stays; off it, it is kept only until the next one comes.
+    this.provisional = this.seen++ % this.stride !== 0;
     if (this.n === this.cap) this.thin();
     this.t[this.n] = t;
     this.v[this.n] = v;
     this.n++;
   }
-  /** Keep every other sample and the latest: the span stays, the resolution halves. */
+  /**
+   * Keep every other sample, and take every other new one from now on: old and new samples
+   * stay evenly spaced. Halving only what is stored (and keeping every new sample) would thin
+   * the start of a run again at each fill, so after a long run its first seconds had one
+   * sample in hundreds: a step drawn as a slow ramp.
+   */
   private thin(): void {
     let k = 0;
     for (let i = 0; i < this.n; i += 2, k++) {
       this.t[k] = this.t[i];
       this.v[k] = this.v[i];
     }
-    if ((this.n - 1) % 2 !== 0) {
-      this.t[k] = this.t[this.n - 1];
-      this.v[k] = this.v[this.n - 1];
-      k++;
-    }
     this.n = k;
+    this.stride *= 2;
   }
   /** The samples, as views (no copy). */
   get times(): Float64Array { return this.t.subarray(0, this.n); }

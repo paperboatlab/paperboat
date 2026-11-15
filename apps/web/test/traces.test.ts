@@ -11,6 +11,23 @@ test("a trace buffer appends in O(1) and thins to keep the whole span", () => {
   assert.equal(b.last, 80);
 });
 
+test("a long run thins evenly: its first seconds keep the resolution its last ones have", () => {
+  // A step at t = 1, sampled every 0.04 s for 2560 s: 64 001 samples into a buffer of 20 000.
+  const b = new TraceBuffer();
+  for (let i = 0; i <= 64000; i++) {
+    const t = Math.round(i * 4) / 100;
+    b.push(t, t >= 1 ? 1 : 0);
+  }
+  const t = b.times;
+  const gaps = Array.from(t.slice(1), (x, i) => x - t[i]);
+  const first = gaps.slice(0, 100), last = gaps.slice(-101, -1);
+  assert.ok(Math.max(...first) <= Math.max(...last) + 1e-9, `start ${Math.max(...first)} s apart, end ${Math.max(...last)} s`);
+  assert.ok(Math.max(...gaps.slice(0, -1)) <= 0.16 + 1e-9, `widest gap ${Math.max(...gaps)} s`); // 4 × dt, not 32 ×
+  assert.equal(t[b.n - 1], 2560); // the latest still ends the trace
+  const lastZero = Array.from(b.values).lastIndexOf(0);
+  assert.ok(t[lastZero + 1] - 1 <= 0.16 + 1e-9); // the step's edge stays sharp
+});
+
 test("10^6 samples append within a fixed budget", () => {
   const b = new TraceBuffer();
   const start = performance.now();
