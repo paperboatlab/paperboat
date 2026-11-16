@@ -84,7 +84,9 @@ The bar holds only the wordmark, the **menus**, the project's name (centred on t
 while there are changes not saved), the view switch, an error count when the Console has
 errors, a connection status pill (which opens File > Backend…) and the theme key. The pill
 (`StatusPill`, shared with Squero Studio) keeps the room of its widest label, so `connecting` →
-engine name never shifts the keys beside it. Everything else
+engine name never shifts the keys beside it. Its dot says the state with the words: live (connected,
+ready) fills in `--signal`, on the way (connecting, starting) is a hollow ring that breathes (still
+under reduced motion), failed is a `--danger` ring with the label in `--danger-text`. Everything else
 you can do is a **command** in one registry (`src/commands.ts`); the menu bar, the command
 search and the registry's own shortcuts all read it, so a label, a shortcut and whether
 something is available can't drift between them. Shortcuts are written once, as on Windows and
