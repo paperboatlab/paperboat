@@ -79,9 +79,7 @@
 .status-running { color: var(--signal-text); }
 .run-delay { color: var(--signal-text); font-weight: 600; }
 .status-failed { color: var(--danger-text); }
-.run-options { display: inline-flex; align-items: center; gap: var(--space-2); font: var(--size-2xs) var(--font-sans); color: var(--text-muted); }
-.run-options input, .run-options select { height: 30px; background: var(--surface-well); box-shadow: var(--well-shadow); color: var(--text); border: 0; border-radius: var(--radius-md); padding: 0 var(--space-2); }
-.run-options input::-webkit-inner-spin-button, .run-options input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+/* .run-options' fields are the shared dock's (plates.css); here only Paperboat's duration slot. */
 /* The duration is one slot, so the dock keeps its width: a well for the number, or the same well
    turned into a pressed key that says ∞ while the run is infinite (selection in brackets, not a fill). */
 .run-options .run-duration { width: 11ch; text-align: right; }
