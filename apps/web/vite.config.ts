@@ -12,26 +12,28 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const run = promisify(execFile);
 
 /**
- * Dev-server equivalent of the installed app's `/__paperboat/backends`: ask the CLI for what
- * is running, so the Backend dialog can list it instead of asking for a port by hand.
+ * Dev-server equivalents of the installed app's CLI-backed endpoints (serve.cpp): `/__paperboat/backends`
+ * (`paperboat list --json`: what is running, for the Backend dialog) and `/__paperboat/status`
+ * (`paperboat status --json`: what each backend is doing, starting ones included, for the wait screen).
  */
-function backendList(): Plugin {
-  const handler = (_request: IncomingMessage, response: ServerResponse) => {
+function cliEndpoints(): Plugin {
+  const endpoint = (args: string[], empty: string) => (_request: IncomingMessage, response: ServerResponse) => {
     const root = join(here, "..", ".."); // apps/web → the checkout
     const bin = process.env.PAPERBOAT_BIN || join(root, "bin", "paperboat");
     response.setHeader("Content-Type", "application/json");
-    run(bin, ["list", "--json"], { cwd: root, timeout: 8000 })
-      .then(({ stdout }) => response.end(stdout || "[]"))
+    run(bin, args, { cwd: root, timeout: 8000 })
+      .then(({ stdout }) => response.end(stdout || empty))
       .catch(() => {
         response.statusCode = 503;
-        response.end("[]");
+        response.end(empty);
       });
   };
-  const install = (server: { middlewares: { use: (path: string, fn: typeof handler) => void } }) => {
-    server.middlewares.use("/__paperboat/backends", handler);
+  const install = (server: { middlewares: { use: (path: string, fn: ReturnType<typeof endpoint>) => void } }) => {
+    server.middlewares.use("/__paperboat/backends", endpoint(["list", "--json"], "[]"));
+    server.middlewares.use("/__paperboat/status", endpoint(["status", "--json"], '{"backends":[]}'));
   };
   return {
-    name: "paperboat-backends",
+    name: "paperboat-cli-endpoints",
     configureServer: install,
     configurePreviewServer: install,
   };
@@ -75,7 +77,7 @@ function sharedFolders(): string[] {
 }
 
 export default defineConfig({
-  plugins: [react(), backendList()],
+  plugins: [react(), cliEndpoints()],
   // @paperboat/shared is a linked sibling with its own node_modules; keep one React and Three.
   resolve: {
     dedupe: ["react", "react-dom", "@xyflow/react", "three"],

@@ -401,7 +401,9 @@ Connect a domain backend from **File > Backend…** to switch.
 
 Until the backend answers, the pages show what Paperboat is waiting for (``connecting to the backend
 at ws://…``, then ``waiting for a backend at ws://…`` while it retries), with how long once it is
-slow and, after a few seconds, how to start one. A backend that drops later leaves your pages as they
+slow and, after a few seconds, how to start one. A backend still being built says how far it is
+(``configuring cart-pole``, ``compiling cart-pole… 42s``, ``starting cart-pole``), and a failed build
+says why, from ``paperboat status``. A backend that drops later leaves your pages as they
 are: the status pill and the Console say it is reconnecting.
 
 Project Management

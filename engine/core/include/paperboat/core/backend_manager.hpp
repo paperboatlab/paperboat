@@ -26,6 +26,20 @@ struct RunningBackend {
   int64_t started_at = 0;
 };
 
+// A backend on its way up (pb#332), from `paperboat start/run` until it serves: what a wait screen
+// shows instead of scraping logs. The stage words are the contract.
+struct StartingBackend {
+  std::string name;
+  std::filesystem::path dir;
+  int port = 0;
+  int pid = 0;  // the paperboat process starting it
+  std::string state;  // "building", "starting" or "failed"
+  std::string stage;  // "prepare", "configure", "compile" (building), "waiting" (starting: launched, not answering yet)
+  int64_t started_at_ms = 0;
+  int64_t updated_at_ms = 0;
+  std::string error;  // when failed
+};
+
 struct BackendRunOptions {
   int port = 0;  // 0: default for backend or 8765
   bool build = true;
@@ -144,6 +158,16 @@ class BackendManager {
   static void register_running_backend(const RunningBackend& backend);
   static void unregister_running_backend(int port);
   static std::vector<RunningBackend> list_running_backends();
+  // Backends being started (runtime_dir()/starting-<pid>.json), dead or stale ones pruned: a record
+  // whose process is gone, or a failed one older than a minute.
+  static std::filesystem::path start_record_path(int pid);
+  static void write_start_record(StartingBackend& backend);  // stamps updated_at_ms
+  static void remove_start_record(int pid);
+  static std::vector<StartingBackend> list_starting_backends();
+  // `paperboat status --json` and the web host's /__paperboat/status: every backend starting or
+  // running, `{ "backends": [{ name, state, stage?, elapsed, port, url?, error? }] }`. `filter`: a
+  // name or port; empty, all.
+  static std::string status_json(std::string_view filter = {});
 
   // Incremental build for C++ backends
   static bool needs_rebuild(const std::filesystem::path& backend_dir,
@@ -152,7 +176,8 @@ class BackendManager {
                            bool clean = false,
                            bool verbose = false,
                            std::string* error_msg = nullptr,
-                           double* elapsed_seconds = nullptr);
+                           double* elapsed_seconds = nullptr,
+                           const std::function<void(std::string_view stage)>& on_stage = {});
   // A checkout's built workbench (engine/build/workbench/paperboat-workbench, or under Release/ etc.
   // with a multi-config generator, .exe on Windows); empty when not built.
   static std::filesystem::path workbench_binary(const std::filesystem::path& root);

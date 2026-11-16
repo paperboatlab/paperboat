@@ -5,6 +5,8 @@
 #endif
 
 #include <algorithm>
+#include <cmath>
+#include <functional>
 #include <array>
 #include <chrono>
 #include <csignal>
@@ -14,6 +16,7 @@
 #include <iostream>
 #include <sstream>
 #include <thread>
+#include <tuple>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -565,6 +568,128 @@ std::vector<RunningBackend> BackendManager::list_running_backends() {
   return result;
 }
 
+namespace {
+int64_t now_ms() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+constexpr int64_t kFailedKeptMs = 60'000;  // a failed start stays this long for a wait screen to read
+
+// A failure in one line a wait screen can show: the compiler's first "error:" line, else the last
+// line said; at most 300 characters. The whole output stays in the log.
+std::string headline(const std::string& text) {
+  std::istringstream in(text);
+  std::string line, first_error, last;
+  while (std::getline(in, line)) {
+    if (line.find_first_not_of(" \t\r") == std::string::npos) continue;
+    if (first_error.empty() && line.find("error:") != std::string::npos) first_error = line;
+    last = line;
+  }
+  std::string out = first_error.empty() ? last : first_error;
+  if (const auto start = out.find_first_not_of(" \t"); start != std::string::npos) out.erase(0, start);
+  return out.size() > 300 ? out.substr(0, 297) + "…" : out;
+}
+}  // namespace
+
+fs::path BackendManager::start_record_path(int pid) {
+  return runtime_dir() / ("starting-" + std::to_string(pid) + ".json");
+}
+
+void BackendManager::write_start_record(StartingBackend& b) {
+  std::error_code ec;
+  fs::create_directories(runtime_dir(), ec);
+  b.updated_at_ms = now_ms();
+  if (b.started_at_ms == 0) b.started_at_ms = b.updated_at_ms;
+  json doc = {{"name", b.name}, {"dir", b.dir.string()}, {"port", b.port}, {"pid", b.pid},
+              {"state", b.state}, {"stage", b.stage}, {"started_at_ms", b.started_at_ms},
+              {"updated_at_ms", b.updated_at_ms}};
+  if (!b.error.empty()) doc["error"] = b.error;
+  // Written whole, then renamed into place: a reader never sees half a record.
+  const fs::path path = start_record_path(b.pid);
+  const fs::path tmp = path.string() + ".tmp";
+  {
+    std::ofstream out(tmp);
+    if (!out) return;
+    out << doc.dump() << '\n';
+  }
+  fs::rename(tmp, path, ec);
+}
+
+void BackendManager::remove_start_record(int pid) {
+  std::error_code ec;
+  fs::remove(start_record_path(pid), ec);
+}
+
+std::vector<StartingBackend> BackendManager::list_starting_backends() {
+  std::vector<StartingBackend> out;
+  std::error_code ec;
+  const int64_t now = now_ms();
+  for (const auto& entry : fs::directory_iterator(runtime_dir(), ec)) {
+    const auto path = entry.path();
+    const std::string file = path.filename().string();
+    if (!file.starts_with("starting-") || path.extension() != ".json") continue;
+    StartingBackend b;
+    try {
+      std::ifstream in(path);
+      const json doc = json::parse(in);
+      b.name = doc.value("name", "");
+      b.dir = doc.value("dir", "");
+      b.port = doc.value("port", 0);
+      b.pid = doc.value("pid", 0);
+      b.state = doc.value("state", "");
+      b.stage = doc.value("stage", "");
+      b.started_at_ms = doc.value("started_at_ms", int64_t{0});
+      b.updated_at_ms = doc.value("updated_at_ms", int64_t{0});
+      b.error = doc.value("error", "");
+    } catch (...) {
+      b.pid = 0;  // unreadable: pruned below
+    }
+    // A failed start is kept a minute (its process has usually exited); any other dies with its process.
+    const bool stale = b.state == "failed" ? now - b.updated_at_ms > kFailedKeptMs : (b.pid <= 0 || !ProcessRunner::is_alive(b.pid));
+    if (stale) {
+      std::error_code rm;
+      fs::remove(path, rm);
+      continue;
+    }
+    out.push_back(std::move(b));
+  }
+  std::ranges::sort(out, [](const StartingBackend& a, const StartingBackend& b) {
+    return std::tie(a.started_at_ms, a.updated_at_ms) < std::tie(b.started_at_ms, b.updated_at_ms);
+  });
+  return out;
+}
+
+std::string BackendManager::status_json(std::string_view filter) {
+  const auto matches = [&](std::string_view name, int port) {
+    return filter.empty() || filter == name || filter == std::to_string(port);
+  };
+  json list = json::array();
+  const auto running = list_running_backends();
+  const int64_t now = now_ms();
+  const auto starting = list_starting_backends();  // oldest first
+  for (std::size_t i = 0; i < starting.size(); ++i) {
+    const auto& b = starting[i];
+    // A later start on the same port replaces this one (a retry after a failure, say).
+    if (std::any_of(starting.begin() + static_cast<std::ptrdiff_t>(i) + 1, starting.end(), [&](const StartingBackend& later) { return later.port == b.port; })) continue;
+    // Once the backend serves, it is running: its own record says so, below.
+    if (b.state != "failed" && std::ranges::any_of(running, [&](const RunningBackend& r) { return r.port == b.port; })) continue;
+    if (!matches(b.name, b.port)) continue;
+    json one = {{"name", b.name}, {"state", b.state}, {"stage", b.stage}, {"port", b.port}, {"pid", b.pid},
+                {"dir", b.dir.string()}, {"elapsed", std::round(static_cast<double>(now - b.started_at_ms) / 100.0) / 10.0}};
+    if (!b.error.empty()) one["error"] = b.error;
+    list.push_back(std::move(one));
+  }
+  const int64_t now_s = now / 1000;
+  for (const auto& r : running) {
+    const std::string name = r.domain.empty() ? r.engine : r.domain;
+    // Asked for by the name its start used (its folder), or by its own.
+    if (!matches(name, r.port) && !matches(r.backend_dir.filename().string(), r.port)) continue;
+    json one = {{"name", name}, {"state", "running"}, {"port", r.port}, {"pid", r.pid}, {"url", r.ws_url.empty() ? ws_url(r.port) : r.ws_url}};
+    if (r.started_at > 0) one["elapsed"] = static_cast<double>(now_s - r.started_at);
+    list.push_back(std::move(one));
+  }
+  return json{{"backends", list}}.dump();
+}
+
 bool BackendManager::needs_rebuild(const fs::path& backend_dir, const fs::path& build_dir) {
   const fs::path bdir = build_dir.empty() ? (backend_dir / "build") : build_dir;
   const fs::path stamp_file = bdir / ".paperboat-build.stamp";
@@ -613,8 +738,10 @@ bool BackendManager::ensure_built(const fs::path& backend_dir,
                                   bool clean,
                                   bool verbose,
                                   std::string* error_msg,
-                                  double* elapsed_seconds) {
+                                  double* elapsed_seconds,
+                                  const std::function<void(std::string_view stage)>& on_stage) {
   auto start_time = std::chrono::steady_clock::now();
+  const auto stage = [&](std::string_view what) { if (on_stage) on_stage(what); };
   // One build at a time: a toolkit install may be rebuilding the same folder (and vice versa).
   const auto build_guard = toolkit::lock_build();
   fs::path root = toolkit::find_repo_root(backend_dir);
@@ -642,6 +769,7 @@ bool BackendManager::ensure_built(const fs::path& backend_dir,
       return true;
     }
     if (verbose) std::cout << "[build] building paperboat-workbench…" << std::endl;
+    stage("compile");
     // --config: a multi-config generator (Visual Studio) would build Debug; single-config ones ignore it.
     auto res = ProcessRunner::run_sync(
         {platform::cmake_command(engine_build), "--build", engine_build.string(), "--target", "paperboat-workbench", "--config", "Release"});
@@ -682,6 +810,7 @@ bool BackendManager::ensure_built(const fs::path& backend_dir,
 
   if (!fs::exists(build_dir / "CMakeCache.txt")) {
     if (verbose) std::cout << "[build] configuring with cmake…" << std::endl;
+    stage("configure");
     std::vector<std::string> config_cmd = {platform::cmake_command(cmake_dir), "-S", backend_dir.string(), "-B", cmake_dir.string()};
 #ifndef _WIN32
     // Ninja when it is there, as the toolkit plugins build: faster, and a machine may have it and no make.
@@ -707,6 +836,7 @@ bool BackendManager::ensure_built(const fs::path& backend_dir,
   }
 
   if (verbose) std::cout << "[build] compiling backend…" << std::endl;
+  stage("compile");
   auto build_res = ProcessRunner::run_sync({platform::cmake_command(cmake_dir), "--build", cmake_dir.string(), "--config", "Release"});
   if (!build_res.ok()) {
     if (error_msg) *error_msg = "cmake build failed: " + cmake_failure(build_res);
@@ -1120,13 +1250,38 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
     (stream == "stderr" ? std::cerr : std::cout) << "[" << domain_name << "] " << line << std::endl;
   };
 
+  // Where this start is, for `paperboat status` (pb#332): each stage as it begins, gone when this
+  // process ends (the backend has registered as running long before), a failure kept a minute.
+  const bool building = kind == BackendKind::Cpp && opts.build;
+  StartingBackend start{.name = domain_name, .dir = dir, .port = port, .pid = platform::current_pid(),
+                        .state = building ? "building" : "starting", .stage = "prepare", .started_at_ms = 0, .updated_at_ms = 0, .error = {}};
+  write_start_record(start);
+  struct Forget {
+    int pid;
+    bool keep = false;
+    ~Forget() { if (!keep) remove_start_record(pid); }
+  } forget{start.pid};
+  const auto now_at = [&](std::string_view state, std::string_view stage) {
+    start.state = state;
+    start.stage = stage;
+    write_start_record(start);
+  };
+  const auto failed = [&](const std::string& message) {
+    if (!message.starts_with("build failed")) std::cerr << "error: " << message << '\n';  // a build failure printed its whole output already
+    start.state = "failed";
+    start.error = message;
+    write_start_record(start);
+    forget.keep = true;
+    return 1;
+  };
+
   if (kind == BackendKind::Cpp) {
     if (opts.build) {
       std::string err;
       double elapsed = 0.0;
-      if (!ensure_built(dir, opts.clean, opts.verbose, &err, &elapsed)) {
+      if (!ensure_built(dir, opts.clean, opts.verbose, &err, &elapsed, [&](std::string_view stage) { now_at("building", stage); })) {
         std::cerr << "error: build failed: " << err << '\n';
-        return 1;
+        return failed("build failed: " + headline(err));
       }
       if (opts.time_metrics) {
         std::cout << "[timing] build completed in " << elapsed << " s\n";
@@ -1141,10 +1296,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
       const fs::path root = toolkit::find_repo_root(dir);
       if (!root.empty()) bin = workbench_binary(root);
     }
-    if (bin.empty()) {
-      std::cerr << "error: compiled binary not found in " << (dir / "build") << '\n';
-      return 1;
-    }
+    if (bin.empty()) return failed("compiled binary not found in " + (dir / "build").string());
 
     std::vector<std::string> args = {bin.string(), "--port", std::to_string(port)};
     if (opts.run) args.emplace_back("--run");
@@ -1159,6 +1311,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
     // spawning a replacement that our kill-on-close job would take down with us.
     std::vector<std::pair<std::string, std::string>> env = run_env(manifest, opts);
     env.emplace_back(core::kSupervisedEnv, "1");
+    now_at("starting", "waiting");
     for (;;) {
       const int code = ProcessRunner::run_stream(args, dir, env, log_cb);
       if (code != core::kRestartExit) return code;
@@ -1169,8 +1322,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
     if (manifest.has_manifest && !manifest.run.empty() && fs::is_regular_file(dir / manifest.run)) {
       server = dir / manifest.run;
     } else if (!fs::is_regular_file(server)) {
-      std::cerr << "error: server.jl not found in " << dir << '\n';
-      return 1;
+      return failed("server.jl not found in " + dir.string());
     }
     std::vector<std::string> args = {julia_binary(), "--startup-file=no", "--project=" + dir.string(),
                                      server.filename().string(), "--port", std::to_string(port)};
@@ -1184,6 +1336,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
     std::vector<std::pair<std::string, std::string>> env = julia_env(dir);
     for (auto& entry : run_env(manifest, opts)) env.push_back(std::move(entry));
     std::cout << "paperboat running server.jl on " << ws_url(port) << std::endl;
+    now_at("starting", "waiting");
     return ProcessRunner::run_stream(args, dir, env, log_cb);
   } else {
     // Python backend
@@ -1196,8 +1349,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
       server_script = dir / manifest.run;
       script_run_arg = manifest.run;
     } else if (!fs::is_regular_file(server_script)) {
-      std::cerr << "error: server.py not found in " << dir << '\n';
-      return 1;
+      return failed("server.py not found in " + dir.string());
     }
 
     std::vector<std::string> args = {py_env.python_bin.string(), script_run_arg, "--port", std::to_string(port)};
@@ -1211,6 +1363,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
     std::cout << "paperboat running python " << server_script.filename().string() << " on " << ws_url(port) << std::endl;
     auto env = py_env.env;
     for (auto& e : run_env(manifest, opts)) env.push_back(std::move(e));
+    now_at("starting", "waiting");
     return ProcessRunner::run_stream(args, dir, env, log_cb);
   }
 }
