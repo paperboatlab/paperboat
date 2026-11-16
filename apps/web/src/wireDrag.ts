@@ -5,17 +5,23 @@
 import type { Connection, HandleType, OnConnectEnd, OnConnectStart, ReactFlowState, XYPosition } from "@xyflow/react";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { connectionOf, nearestAccepting, SNAP, type Anchor } from "./wireSnap";
-import { connect, type Wire } from "./flowModel";
+import { connect, portDef, type Wire } from "./flowModel";
+import { GHOST_IN, GHOST_OUT } from "./groups";
 import type { wireRules } from "./wireRules";
 
 export function useWireDrag(
-  { real, wireType, isValidConnection, refusal }: ReturnType<typeof wireRules>,
+  { real, wireType, isValidConnection, refusal, defOf }: ReturnType<typeof wireRules>,
   setEdges: Dispatch<SetStateAction<Wire[]>>,
   store: { getState: () => ReactFlowState },
   screenToFlowPosition: (at: XYPosition) => XYPosition,
+  /** A wire dropped on a subsystem's dashed + port (GHOST_IN, GHOST_OUT): add the port, wired. */
+  addPort: (c: Connection, type: string) => void,
 ) {
+  const ghost = (c: Connection) => c.targetHandle === GHOST_IN || c.sourceHandle === GHOST_OUT;
   const onConnect = (shown: Connection) => {
     const c = real(shown);
+    // Into a new In: the wire's type is its source's; out of a new Out, its reader's.
+    if (ghost(c)) return addPort(c, c.targetHandle === GHOST_IN ? wireType(c) : (portDef(defOf(c.target), c.targetHandle, "inputs")?.type ?? "signal"));
     setEdges((ws) => connect(ws, c, wireType(c)));
   };
 
@@ -24,6 +30,10 @@ export function useWireDrag(
   const onReconnect = (old: Wire, shownC: Connection) => {
     moved.current = true;
     const c = real(shownC);
+    if (ghost(c)) {
+      setEdges((ws) => ws.filter((w) => w.id !== old.id));
+      return addPort(c, old.data?.type ?? "signal");
+    }
     setEdges((ws) => {
       const rest = ws.filter((w) => w.id !== old.id);
       return connect(rest, c, wireType(c));

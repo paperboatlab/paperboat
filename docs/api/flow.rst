@@ -45,12 +45,13 @@ Groups
 ------
 
 ``graph.groups`` holds groups of blocks (a block is in at most one). Groups nest (``parent``). A
-subsystem's or story's ports are the wires crossing its edge, plus any listed in ``expose``
-(``{ side = "in" | "out", to = [node, port], name? }``): ports shown on the block with no wire yet,
-and the name the user gave a port (absent: ``node.port``). In the UI, select a block inside an open
-group and use **Expose port**; removing the last wire across the edge exposes its port, so it stays;
-inside, double-click an In or Out pill's name to rename the port, × removes it. Copy and paste take
-a group with everything in it.
+subsystem's or story's ports are its **In** and **Out** blocks (``inport``, ``outport``, the
+``group`` package that every catalog has): each is a port of the group's block, named by its
+``name`` param, in the order they stand. An In's ``outer`` input is wired from outside the group and
+its ``y`` inside; an Out's ``u`` inside and its ``outer`` output outside. They pass their value
+through unchanged, so backends run them as ordinary blocks. A wire straight across the edge (an
+older graph) is a port too, as are ports listed in ``expose`` (``{ side = "in" | "out", to = [node,
+port] }``). Copy and paste take a group with everything in it.
 
 **Visual groups** tidy the canvas. The backend runs their blocks as if ungrouped, in the
 sheet's flow type. Collapsed, the UI draws a group as one block whose ports are the wires

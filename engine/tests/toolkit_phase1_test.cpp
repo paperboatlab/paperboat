@@ -565,3 +565,18 @@ TEST_CASE("dashboard/view3d is a 3D station instrument on the Board") {
   auto block = t->make({{"grid", 1.0}}, {});
   CHECK(block->step(Context{}, {}).empty());
 }
+
+TEST_CASE("group: In and Out pass any value through, outside to inside and back") {
+  Registry reg = builtins();
+  const auto* in = reg.find("group/inport");
+  const auto* out = reg.find("group/outport");
+  REQUIRE(in != nullptr);
+  REQUIRE(out != nullptr);
+  CHECK(in->def.type == "inport");
+  CHECK(in->def.inputs.at(0).id == "outer");  // the group's port, outside
+  CHECK(out->def.outputs.at(0).id == "outer");
+  Context ctx;
+  CHECK(get_or(in->make({}, {})->step(ctx, {{"outer", 2.5}}), "y") == 2.5);
+  CHECK(std::get<std::string>(out->make({}, {})->step(ctx, {{"u", std::string("hi")}}).at("outer")) == "hi");
+  CHECK(get_or(in->make({}, {})->step(ctx, {}), "y") == 0.0);  // unwired outside: 0
+}

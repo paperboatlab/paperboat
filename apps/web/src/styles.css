@@ -439,15 +439,16 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 /* In and Out: where the level's wires cross its edge. */
 .boundary { position: relative; box-sizing: border-box; width: 100%; height: 100%; overflow: visible; display: flex; align-items: center; gap: var(--space-2); padding: 4px 10px; font: var(--size-2xs) var(--font-mono); color: var(--text); background: var(--surface-sunken); border: 1px solid var(--line-strong); border-radius: 999px; white-space: nowrap; }
 .boundary-tag { font: 600 var(--size-2xs) var(--font-sans); color: var(--text-muted); }
-.boundary-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-input.boundary-name { flex: 1; width: 0; height: 18px; padding: 0 4px; border: 0; border-radius: var(--radius-sm); background: var(--surface-well); box-shadow: var(--well-shadow); font: inherit; color: var(--text); }
-/* A port of the group with no wire across its edge yet: dashed, waiting for one (a wire removed leaves it). */
-.boundary.unwired { border-style: dashed; color: var(--text-muted); background: transparent; }
-.boundary-x { margin-left: auto; padding: 0 2px; border: 0; background: none; color: var(--text-muted); font: inherit; cursor: pointer; visibility: hidden; }
-.boundary:hover .boundary-x, .boundary-x:focus-visible { visibility: visible; }
-.boundary-x:hover { color: var(--danger-text); }
-/* Not selectable or draggable, so React Flow turns its pointer events off: its name and × need them. */
-.react-flow__node-boundary { cursor: default; pointer-events: all !important; }
+.boundary-name { overflow: hidden; text-overflow: ellipsis; }
+.react-flow__node-boundary { cursor: default; }
+/* An In or Out block's port that faces outside the subsystem is the subsystem's port: not drawn inside. */
+.react-flow__node-block .react-flow__handle[data-handleid="outer"], .react-flow__node-block .port[data-port="outer"] { visibility: hidden; pointer-events: none; }
+/* A subsystem's dashed + port, under its last port on each side: shown while a wire is dragged; a wire dropped on it adds an In or Out block inside. */
+.react-flow__handle.ghost-port { width: 14px; height: 14px; border: 1.5px dashed var(--signal); background: var(--surface-raised); opacity: 0; pointer-events: none; transition: opacity var(--motion); }
+/* "+" in place of the direction chevron (that rule is more specific, hence !important). */
+.react-flow__handle.ghost-port::before { content: "+" !important; inset: 0 !important; display: grid; place-items: center; font: 600 11px / 1 var(--font-mono); color: var(--signal-text); clip-path: none !important; width: auto !important; height: auto !important; transform: none !important; background: none !important; }
+.react-flow__handle.ghost-port.on { opacity: 1; pointer-events: all; }
+.react-flow__handle.ghost-port.wire-dim { opacity: 0; }
 .group-tools button:disabled { opacity: 0.4; }
 
 /* ---- Dashboard: each instrument is a display with its name underneath. ------------- */

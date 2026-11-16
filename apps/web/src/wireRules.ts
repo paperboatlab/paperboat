@@ -3,11 +3,12 @@
 
 import type { Connection, IsValidConnection } from "@xyflow/react";
 import { connectError, netWireType, wireMismatch } from "./ports";
-import { splitHandle, STORY_DEF } from "./groups";
+import { GHOST_IN, GHOST_OUT, splitHandle, STORY_DEF } from "./groups";
 import type { BlockDef, Connectors } from "./protocol";
 import { isBlock, portDef, portsOf, portType, wireEnd, type FlowNode, type Wire } from "./flowModel";
 
-export function wireRules(nodes: FlowNode[], connectors: Connectors) {
+/** `portBlocks`: the catalog has In and Out, so a subsystem's dashed + port can add one. */
+export function wireRules(nodes: FlowNode[], connectors: Connectors, portBlocks = true) {
   const defOf = (id: string): BlockDef | undefined => {
     const n = nodes.find((x) => x.id === id);
     if (!n) return undefined;
@@ -39,6 +40,13 @@ export function wireRules(nodes: FlowNode[], connectors: Connectors) {
   // Why a wire may not join, in words (null if it may): icon connectors by §4, plain ports by type and unit.
   const refusal = (c: Connection): string | null => {
     const [a, b] = [defOf(c.source), defOf(c.target)];
+    // A subsystem's dashed + port takes any wire but a step: it becomes an In or Out block of that wire.
+    if (c.targetHandle === GHOST_IN || c.sourceHandle === GHOST_OUT) {
+      const [other, handle, side] = c.targetHandle === GHOST_IN ? [a, c.sourceHandle, "outputs" as const] : [b, c.targetHandle, "inputs" as const];
+      const end = portDef(other, handle, side);
+      if (!portBlocks) return "this backend has no In and Out blocks (the engine's group package)";
+      return !end ? "that port is not there" : end.type === "step" ? "a step wire joins a story's in and next, not a new port" : null;
+    }
     const [ea, eb] = [wireEnd(a, c.sourceHandle, "outputs", connectors), wireEnd(b, c.targetHandle, "inputs", connectors)];
     if (!ea || !eb) return "that port is not there";
     const bad = connectError(ea, eb);

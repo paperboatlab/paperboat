@@ -2,10 +2,9 @@
 // done to them all at once.
 
 import { NodeToolbar, Position } from "@xyflow/react";
-import { useRef, useState, type CSSProperties } from "react";
-import { useDismiss } from "@paperboat/shared/components";
-import type { Expose, GroupData, GroupNode } from "./groups";
-import { isBlock, portsOf, type BlockNode, type FlowNode, type Wire } from "./flowModel";
+import { useState, type CSSProperties } from "react";
+import type { GroupData, GroupNode } from "./groups";
+import { isBlock, type BlockNode, type FlowNode, type Wire } from "./flowModel";
 
 type Props = {
   pickedNodes: FlowNode[];
@@ -26,15 +25,11 @@ type Props = {
   removePicked: () => void;
   group: (kind: GroupData["kind"]) => void;
   ungroup: (id: string) => void;
-  update: (id: string, change: Partial<GroupData>) => void;
-  /** The open subsystem or story, and the one block picked in it: its ports can be exposed on the group. */
-  levelGroup?: GroupNode;
-  pickedBlock?: BlockNode;
   /** Analyse the picked blocks and groups (pb#370); absent when no toolkit offers an analysis. */
   analyse?: () => void;
 };
 
-export function SelectionDialog({ pickedNodes, pickedBlocks, pickedWires, pickedFrames, isVisible, roomAbove, allCommented, kept, canGroup, canFrame, canStory, toggleComment, removePicked, group, ungroup, update, levelGroup, pickedBlock, analyse }: Props) {
+export function SelectionDialog({ pickedNodes, pickedBlocks, pickedWires, pickedFrames, isVisible, roomAbove, allCommented, kept, canGroup, canFrame, canStory, toggleComment, removePicked, group, ungroup, analyse }: Props) {
   /** The group unfolded by hover or focus: its actions slide out in brackets, the rest of the bar dims. */
   const [open, setOpen] = useState<string | null>(null);
   const counted = (n: number, one: string) => (n ? [`${n} ${one}${n === 1 ? "" : "s"}`] : []);
@@ -97,45 +92,12 @@ export function SelectionDialog({ pickedNodes, pickedBlocks, pickedWires, picked
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5M7 7v4M9 7v4" /></svg>
         </button>
       </div>
-      {levelGroup && pickedBlock && <ExposeMenu block={pickedBlock} group={levelGroup} set={(expose) => update(levelGroup.id, { expose })} />}
       {kept > 0 && (
         <span className="lbl kept" title="Linked blocks come from the backend's own graph">
           {kept} linked {kept === 1 ? "block stays" : "blocks stay"}
         </span>
       )}
     </NodeToolbar>
-  );
-}
-
-/**
- * A block's ports as checkboxes: a ticked one is a port of the open group (shown on its block
- * from outside) even with no wire yet. Ports with a wire across the group's edge show anyway.
- */
-function ExposeMenu({ block, group, set }: { block: BlockNode; group: GroupNode; set: (expose: Expose[]) => void }) {
-  const def = portsOf(block);
-  const list = group.data.expose ?? [];
-  const is = (side: Expose["side"], port: string) => list.some((x) => x.side === side && x.to[0] === block.id && x.to[1] === port);
-  const toggle = (side: Expose["side"], port: string) =>
-    set(is(side, port) ? list.filter((x) => !(x.side === side && x.to[0] === block.id && x.to[1] === port)) : [...list, { side, to: [block.id, port] }]);
-  const rows = [...def.inputs.map((p) => ({ side: "in" as const, id: p.id })), ...def.outputs.map((p) => ({ side: "out" as const, id: p.id }))];
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDetailsElement>(null);
-  useDismiss(box, () => setOpen(false), { enabled: open });
-  if (rows.length === 0) return null;
-  return (
-    <details className="expose-menu" ref={box} open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary className="key small" title="Show a port of this block on the group, even with no wire yet">
-        Expose port
-      </summary>
-      <div className="expose-list">
-        {rows.map((r) => (
-          <label key={`${r.side}:${r.id}`} className="expose-row">
-            <input type="checkbox" checked={is(r.side, r.id)} onChange={() => toggle(r.side, r.id)} />
-            <span className="lbl">{r.side === "in" ? "in" : "out"}</span> {r.id}
-          </label>
-        ))}
-      </div>
-    </details>
   );
 }
 

@@ -1,13 +1,12 @@
 import { NodeResizer, Position, type Edge, type Node, type NodeProps } from "@xyflow/react";
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext } from "react";
 import type { BlockDef, GraphGroup, PortDef } from "./protocol";
 import type { PortSides } from "./ports";
 import { usePortLayout } from "./portLayout";
-import { PortHandle } from "./wireSnap";
+import { PortHandle, WireDragContext } from "./wireSnap";
+import { isPortBlock, OUTER, portBlocksOf } from "./portBlocks";
 
 import { NumberField } from "./NumberField";
-import { isPort, portName, type Expose } from "./groupPorts";
-export { descendants, keepPorts, portName, withPort, type Expose } from "./groupPorts";
 /**
  * Groups on the Flow page (#68). Three kinds:
  * - **subsystem**: a block you enter and leave, like a Simulink subsystem. Outside it is one
@@ -36,11 +35,11 @@ export type GroupData = {
   expose?: Expose[];
   /** Where the user put its ports (as a block's `ports`). */
   sides?: PortSides;
-  /** Filled for display: the ports it shows as a block (`node::port` ids). */
-  ports?: { inputs: PortDef[]; outputs: PortDef[] };
+  /** Filled for display: the ports it shows as a block (`node::port` ids), and the names of those that are In and Out blocks. */
+  ports?: { inputs: PortDef[]; outputs: PortDef[]; names?: Record<string, string> };
 };
 export type GroupNode = Node<GroupData, "frame">;
-
+export type Expose = { side: "in" | "out"; to: [string, string] };
 
 /** The step ports a story has, as a block definition. */
 export const STORY_DEF: BlockDef = {
@@ -54,6 +53,9 @@ export const STORY_DEF: BlockDef = {
 
 /** A group's handle for a port inside it: `node::port`. */
 export const SEP = "::";
+/** A subsystem's dashed + ports while a wire is dragged: a wire dropped there adds an In (or Out) block inside, wired. */
+export const GHOST_IN = "+in";
+export const GHOST_OUT = "+out";
 export const portHandle = (node: string, port: string) => `${node}${SEP}${port}`;
 export const splitHandle = (handle: string): [string, string] | null => {
   const i = handle.indexOf(SEP);
@@ -74,9 +76,7 @@ export const GroupActions = createContext<{
   stateOf: (id: string) => "failed" | "running" | undefined;
   /** Analyse a subsystem (pb#370); absent when no toolkit offers an analysis. */
   analyse?: (id: string) => void;
-  /** Rename a group's port (its ports inside at `ends`; "" puts the default name back), or remove it (null) with its wires across the edge. */
-  port: (group: string, side: Expose["side"], ends: [string, string][], name: string | null) => void;
-}>({ update: () => {}, ungroup: () => {}, enter: () => {}, stateOf: () => undefined, port: () => {} });
+}>({ update: () => {}, ungroup: () => {}, enter: () => {}, stateOf: () => undefined });
 
 const HEAD = 34;
 
@@ -140,11 +140,9 @@ function Subsystem({ id, data, selected }: NodeProps<GroupNode>) {
     def: { inputs, outputs },
     sides: data.sides,
     save: (sides) => update(id, { sides }),
-    name: (p) => {
-      const to = splitHandle(p.id);
-      return (to && portName(data.expose, inputs.includes(p) ? "in" : "out", to)) || p.id.replace(SEP, ".");
-    },
+    name: (p) => data.ports?.names?.[p.id] ?? p.id.replace(SEP, "."),
   });
+  const wiring = !!useContext(WireDragContext);
   const state = stateOf(id);
   const tag = state ?? (story ? "story" : "subsystem");
   const classes = ["block", "subsystem", story && "step", selected && "selected", state === "running" && "active", state === "failed" && "failed"];
@@ -175,7 +173,10 @@ function Subsystem({ id, data, selected }: NodeProps<GroupNode>) {
         </button>
       </div>
       {ports.rows}
-      {inputs.length + outputs.length === 0 && <div className="muted frame-empty">no wires cross it</div>}
+      {inputs.length + outputs.length === 0 && <div className="muted frame-empty">no ports: add an In or Out block inside</div>}
+      {/* Always there (React Flow measures them once), shown while a wire is dragged. */}
+      <PortHandle type="target" position={Position.Left} id={GHOST_IN} top="calc(100% - 12px)" label="New input" className={`ghost-port${wiring ? " on" : ""}`} />
+      <PortHandle type="source" position={Position.Right} id={GHOST_OUT} top="calc(100% - 12px)" label="New output" className={`ghost-port${wiring ? " on" : ""}`} />
       {story && (
         <>
           <label className="param" title="How long the story runs when a path arrives (0: once)">
@@ -195,55 +196,18 @@ function Subsystem({ id, data, selected }: NodeProps<GroupNode>) {
   );
 }
 
-/**
- * Where the wires from outside a level come in (In) and leave (Out), at its edges: one per block
- * outside (`label`, `from`), or for a port of the group with no wire yet (`unwired`). `group` is
- * the level, `inner` its ports inside this one stands for, `name` theirs if the user named them.
- */
-export type BoundaryData = { dir: "in" | "out"; label: string; type: string; handle: string; group: string; inner: [string, string][]; name?: string; unwired?: boolean };
+/** Where the wires from outside a level come in (In) and leave (Out), at its edges. */
+export type BoundaryData = { dir: "in" | "out"; label: string; type: string; handle: string };
 export type BoundaryNode = Node<BoundaryData, "boundary">;
 
-/** An In or Out port of the open level: double-click its name to rename the group's port, × to remove it. */
 export function Boundary({ data }: NodeProps<BoundaryNode>) {
-  const { port } = useContext(GroupActions);
-  const [editing, setEditing] = useState(false);
-  const cancel = useRef(false);
   const into = data.dir === "in";
-  const shown = data.name ?? data.label;
   return (
-    <div
-      className={`boundary boundary-${data.dir} port-${data.type}${data.unwired ? " unwired" : ""}`}
-      title={data.unwired ? "A port of the group with no wire yet" : into ? `Comes in from ${data.label}, outside` : `Goes out to ${data.label}, outside`}
-    >
-      {!into && !data.unwired && <PortHandle type="target" position={Position.Left} id={data.handle} />}
+    <div className={`boundary boundary-${data.dir} port-${data.type}`} title={into ? `Comes in from ${data.label}, outside` : `Goes out to ${data.label}, outside`}>
+      {!into && <PortHandle type="target" position={Position.Left} id={data.handle} />}
       <span className="boundary-tag">{into ? "In" : "Out"}</span>
-      {editing ? (
-        <input
-          className="boundary-name nodrag"
-          autoFocus
-          defaultValue={data.name ?? ""}
-          placeholder={data.label}
-          aria-label="Port name"
-          onFocus={(e) => e.currentTarget.select()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") (cancel.current = true), e.currentTarget.blur();
-          }}
-          onBlur={(e) => {
-            setEditing(false);
-            if (!cancel.current) port(data.group, data.dir, data.inner, e.currentTarget.value.trim());
-            cancel.current = false;
-          }}
-        />
-      ) : (
-        <span className="boundary-name" title="Double-click to rename the port" onDoubleClick={() => setEditing(true)}>
-          {shown}
-        </span>
-      )}
-      <button className="boundary-x nodrag" title="Remove the port, and its wires across the edge" aria-label={`Remove port ${shown}`} onClick={() => port(data.group, data.dir, data.inner, null)}>
-        ×
-      </button>
-      {into && !data.unwired && <PortHandle type="source" position={Position.Right} id={data.handle} />}
+      <span className="boundary-name">{data.label}</span>
+      {into && <PortHandle type="source" position={Position.Right} id={data.handle} />}
     </div>
   );
 }
@@ -281,6 +245,8 @@ export function levelPath(level: string | null, nodes: AnyNode[]): GroupNode[] {
   return out;
 }
 
+export { descendants } from "./portBlocks";
+
 /**
  * What React Flow is shown at `level` (null: the top). Only that level's blocks and groups
  * show; a subsystem or story in it, or a collapsed frame, is one block whose ports are the
@@ -313,9 +279,20 @@ export function display<N extends AnyNode, E extends Edge>(
   const ports = new Map<string, { inputs: Map<string, PortDef>; outputs: Map<string, PortDef> }>();
   const portsOf = (g: string) => ports.get(g) ?? ports.set(g, { inputs: new Map(), outputs: new Map() }).get(g)!;
   const bounds = new Map<string, BoundaryData>();
-  // Ports the user exposed come first, in their order, wired or not.
+  // A closed group's In and Out blocks come first, top to bottom, wired or not; then the ports
+  // the user exposed, in their order.
+  const names = new Map<string, Record<string, string>>();
+  const portBlocks = new Map<string, AnyNode[]>();
+  for (const n of nodes) if (isPortBlock(n as Node)) {
+    const g = levelOf(n.id, byId);
+    if (g) portBlocks.set(g, [...(portBlocks.get(g) ?? []), n]);
+  }
   for (const g of nodes) {
     if (!isFrame(g) || !closed(g) || at(g.id) !== "here") continue;
+    for (const p of portBlocksOf(portBlocks.get(g.id) ?? [])) {
+      portsOf(g.id)[p.side].set(p.handle, { id: p.handle, type: "any" });
+      names.set(g.id, { ...names.get(g.id), [p.handle]: p.name });
+    }
     for (const x of g.data.expose ?? []) {
       if (at(x.to[0]) !== g.id) continue; // the block is gone, or in a group of its own
       const id = portHandle(x.to[0], x.to[1]);
@@ -323,13 +300,6 @@ export function display<N extends AnyNode, E extends Edge>(
       portsOf(g.id)[side].set(id, { id, type: portType(x.to[0], x.to[1], side) });
     }
   }
-  const levelExpose = level ? (byId.get(level) as GroupNode | undefined)?.data.expose : undefined;
-  const bound = (key: string, data: Omit<BoundaryData, "group" | "inner" | "name">, inner: [string, string]) => {
-    const had = bounds.get(key)?.inner ?? [];
-    const ends = had.some((x) => x[0] === inner[0] && x[1] === inner[1]) ? had : [...had, inner];
-    const name = ends.map((to) => portName(levelExpose, data.dir, to)).find(Boolean);
-    bounds.set(key, { ...data, group: level ?? "", inner: ends, ...(name ? { name } : {}) });
-  };
   const shownEdges = edges.flatMap((e) => {
     const sp = at(e.source);
     const tp = at(e.target);
@@ -338,10 +308,12 @@ export function display<N extends AnyNode, E extends Edge>(
     if (sp !== "here" && sp !== "out" && sp === tp) return []; // inside one closed group
     const sh = e.sourceHandle ?? "";
     const th = e.targetHandle ?? "";
+    // Inside, a wire from outside to an In (or from an Out) is the port itself: no In/Out pill.
+    if ((sp === "out" && th === OUTER && isPortBlock(byId.get(e.target))) || (tp === "out" && sh === OUTER && isPortBlock(byId.get(e.source)))) return [];
     let shown = e;
     if (sp === "out") {
       const handle = portHandle(e.source, sh);
-      bound(`in:${handle}`, { dir: "in", label: `${e.source}.${sh}`, type: portType(e.source, sh, "outputs"), handle }, [e.target, th]);
+      bounds.set(`in:${handle}`, { dir: "in", label: `${e.source}.${sh}`, type: portType(e.source, sh, "outputs"), handle });
       shown = { ...shown, source: `in:${handle}`, sourceHandle: handle };
     } else if (sp !== "here") {
       const id = portHandle(e.source, sh);
@@ -350,7 +322,7 @@ export function display<N extends AnyNode, E extends Edge>(
     }
     if (tp === "out") {
       const handle = portHandle(e.target, th);
-      bound(`out:${handle}`, { dir: "out", label: `${e.target}.${th}`, type: portType(e.target, th, "inputs"), handle }, [e.source, sh]);
+      bounds.set(`out:${handle}`, { dir: "out", label: `${e.target}.${th}`, type: portType(e.target, th, "inputs"), handle });
       shown = { ...shown, target: `out:${handle}`, targetHandle: handle };
     } else if (tp !== "here") {
       const id = portHandle(e.target, th);
@@ -372,17 +344,9 @@ export function display<N extends AnyNode, E extends Edge>(
       width: undefined,
       height: undefined,
       zIndex: d.kind === "visual" ? -1 : 0,
-      data: { ...d, ports: { inputs: [...(p?.inputs.values() ?? [])], outputs: [...(p?.outputs.values() ?? [])] } },
+      data: { ...d, ports: { inputs: [...(p?.inputs.values() ?? [])], outputs: [...(p?.outputs.values() ?? [])], names: names.get(n.id) } },
     };
   });
-
-  // The level's own ports with no wire across its edge yet: an In or Out with nothing outside.
-  for (const x of levelExpose ?? []) {
-    if (at(x.to[0]) === "out" || [...bounds.values()].some((b) => b.dir === x.side && b.inner.some((to) => isPort(x, x.side, to)))) continue;
-    const handle = portHandle(x.to[0], x.to[1]);
-    const type = portType(x.to[0], x.to[1], x.side === "in" ? "inputs" : "outputs");
-    bounds.set(`${x.side}-unwired:${handle}`, { dir: x.side, label: `${x.to[0]}.${x.to[1]}`, type, handle, group: level!, inner: [x.to], ...(x.name ? { name: x.name } : {}), unwired: true });
-  }
 
   // In ports down the left of what the level shows, Out ports down its right.
   const boundary: AnyNode[] = [];
@@ -443,15 +407,14 @@ const boundaryWidth = (d: BoundaryData) => {
         ? null
         : document.createElement("canvas").getContext("2d");
   }
-  const label = d.name ?? d.label;
-  if (!textMeasure) return Math.round((d.dir === "in" ? 66 : 74) + 7.5 * label.length);
+  if (!textMeasure) return Math.round((d.dir === "in" ? 34 : 42) + 7.5 * d.label.length);
   const tokens = getComputedStyle(document.documentElement);
   const mono = tokens.getPropertyValue("--font-mono").trim() || "monospace";
   const sans = tokens.getPropertyValue("--font-sans").trim() || "sans-serif";
   textMeasure.font = `400 12px ${mono}`;
-  const name = textMeasure.measureText(label).width;
+  const name = textMeasure.measureText(d.label).width;
   textMeasure.font = `600 12px ${sans}`;
-  return Math.ceil(name + textMeasure.measureText(tag).width + 64); // padding 10 + 10, two gaps, the × key, the border, slack
+  return Math.ceil(name + textMeasure.measureText(tag).width + 32); // padding 10 + 10, the gap, the border, slack
 };
 
 /**
@@ -552,7 +515,7 @@ export function toGroups(nodes: AnyNode[]): GraphGroup[] {
       ...(g.data.kind === "story" ? { params: { seconds: g.data.seconds, reset: g.data.reset } } : {}),
       ...(g.data.kind === "story" && g.data.release ? { release: g.data.release } : {}),
       ...(g.data.sides ? { ports: g.data.sides } : {}),
-      ...(g.data.kind !== "visual" && g.data.expose?.some((x) => byId.has(x.to[0])) ? { expose: g.data.expose.filter((x) => byId.has(x.to[0])) } : {}),
+      ...(g.data.kind !== "visual" && g.data.expose?.length ? { expose: g.data.expose } : {}),
     };
   });
 }
