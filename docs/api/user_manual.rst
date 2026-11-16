@@ -159,13 +159,46 @@ The other way, a path passing through `Step → Signal` sets its signal output `
 and holds it until a path passes again: one set to 1 and one set to 0 switch a motor or a lamp
 on and off from a Step flow. Signal blocks read the new value a clock tick later.
 
+Plates and Cards
+~~~~~~~~~~~~~~~~
+
+A simple block (a gain, a sum, a sine, a scope) sits on the canvas as a **plate**: its glyph or
+picture, bare port dots and a caption with its name and main value. Every block also has a
+**card**: a head with its name, tag, note (✎) and **unfold** / **fold** key, its ports by name,
+then its parameters as wells. The card's port body *is* the plate: ports sit 16 px apart on both,
+so a port never moves along its side when a block unfolds or folds, and wires keep their shape.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - To
+     - Do
+   * - Inspect or edit a block
+     - Double-click its plate (or select it and press :kbd:`Enter`). The card floats over the
+       plate, its ports exactly on the plate's, without moving anything. :kbd:`Escape`, a click
+       elsewhere or selecting another block closes it.
+   * - Keep a block unfolded
+     - **unfold** in the floating card's head. The card takes the plate's place on the canvas (its
+       head above, its parameters below) and the blocks it would cover move aside: right of it,
+       below it, above it. One undo step. **fold** puts the plate back. Saved with the project.
+   * - Many ports
+     - A plate grows to fit its ports, 16 px apart; from four on a side, their short names show
+       inside the plate. Hover a dot for its full name.
+
+Blocks with no plate (step blocks, a block with no ``view``, a missing block) are always cards.
+
 Configuring Block Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Click a block to focus it. Parameters appear as recessed wells directly on the block face or
-in the inspector:
+Double-click a block's plate to edit its parameters in its card, or unfold it on the canvas.
+Parameters are recessed wells on the card:
 
 - **Numeric fields**: Type values or use arrow keys to nudge.
+- **Binding a variable**: drag a variable from the Variables drawer onto a parameter's well. Drop
+  it on a plate: a block with one parameter that fits takes it there (the plate rings in the
+  signal colour); a block with several opens its card so you drop it on the one you mean. The
+  well, and the plate's caption, then show the variable's name in an ink outline.
 - **Variable fields**: A parameter that names a project variable (the **Variable** block's
   ``name``, or the target of a tuner block) is a picker: type a name, choose one from the
   list, or drop a variable from the Variables drawer on it. A block that sets that variable
@@ -174,8 +207,8 @@ in the inspector:
 - **Live variables from Squero Studio MX**: while MX runs next to Paperboat, its workspace
   shows in the Variables drawer with an **MX** badge (type ``number``, ``text`` or
   ``matrix``; hover a row for its full value). They are read-only and never saved in the
-  project. Drop one on a field to bind it: a ``matrix`` fits a text field such as the
-  **Matrix** block's ``values``. A run sends the value MX last broadcast in place of the
+  project. Drop one on a field to bind it: a ``matrix`` fits a matrix field such as the
+  **Matrix** block's ``values`` or a state-space matrix. A run sends the value MX last broadcast in place of the
   name, so the binding follows MX between runs. A matrix of more than 4096 values is not
   shared live: its row says so, and a run that uses it stops with that reason.
 - **Function Expressions** (:code:`f(t)`): In expression blocks (like `signal/function`), you
@@ -198,6 +231,13 @@ Grouping and Subsystems
 - **Subsystems**: Collapse a group into a single compact block with clean external ports.
   Double-click a subsystem block to navigate into its internal sheet. Use the breadcrumb bar
   at the top or press :kbd:`Escape` (or :kbd:`Alt` + :kbd:`↑`) to pop back up.
+- **A subsystem's ports**: inside, a wire from outside comes in through an **In** pill on the
+  left and leaves through an **Out** pill on the right. A port stays when its last wire goes: it
+  shows as a dashed pill, ready for the next wire, and its dot stays on the block outside.
+  Double-click a pill's name to rename the port (the block outside shows the new name;
+  :kbd:`Enter` keeps it, :kbd:`Escape` cancels, an empty name puts ``block.port`` back). Hover
+  a pill and press **×** to remove the port and its wires across the edge. To add a port with no
+  wire yet, select the block inside and use **Expose port** on the selection dialog.
 - **Analyses**: when an installed toolkit offers one (the control toolkit's linear analysis, say),
   a subsystem's head has an **analyse** key and the selection dialog an **Analyse** key. The
   Analysis drawer opens beside the page with the toolkit's results for that part of the flow:

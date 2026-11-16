@@ -15,7 +15,7 @@ using json = nlohmann::json;
 
 namespace {
 
-const std::set<std::string, std::less<>> kTypes = {"number", "boolean", "enum", "text", "file"};
+const std::set<std::string, std::less<>> kTypes = {"number", "boolean", "enum", "text", "file", "matrix"};
 
 bool ident_start(char c) { return std::isalpha(static_cast<unsigned char>(c)) || c == '_'; }
 bool ident_char(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
@@ -114,7 +114,7 @@ Variables::Variables(const json& list) {
                                 "and not t, pi, e or a function's name");
     if (defs.contains(name)) throw VariableError(name, "two variables are called " + name);
     const auto type = v.value("type", std::string{});
-    if (!kTypes.contains(type)) throw VariableError(name, name + ": type must be number, boolean, enum, text or file");
+    if (!kTypes.contains(type)) throw VariableError(name, name + ": type must be number, boolean, enum, text, file or matrix");
     const bool has_value = v.contains("value"), has_expr = v.contains("expr");
     if (has_value == has_expr) throw VariableError(name, name + ": give it a value or a formula (expr), not both");
     Var var{.type = type, .value = nullptr, .options = {}, .unit = v.value("unit", std::string{})};
@@ -136,6 +136,13 @@ Variables::Variables(const json& list) {
       if (!fits) throw VariableError(name, name + " is a " + type + ", but its value is " + kind_of(value));
       if (type == "enum" && std::ranges::find(var.options, value.get<std::string>()) == var.options.end())
         throw VariableError(name, name + " is \"" + value.get<std::string>() + "\", not one of its options");
+      if (type == "matrix") {
+        try {
+          parse_matrix_rows(value.get<std::string>(), name);
+        } catch (const std::invalid_argument& err) {
+          throw VariableError(name, err.what());
+        }
+      }
       var.value = value;
     }
     vars_[name] = std::move(var);
@@ -242,6 +249,7 @@ json Variables::value_for(const json& given, const ParamDef& def, std::string_vi
                     : def.type == "enum"    ? var.type == "enum"
                     : def.type == "text"    ? var.type == "text" || var.type == "file"
                     : def.type == "file"    ? var.type == "file" || var.type == "text"
+                    : def.type == "matrix"  ? var.type == "matrix"
                                             : false;  // a key belongs to its block
   if (!fits) throw VariableError(std::string(where), at + " is " + def.type + ", but " + name + " is a " + var.type);
   if (!def.unit.empty() && !var.unit.empty() && def.unit != var.unit)

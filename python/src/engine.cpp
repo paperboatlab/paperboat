@@ -545,8 +545,9 @@ std::vector<tk::ParamDef> params_from_py(nb::handle dict, const std::string& at)
     } else if (nb::isinstance<nb::tuple>(v) && (nb::len(nb::cast<nb::tuple>(v)) == 2 || nb::len(nb::cast<nb::tuple>(v)) == 3)) {
       const auto t = nb::cast<nb::tuple>(v);  // paperboat.Param(default, type, options)
       tk::ParamDef p{.id = id, .type = nb::cast<std::string>(t[1])};
-      if (p.type != "number" && p.type != "boolean" && p.type != "text" && p.type != "key" && p.type != "file" && p.type != "enum" && p.type != "variable")
-        throw std::runtime_error(at + ": param " + id + " has type \"" + p.type + "\" (number, boolean, text, key, file, enum or variable)");
+      if (p.type != "number" && p.type != "boolean" && p.type != "text" && p.type != "key" && p.type != "file" &&
+          p.type != "enum" && p.type != "variable" && p.type != "matrix")
+        throw std::runtime_error(at + ": param " + id + " has type \"" + p.type + "\" (number, boolean, text, key, file, enum, variable or matrix)");
       if (p.is_number()) p.default_value = nb::cast<double>(t[0]);
       else p.default_text = nb::cast<std::string>(t[0]);
       if (nb::len(t) == 3)

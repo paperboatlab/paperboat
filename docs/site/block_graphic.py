@@ -491,7 +491,7 @@ def _param_value_html(p: dict[str, Any], value: Any) -> str:
         return f'<span class="pb-bool{" checked" if checked else ""}" aria-hidden="true"></span>'
     if ptype == "enum":
         return f'<span class="pb-enum">{_esc(value)}</span>'
-    if ptype in ("file", "text", "variable"):
+    if ptype in ("file", "text", "variable", "matrix"):
         return f'<span class="pb-param-val text-param">{_esc("" if value is None else value)}</span>'
     if ptype == "key":
         return f'<span class="pb-param-val key-param">{_esc("" if value is None else value)}</span>'

@@ -39,7 +39,7 @@
 #ifdef PAPERBOAT_HAS_OPENCV
 #include "paperboat/toolkit/opencv.hpp"
 #endif
-#ifdef PAPERBOAT_HAS_OPTIMIZATION
+#if defined(PAPERBOAT_HAS_OPTIMIZATION) || defined(PAPERBOAT_HAS_OPTIMIZE_CMD)
 #include "paperboat/toolkit/expression.hpp"
 #include "paperboat/toolkit/optimization.hpp"
 #endif
@@ -155,7 +155,7 @@ Verification & Packaging:
                              Unpack and verify .ppk archive
                              --json-stream prints one JSON event per line as work goes
 )";
-#ifdef PAPERBOAT_HAS_OPTIMIZATION
+#if defined(PAPERBOAT_HAS_OPTIMIZATION) || defined(PAPERBOAT_HAS_OPTIMIZE_CMD)
   std::cout << R"(
 Optimization:
   optimize <problem.json> [--json] [--grid <N>]
@@ -322,7 +322,7 @@ int cmd_deps(const std::vector<std::string_view>& args) {
   return 1;
 }
 
-#ifdef PAPERBOAT_HAS_OPTIMIZATION
+#if defined(PAPERBOAT_HAS_OPTIMIZATION) || defined(PAPERBOAT_HAS_OPTIMIZE_CMD)
 // The solvers print through both std::cout (the toolkit) and C stdio (Ipopt, MUMPS). Catch the
 // process's stdout file descriptor while a solve runs, so `--json` prints exactly one object
 // and the trace can travel with the result.
@@ -1813,7 +1813,7 @@ const std::vector<CommandSpec>& command_table() {
        {"--cpp", "--python", "--dir"}},
       {"deps", cmd_deps, "Create a backend's isolated environment and install its dependencies", {},
        {"install"}, {"--force"}, "backend"},
-#ifdef PAPERBOAT_HAS_OPTIMIZATION
+#if defined(PAPERBOAT_HAS_OPTIMIZATION) || defined(PAPERBOAT_HAS_OPTIMIZE_CMD)
       {"optimize", cmd_optimize, "Solve a fmincon-shaped problem JSON (LP, QP or NLP)", {}, {},
        {"--json", "--grid"}, "problem"},
 #endif

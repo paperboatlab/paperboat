@@ -2,7 +2,7 @@
 // the open level, and what the group boxes on it can do (rename, ungroup, show how busy they are).
 
 import { useContext, useMemo, type Dispatch, type SetStateAction } from "react";
-import { descendants, frameAround, isFrame, isLevel, ordered, withoutFrame, type GroupData } from "./groups";
+import { descendants, frameAround, isFrame, isLevel, ordered, withoutFrame, withPort, type Expose, type GroupData } from "./groups";
 import { RunStates } from "./flowContexts";
 import { freeId, hasStepPorts, isBlock, portsOf, type FlowNode, type Wire } from "./flowModel";
 
@@ -26,8 +26,16 @@ export function useFlowGroups(
         setNodes((ns) => withoutFrame(ns, id));
         setEdges((ws) => ws.filter((w) => w.source !== id && w.target !== id)); // a story's step wires
       },
+      port: (group: string, side: Expose["side"], ends: [string, string][], name: string | null) => {
+        setNodes((ns) => ns.map((n) => (n.id === group && isFrame(n) ? { ...n, data: { ...n.data, expose: withPort(n.data.expose ?? [], side, ends, name) } } : n)));
+        if (name !== null) return;
+        // Removed: so are its wires across the group's edge (one undo step with it).
+        const inside = new Set(descendants(group, nodes));
+        const at = (node: string, port: string | null | undefined) => ends.some((e) => e[0] === node && e[1] === (port ?? ""));
+        setEdges((ws) => ws.filter((w) => !(side === "in" ? at(w.target, w.targetHandle) && !inside.has(w.source) : at(w.source, w.sourceHandle) && !inside.has(w.target))));
+      },
     }),
-    [setNodes, setEdges],
+    [nodes, setNodes, setEdges],
   );
   // A group is as busy as its busiest block: failed, else running.
   const inside = useMemo(() => {

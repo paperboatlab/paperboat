@@ -15,7 +15,7 @@ void add_matrix_constant(Registry& registry) {
   t.def.label = "Matrix";
   t.def.kind = Kind::Source;
   t.def.outputs = {matrix_port("y")};
-  t.def.params = {{.id = "values", .type = "text", .default_text = "1 0; 0 1"}};
+  t.def.params = {{.id = "values", .type = "matrix", .default_text = "1 0; 0 1"}};
   t.def.description = "A matrix from its rows: \"1 2; 3 4\" (commas, newlines and brackets are welcome).";
   t.def.view = {.compact = true, .glyph = "[M]", .value = "{values}"};
   t.make = [](const Values&, const Config& text) {

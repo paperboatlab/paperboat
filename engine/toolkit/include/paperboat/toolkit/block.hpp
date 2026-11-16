@@ -78,11 +78,12 @@ PortDef matrix_port(std::string id);
 
 // A setting on a block or a station object, edited in the UI. Number types reach a block
 // as numbers (default_value): "number", and "boolean" (1 or 0, a checkbox). Text types
-// reach it as text (default_text, through Config): "text", "key" (a KeyboardEvent.code,
-// which key a Key block reads), "file" (a path, relative to the descriptor's folder) and
-// "enum" (one of `options`, a dropdown; a block also gets its index in `options` as a
-// number, so an expression can use it), and "variable" (the name of a project variable,
-// a picker in the UI; reaches a block as text, for Context::set_variable).
+// reach it as text (default_text, through Config): "text", "matrix" (MATLAB-style matrix
+// rows such as "1 2; 3 4"), "key" (a KeyboardEvent.code, which key a Key block reads),
+// "file" (a path, relative to the descriptor's folder), "enum" (one of `options`, a
+// dropdown; a block also gets its index in `options` as a number, so an expression can use
+// it), and "variable" (the name of a project variable, a picker in the UI; reaches a block
+// as text, for Context::set_variable).
 struct ParamDef {
   std::string id = {};
   double default_value = 0.0;
@@ -300,6 +301,10 @@ BlockDef with_dynamic_ports(const BlockDef& def, const Values& params, const Con
 // and outputs so a dynamic vector is still checked against a fixed-size port at run time, and a
 // points port gets a table (or an empty list) whose points have its number of coordinates.
 std::optional<std::string> vector_value_mismatch(const PortDef& port, const Value& value);
+
+// Parses MATLAB-style matrix rows ("1 2; 3 4", commas, newlines, outer brackets) into a
+// rectangular Table, or throws std::invalid_argument naming `what`.
+Table parse_matrix_rows(std::string_view text, std::string_view what = "matrix");
 
 class DomainState;
 struct Entity;

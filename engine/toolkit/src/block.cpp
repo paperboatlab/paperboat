@@ -412,6 +412,44 @@ PortDef points_port(std::string id, std::vector<VectorComponent> coordinates) {
 
 PortDef matrix_port(std::string id) { return {.id = std::move(id), .type = "signal", .matrix = true}; }
 
+Table parse_matrix_rows(std::string_view text, std::string_view what) {
+  std::string input;
+  for (const char c : text) {
+    if (c == '[' || c == ']') continue;
+    if (c == ',') input += ' ';
+    else if (c == '\n' || c == '\r') input += ';';
+    else input += c;
+  }
+
+  Table out;
+  std::size_t start = 0;
+  while (start <= input.size()) {
+    const std::size_t end = input.find(';', start);
+    const std::string row_text = input.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    start = end == std::string::npos ? input.size() + 1 : end + 1;
+
+    std::istringstream row_stream(row_text);
+    std::vector<double> row;
+    std::string token;
+    while (row_stream >> token) {
+      try {
+        std::size_t used = 0;
+        const double value = std::stod(token, &used);
+        if (used != token.size() || !std::isfinite(value)) throw std::invalid_argument("not a number");
+        row.push_back(value);
+      } catch (const std::exception&) {
+        throw std::invalid_argument(std::string(what) + ": \"" + token + "\" is not a finite number");
+      }
+    }
+    if (row.empty()) continue;
+    if (!out.empty() && row.size() != out.front().size())
+      throw std::invalid_argument(std::string(what) + ": row " + std::to_string(out.size()) + " has " +
+                                  std::to_string(row.size()) + " columns, expected " + std::to_string(out.front().size()));
+    out.push_back(std::move(row));
+  }
+  return out;
+}
+
 std::optional<std::string> vector_value_mismatch(const PortDef& port, const Value& value) {
   if (port.matrix) {
     const auto* table = std::get_if<Table>(&value);

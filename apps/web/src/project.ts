@@ -42,7 +42,7 @@ const isText = (v: unknown): v is string => typeof v === "string";
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const pair = (v: unknown): v is [string, string] => Array.isArray(v) && v.length === 2 && v.every(isText);
 
-const VARIABLE_TYPES = ["number", "boolean", "enum", "text", "file"];
+const VARIABLE_TYPES = ["number", "boolean", "enum", "text", "file", "matrix"];
 const GROUP_KINDS = ["visual", "subsystem", "story"];
 
 /** What a sheet may be (#9; flowTypes.ts). */
@@ -63,6 +63,7 @@ function flowProblem(flow: unknown): string | null {
     if (n.commented !== undefined && typeof n.commented !== "boolean") return `flow.nodes[${i}].commented must be a boolean`;
     if (n.comment_mode !== undefined && n.comment_mode !== "out" && n.comment_mode !== "through") return `flow.nodes[${i}].comment_mode must be "out" or "through"`;
     if (n.comment !== undefined && typeof n.comment !== "string") return `flow.nodes[${i}].comment must be a string`;
+    if (n.unfolded !== undefined && typeof n.unfolded !== "boolean") return `flow.nodes[${i}].unfolded must be a boolean`;
   }
   for (const [i, e] of flow.edges.entries()) {
     if (!isObj(e) || !pair(e.from) || !pair(e.to)) return `flow.edges[${i}] needs from and to as [block, port]`;

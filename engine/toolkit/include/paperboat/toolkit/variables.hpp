@@ -9,7 +9,7 @@
 //
 // Resolved before blocks and objects are made: a block never sees a variable, only the
 // number or text it stands for. Types follow ParamDef's: number (unit, min, max, whole),
-// boolean, enum (options), text and file. A number or boolean variable may itself be a
+// boolean, enum (options), text, file and matrix. A number or boolean variable may itself be a
 // formula over other variables ("expr"); formulas are evaluated in dependency order.
 
 #include <map>

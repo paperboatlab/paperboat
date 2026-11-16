@@ -5,7 +5,7 @@ import { addEdge, type Connection, type Edge, type Node } from "@xyflow/react";
 import { iconValid, type RotationDeg } from "@paperboat/shared";
 import { iconEnd, inForm, signalEnd, type PortSides, type WireEnd } from "./ports.ts";
 import type { GroupNode } from "./groups";
-import type { BlockDef, Connectors, ObjectDef, ParamValue, Station } from "./protocol";
+import type { BlockDef, Connectors, GraphNode, ObjectDef, ParamValue, Station } from "./protocol";
 import type { WirePoint } from "./wireRouting.ts";
 
 /**
@@ -24,7 +24,21 @@ export type BlockData = {
   commented?: boolean;
   commentMode?: "out" | "through";
   comment?: string;
+  /** Shown unfolded on the canvas, as its card, instead of as a plate. */
+  unfolded?: boolean;
 };
+
+/** How a block looks and what was noted on it, beside its def and params: each field as the graph names it. */
+const VIEW = { ports: "ports", rotation: "rotation", mirror: "mirror", commented: "commented", commentMode: "comment_mode", comment: "comment", unfolded: "unfolded" } as const;
+type ViewData = Pick<BlockData, keyof typeof VIEW>;
+const pick = (from: object, keys: [string, string][]) =>
+  Object.fromEntries(keys.flatMap(([to, key]) => ((from as Record<string, unknown>)[key] !== undefined ? [[to, (from as Record<string, unknown>)[key]]] : [])));
+/** A block's view fields as the graph keeps them (only those set). */
+export const viewToGraph = (d: BlockData): Partial<GraphNode> => pick(d, Object.entries(VIEW).map(([k, g]) => [g, k]));
+/** A graph node's view fields as a block keeps them (only those set). */
+export const viewFromGraph = (n: GraphNode): ViewData => pick(n, Object.entries(VIEW)) as ViewData;
+/** A block's own view fields, to carry over when its def changes. */
+export const viewOf = (d: BlockData): ViewData => pick(d, Object.keys(VIEW).map((k) => [k, k])) as ViewData;
 export type BlockNode = Node<BlockData, "block">;
 /** What the Flow canvas holds: blocks, and the groups (frames) around some of them. */
 export type FlowNode = BlockNode | GroupNode;
@@ -169,13 +183,7 @@ export function resolveBlocks(nodes: FlowNode[], edges: Wire[], blocks: BlockDef
     if (def) {
       const defaults = Object.fromEntries(def.params.map((p) => [p.id, p.default]));
       const kept = Object.fromEntries(Object.entries(n.data.params).filter(([k]) => k in defaults));
-      const ports = n.data.ports ? { ports: n.data.ports } : {};
-      const rotation = n.data.rotation !== undefined ? { rotation: n.data.rotation } : {};
-      const mirror = n.data.mirror !== undefined ? { mirror: n.data.mirror } : {};
-      const commented = n.data.commented !== undefined ? { commented: n.data.commented } : {};
-      const commentMode = n.data.commentMode !== undefined ? { commentMode: n.data.commentMode } : {};
-      const comment = n.data.comment !== undefined ? { comment: n.data.comment } : {};
-      return { ...n, deletable: !def.linked, data: { def, params: { ...defaults, ...kept }, ...ports, ...rotation, ...mirror, ...commented, ...commentMode, ...comment } };
+      return { ...n, deletable: !def.linked, data: { def, params: { ...defaults, ...kept }, ...viewOf(n.data) } };
     }
     const wires = edges.map((e) => ({ ...e, type: e.data?.type }));
     return { ...n, deletable: true, data: { ...n.data, def: missingDef(n.data.def.type, n.data.params, wires, n.id, n.data.def), missing: true } };

@@ -207,7 +207,8 @@ initializers may leave any out.
    .. cpp:member:: std::string type = "number"
 
       Number types (to the block as ``Values``): ``"number"``, ``"boolean"`` (a checkbox; 1
-      or 0). Text types (through ``Config``): ``"text"``, ``"key"`` (a ``KeyboardEvent.code``,
+      or 0). Text types (through ``Config``): ``"text"``, ``"matrix"`` (MATLAB-style matrix rows,
+      ``"1 2; 3 4"``), ``"key"`` (a ``KeyboardEvent.code``,
       picked by pressing it), ``"file"`` (a path, relative to the descriptor's folder),
       ``"enum"`` (one of ``options``, a dropdown; the block also gets its index in ``Values``),
       ``"variable"`` (the name of a project variable, a picker; for

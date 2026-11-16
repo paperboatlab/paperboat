@@ -68,7 +68,7 @@ Default address: `ws://localhost:8765`.
   "outputs": [{ "id": "y", "type": "signal" }],
   "params":  [{ "id": "amplitude", "type": "number", "default": 5 }],
   // other param types: { "type": "boolean", "default": true } (a checkbox; 1 or 0 to the block),
-  // { "type": "text" | "key" | "file" | "variable", "default": "…" },
+  // { "type": "text" | "key" | "file" | "variable" | "matrix", "default": "…" },
   // { "type": "enum", "options": ["in-out", "in"], "default": "in-out" } (a choice; the block gets its index)
   "group": "base",                 // optional palette group: the domain, or a toolkit package
   // optional, how to draw it (a hint: absent, or a UI that ignores it, draws the normal card).
@@ -336,7 +336,7 @@ pushes on the object through the block's inputs and reads it through its outputs
  { "name": "trail", "type": "boolean", "value": false, "exposed": true, "dock": true }]          // also a Dashboard and a dock control
 ```
 
-`type` is `number`, `boolean`, `enum`, `text` or `file` (as params). Each has a `value`
+`type` is `number`, `boolean`, `enum`, `text`, `file` or `matrix` (as params). Each has a `value`
 of its type or, for a number or boolean, an `expr` over other variables (evaluated in
 dependency order; a loop is an error). `min`, `max` and `whole` constrain a number;
 `note`, `group`, `step`, `exposed` (a control in the Dashboard's `controls` tile), `dock` (a control in the run dock) and `tunable` (meant to change during a run) are for the UI. A name is letters, digits and `_`,
@@ -488,9 +488,10 @@ coordinates are the block's own, y up; `view` is the area shown (absent: what fi
 
 A graph may carry `groups`: `{ id, kind: "visual" | "subsystem" | "story", label?, nodes: [ids],
 collapsed?, pos?, params?: { seconds, reset }, release?: [[node, port], ...],
-expose?: [{ side: "in" | "out", to: [node, port] }, ...] }`. A block is in at most one group.
+expose?: [{ side: "in" | "out", to: [node, port], name? }, ...] }`. A block is in at most one group.
 Groups nest (`parent`). `expose` lists ports a subsystem or story shows as a block even where no wire
-crosses its edge yet (an input or output of a block inside it); the UI sets it, backends ignore it.
+crosses its edge yet (an input or output of a block inside it), each with the name the user gave it
+(else `node.port`); the UI sets it (a port stays when its last wire goes), backends ignore it.
 
 - **visual** tidies the canvas: the backend runs its blocks as if ungrouped. Collapsed,
   the UI draws it as one block whose ports are the wires crossing its edge; the wires
