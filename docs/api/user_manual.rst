@@ -234,9 +234,11 @@ Grouping and Subsystems
 - **A subsystem's ports are blocks**: an **In** block inside a subsystem (or story) is an input
   port on its block outside, an **Out** block an output port. They are in the block browser's
   **group** package, and work like any block: place as many as you like, wire them, move them
-  (the ports outside follow their order, top to bottom), delete one to remove its port. Name a
-  port with the block's ``name`` (double-click it; unnamed, it is In 1, Out 2…). A port stays
-  when its wires go: it is the block.
+  (the ports outside follow their order, top to bottom), delete one to remove its port. Each is
+  a pill that says which port it is, ``In 2`` (its number among the Ins, top to bottom), then its
+  name. Double-click the pill to name the port (:kbd:`Enter` keeps it, :kbd:`Escape` cancels);
+  outside, the port shows the name, or ``In 2`` while it has none. A port stays when its wires
+  go: it is the block.
 
   - **Grouping wired blocks** puts an In where each wire comes in and an Out where each goes
     out, so a new subsystem's ports are blocks from the start.

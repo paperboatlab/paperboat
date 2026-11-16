@@ -441,6 +441,12 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .boundary-tag { font: 600 var(--size-2xs) var(--font-sans); color: var(--text-muted); }
 .boundary-name { overflow: hidden; text-overflow: ellipsis; }
 .react-flow__node-boundary { cursor: default; }
+/* In and Out blocks: the same pill, a block of its own (sized by its text, selectable, movable).
+   Its tag says which port of the group it is (In 2); its name, if any, follows in ink. */
+.port-pill { position: relative; display: flex; align-items: center; gap: var(--space-2); height: 28px; padding: 0 12px; font: var(--size-2xs) var(--font-mono); color: var(--text); background: var(--surface-sunken); border: 1px solid var(--line-strong); border-radius: 999px; white-space: nowrap; }
+.port-pill.selected { outline: var(--select-outline); outline-offset: var(--select-offset); animation: select-in var(--glide); }
+.port-pill-tag { font: 600 var(--size-2xs) var(--font-sans); color: var(--text-muted); }
+input.port-pill-name { height: 20px; padding: 0 4px; border: 0; border-radius: var(--radius-sm); background: var(--surface-well); box-shadow: var(--well-shadow); font: inherit; color: var(--text); }
 /* An In or Out block's port that faces outside the subsystem is the subsystem's port: not drawn inside. */
 .react-flow__node-block .react-flow__handle[data-handleid="outer"], .react-flow__node-block .port[data-port="outer"] { visibility: hidden; pointer-events: none; }
 /* A subsystem's dashed + port, under its last port on each side: shown while a wire is dragged; a wire dropped on it adds an In or Out block inside. */

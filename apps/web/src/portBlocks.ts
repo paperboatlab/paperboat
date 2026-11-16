@@ -52,13 +52,17 @@ export function withoutPortBlocks<N extends NodeLike, W extends WireLike>(nodes:
   };
 }
 
-/** A port block's ports for the group's block, in the order they stand inside it (top to bottom). */
-export function portBlocksOf<N extends NodeLike>(blocks: N[]): { node: N; side: "inputs" | "outputs"; handle: string; name: string }[] {
-  const sorted = [...blocks].sort((a, b) => a.position.y - b.position.y);
+/**
+ * A group's In and Out blocks as its ports, in the order they stand inside it (top to bottom; a
+ * tie, left to right): each with its number among its kind (In 1, In 2… Out 1…) and its name.
+ */
+export function portBlocksOf<N extends NodeLike & { position: { x?: number } }>(blocks: N[]): { node: N; side: "inputs" | "outputs"; handle: string; index: number; name: string }[] {
+  const sorted = [...blocks].sort((a, b) => a.position.y - b.position.y || (a.position.x ?? 0) - (b.position.x ?? 0) || a.id.localeCompare(b.id));
   const count = { [PORT_IN]: 0, [PORT_OUT]: 0 } as Record<string, number>;
   return sorted.map((node) => {
     const type = typeOf(node)!;
-    return { node, side: type === PORT_IN ? "inputs" : "outputs", handle: `${node.id}::${OUTER}`, name: portBlockName(node, ++count[type]) };
+    const index = ++count[type];
+    return { node, side: type === PORT_IN ? "inputs" : "outputs", handle: `${node.id}::${OUTER}`, index, name: portBlockName(node, index) };
   });
 }
 

@@ -13,6 +13,8 @@ import { makeRoom, type Rect } from "./flowLayout";
 import { draggedVariable, VAR_DRAG } from "./Variables";
 import { VarsContext } from "./VarsContext";
 import { runWord } from "./engine";
+import { isPortType } from "./portBlocks";
+import { PortPill } from "./PortPill";
 import type { ParamValue } from "./protocol";
 
 /** A card's head: what it sits above its port body, so a plate's ports line up with the card's. */
@@ -25,7 +27,11 @@ const nodeEl = (id: string) => document.querySelector<HTMLElement>(`.react-flow_
  * and edit, and the card's unfold key puts the card on the canvas instead (`unfolded`, saved),
  * making room for it. Other blocks are always their card. One card, the same three ways.
  */
-export function Block({ id, data, selected }: NodeProps<BlockNode>) {
+export function Block(props: NodeProps<BlockNode>) {
+  return isPortType(props.data.def.type) ? <PortPill {...props} /> : <BlockFace {...props} />;
+}
+
+function BlockFace({ id, data, selected }: NodeProps<BlockNode>) {
   const { updateNodeData, setNodes, getNode } = useReactFlow<BlockNode, Wire>();
   const states = useContext(RunStates);
   const vars = useContext(VarsContext);
