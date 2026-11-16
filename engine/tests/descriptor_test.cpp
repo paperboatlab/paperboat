@@ -602,6 +602,10 @@ description = "Quadratic and linear programs."
   auto logger = [&](std::string_view, std::string_view text) { logs.emplace_back(text); };
 
   const auto installed = tk::install_toolkit("opencv", "dev", root, {.source_dir = {}, .build_dir = {}, .skip_rebuild = true}, logger);
+  // On failure, say why: the installer's message and what it logged.
+  std::string logged;
+  for (const auto& line : logs) logged += line + "\n";
+  INFO(installed.message << "\n" << logged);
   CHECK(installed.ok);
   CHECK(fs::is_regular_file(root / "engine" / "toolkit" / "opencv" / "toolkit.toml"));
   CHECK(tk::list_toolkits(root, backend_dir)[1].installed);
