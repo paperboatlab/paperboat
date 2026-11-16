@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <thread>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -691,4 +692,56 @@ TEST_CASE("list --json says what kind each running thing is") {
     CHECK(r.contains("port"));
     CHECK(r.contains("pid"));
   }
+}
+
+TEST_CASE("paperboat status: a start's stage, its failure, and stale records pruned (pb#332)") {
+  using paperboat::core::BackendManager;
+  using paperboat::core::StartingBackend;
+  const auto status = [](std::string_view filter = {}) { return nlohmann::json::parse(BackendManager::status_json(filter))["backends"]; };
+  const auto clear = [](int pid) { BackendManager::remove_start_record(pid); };
+
+  // Building, from this (live) process: shown with its stage.
+  StartingBackend me{.name = "pb332-demo", .dir = "/tmp/pb332-demo", .port = 59331, .pid = static_cast<int>(getpid()),
+                     .state = "building", .stage = "compile", .started_at_ms = 0, .updated_at_ms = 0, .error = {}};
+  BackendManager::write_start_record(me);
+  auto mine = status("pb332-demo");
+  REQUIRE(mine.size() == 1);
+  CHECK(mine[0]["state"] == "building");
+  CHECK(mine[0]["stage"] == "compile");
+  CHECK(status("59331").size() == 1);  // by port too
+  CHECK(status("someone-else").empty());
+
+  // A start whose process is gone, still building: pruned.
+  const pid_t child = fork();
+  if (child == 0) _exit(0);
+  waitpid(child, nullptr, 0);
+  StartingBackend dead = me;
+  dead.name = "pb332-dead";
+  dead.port = 59332;
+  dead.pid = static_cast<int>(child);
+  BackendManager::write_start_record(dead);
+  CHECK(status("pb332-dead").empty());
+  CHECK_FALSE(std::filesystem::exists(BackendManager::start_record_path(dead.pid)));
+
+  // Failed, its process gone: kept (a minute) with its error for a wait screen.
+  dead.state = "failed";
+  dead.error = "build failed: main.cpp:18:1: error: expected unqualified-id";
+  BackendManager::write_start_record(dead);
+  auto failed = status("pb332-dead");
+  REQUIRE(failed.size() == 1);
+  CHECK(failed[0]["state"] == "failed");
+  CHECK(failed[0]["error"] == dead.error);
+
+  // A later start on the same port replaces the failure.
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  me.port = dead.port;
+  me.started_at_ms = 0;  // a new start
+  BackendManager::write_start_record(me);
+  auto now = status("59332");
+  REQUIRE(now.size() == 1);
+  CHECK(now[0]["state"] == "building");
+
+  clear(me.pid);
+  clear(dead.pid);
+  CHECK(status("pb332-demo").empty());
 }

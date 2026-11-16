@@ -177,3 +177,20 @@ The console runs the same ``paperboat`` commands you would type in a shell, thro
 machine-readable forms: ``paperboat backends --json``, ``paperboat commands --json``, and
 ``--json-stream`` on ``check``, ``pack`` and ``unpack`` (one JSON event per line, then a
 ``result`` event). Scripts can use them the same way.
+
+**What a backend is doing while it starts.** A C++ backend compiles before it serves, which takes
+minutes on a cold engine. ``paperboat status [<backend|port>] [--json]`` says where every start is,
+from any process:
+
+.. code-block:: json
+
+   {"backends": [{"name": "cart-pole", "state": "building", "stage": "compile", "elapsed": 42.1, "port": 8791},
+                 {"name": "workbench", "state": "running", "port": 8765, "url": "ws://localhost:8765"}]}
+
+``state`` is ``building`` (``stage``: ``prepare``, ``configure``, ``compile``), ``starting``
+(``waiting``: launched, not answering yet), ``failed`` (with ``error``, the compiler's first error
+line; kept a minute) or ``running``; ``elapsed`` counts from the start. A start's record lives in
+the runtime folder beside the running backends' and goes when its ``paperboat`` process ends; a dead
+one is pruned. The web app reads the same document from its host (``/__paperboat/status``): until its
+backend answers, its wait screen says ``compiling cart-pole… 42s``. Squero Studio OM's dock shows the
+same while a generated backend builds.

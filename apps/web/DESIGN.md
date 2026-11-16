@@ -89,7 +89,9 @@ ready) fills in `--signal`, on the way (connecting, starting) is a hollow ring t
 under reduced motion), failed is a `--danger` ring with the label in `--danger-text`. Until the
 backend's first `hello` the pages are the shared **wait screen** (`WaitScreen`, as Squero OM opens):
 in the middle, on the ground grey, the words (`connecting to the backend at ws://…`, `waiting for a
-backend at ws://…`), the seconds past 3 s, the busy wave (the logo's water, 8px dots), and past 6 s a
+backend at ws://…`; while the backend on that port builds, `paperboat status` words instead:
+`configuring cart-pole`, `compiling cart-pole`, `starting cart-pole`, or the failure in the danger ink),
+the seconds past 3 s (the build's own clock when it has one), the busy wave (the logo's water, 8px dots), and past 6 s a
 hint in small type on how to start one; the run dock waits with it. A connection lost after that keeps
 the pages. Everything else
 you can do is a **command** in one registry (`src/commands.ts`); the menu bar, the command

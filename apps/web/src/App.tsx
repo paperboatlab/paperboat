@@ -34,6 +34,7 @@ import { count } from "./words";
 import { AppHeader } from "./AppHeader";
 import { StationView } from "./StationView";
 import { useBackendKeys } from "./backendKeys";
+import { startWords, useBackendStatus } from "./backendStart";
 import { HelpWindow, MODES, PAGES, Panel, Rail, useThemeChoice, WaitScreen, type Drawer, type Mode, type Page } from "./Shell";
 import type { StationControls } from "./StationGraph";
 import { withObject } from "./StationPanel";
@@ -84,6 +85,8 @@ export function App() {
   const flow = useRef<FlowControls | null>(null); // the canvas's actions, for the menus
   const stationCanvas = useRef<StationControls | null>(null);
   const { state, send, subscribe, log, replay: replayApi } = useEngine(url);
+  // While no backend has said hello: what the one on this URL's port is doing, if it is starting (pb#332).
+  const starting = startWords(useBackendStatus(!state.engine), url);
   const stationShown = stationChoice === "auto" ? state.stationView.visible !== false : stationChoice === "shown";
   const setStationShown = (shown: boolean) => setStationChoice(shown ? "shown" : "hidden");
   const pages = useMemo(() => (stationShown ? PAGES : PAGES.filter((p) => p.id !== "station")), [stationShown]);
@@ -501,8 +504,8 @@ export function App() {
         {!state.engine && (
           <WaitScreen
             key={url}
-            words={state.connection === "connecting" ? `connecting to the backend at ${url}` : `waiting for a backend at ${url}`}
-            hint="Start one with paperboat start <backend> (paperboat backends lists them), or pick another under File › Backend…"
+            {...(starting ?? { words: state.connection === "connecting" ? `connecting to the backend at ${url}` : `waiting for a backend at ${url}` })}
+            hint={starting && !starting.failed ? "A C++ backend compiles before it starts: the first time takes a few minutes." : "Start one with paperboat start <backend> (paperboat backends lists them), or pick another under File › Backend…"}
           />
         )}
         <div className="page-stack">

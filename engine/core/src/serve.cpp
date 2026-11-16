@@ -102,6 +102,9 @@ int serve_files(const fs::path& dir, int port, const std::string& host) {
       }
       return respond(200, "application/json", out.dump());
     }
+    // What each backend is doing, starting ones included (pb#332), as `paperboat status --json` gives it:
+    // the wait screen polls it while its backend builds.
+    if (path == "/__paperboat/status") return respond(200, "application/json", BackendManager::status_json());
     // Toolkits installed into a release (pb#353): the web parts `toolkit install` bundled, which the
     // app imports at startup, and their files.
     const std::string tk_prefix = "/__paperboat/toolkits";

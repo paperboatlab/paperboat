@@ -112,6 +112,10 @@ Start and stop (the web app, backends and programs):
                              program. --all stops every running backend.
   restart [target]           Restart the web app, or a backend or program
   list, ps [--json]          Everything running, with a KIND column: backend or app
+  status [<backend|port>] [--json]
+                             What each backend is doing: building (prepare, configure, compile),
+                             starting (launched, not answering yet), failed (and why: kept a
+                             minute), running. --json is what a wait screen polls
   run [path | pkg.ppk]       Start a backend (the same options as start)
 
 Backends:
@@ -900,6 +904,39 @@ int cmd_list(const std::vector<std::string_view>& args) {
   for (const auto& it : items) {
     std::cout << std::left << std::setw(9) << it.kind << std::setw(7) << it.port << std::setw(8) << it.pid
               << std::setw(22) << it.name << std::setw(28) << it.detail << it.url << '\n';
+  }
+  return 0;
+}
+
+// What each backend is doing, starting ones included (pb#332): building (prepare, configure,
+// compile), starting (waiting for it to answer), failed (with why), running. `--json` is the document
+// a wait screen polls, the same as the web host's /__paperboat/status.
+int cmd_status(const std::vector<std::string_view>& args) {
+  bool json_out = false;
+  std::string target;
+  for (auto a : args) {
+    if (a == "--json") json_out = true;
+    else if (!a.starts_with("-")) target = std::string(a);
+  }
+  const json doc = json::parse(core::BackendManager::status_json(target));
+  if (json_out) {
+    std::cout << doc.dump(2) << '\n';
+    return 0;
+  }
+  const auto& list = doc["backends"];
+  if (list.empty()) {
+    std::cout << (target.empty() ? "No backend is starting or running." : "No backend \"" + target + "\" is starting or running.")
+              << " `paperboat start <backend>` starts one.\n";
+    return 0;
+  }
+  std::cout << std::left << std::setw(10) << "STATE" << std::setw(11) << "STAGE" << std::setw(7) << "PORT" << std::setw(24)
+            << "NAME" << "ELAPSED\n";
+  for (const auto& b : list) {
+    std::ostringstream elapsed;
+    if (b.contains("elapsed")) elapsed << std::fixed << std::setprecision(1) << b["elapsed"].get<double>() << " s";
+    std::cout << std::left << std::setw(10) << b.value("state", "") << std::setw(11) << b.value("stage", "-") << std::setw(7)
+              << b.value("port", 0) << std::setw(24) << b.value("name", "") << elapsed.str() << '\n';
+    if (b.contains("error")) std::cout << "  " << b["error"].get<std::string>() << '\n';
   }
   return 0;
 }
@@ -1821,6 +1858,7 @@ const std::vector<CommandSpec>& command_table() {
       {"rebuild", cmd_rebuild, "Clean and compile a C++ backend", {}, {}, {}, "backend"},
       {"backends", cmd_backends, "List the backends you can run", {}, {}, {"--json"}},
       {"list", cmd_list, "List what is running, backends and apps (KIND)", {"ps"}, {}, {"--json"}},
+      {"status", cmd_status, "What each backend is doing: building (stage), starting, failed, running", {}, {}, {"--json"}, "backend|port"},
       {"app", cmd_app, "The web app: start, stop, restart, build (start/stop/restart do the same)", {},
        {"start", "stop", "restart", "build"}, {"--port", "--host", "--daemon"}},
       {"examples", cmd_examples, "Run all example backends, or fetch them", {}, {"start", "stop", "status", "fetch"}, {"--dir"}},
@@ -1932,8 +1970,7 @@ void print_interactive_help() {
     for (const auto alias : c.aliases) names += ", " + std::string(alias);
     std::cout << "  " << std::left << std::setw(18) << names << c.summary << '\n';
   }
-  std::cout << "  " << std::left << std::setw(18) << "status" << "Everything running, and the example backends\n"
-            << "  " << std::setw(18) << "clear" << "Clear the screen and redraw the banner\n"
+  std::cout << "  " << std::left << std::setw(18) << "clear" << "Clear the screen and redraw the banner\n"
             << "  " << std::setw(18) << "help" << "This list (`help <anything>` for the full manual)\n"
             << "  " << std::setw(18) << "exit, quit" << "Leave the prompt\n";
 }
@@ -2007,12 +2044,7 @@ int run_interactive_prompt() {
 
     std::vector<std::string_view> rest(sv_tokens.begin() + 1, sv_tokens.end());
     if (const Command command = find_command(cmd)) command(rest);
-    else if (cmd == "status") {
-      std::cout << "--- Running Backends ---\n";
-      cmd_list({});
-      std::cout << "\n--- Example Backends ---\n";
-      cmd_examples({"status"});
-    } else {
+    else {
       std::cerr << "unknown command: " << cmd << ". Type 'help' for available commands.\n";
     }
   }
