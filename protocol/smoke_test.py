@@ -165,7 +165,9 @@ async def starter_and_cancel(ws: ClientConnection, starter: dict, monitors: set[
     infinite = duration <= 0
     run_settings = {"duration": 0.5, "speed": 0} if infinite else None
     msgs = await run_until_finished(ws, starter, settings=run_settings)
-    signals = [m for m in msgs if m["type"] == "signal" and m["node"] in monitors]
+    # Samples come one per message, or several in one `signals` batch when they come faster than every 30 ms.
+    samples = [s for m in msgs for s in (m["list"] if m["type"] == "signals" else [m] if m["type"] == "signal" else [])]
+    signals = [s for s in samples if s["node"] in monitors]
     scene_updates = [m for m in msgs if m["type"] in ("scene", "scene.patch")]
     progress = max((m["fraction"] for m in msgs if m["type"] == "run.progress"), default=0)
     errors = [m for m in msgs if "error" in m["type"] or m.get("level") == "error" or m.get("error")]
