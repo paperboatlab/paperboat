@@ -456,7 +456,7 @@ void load_starters(const json& doc, Catalog& catalog) {
     // Ports the group shows as a block even with no wire: { side: "in" | "out", to: [node, port] }.
     for (const auto& x : g.value("expose", json::array())) {
       if (kind == "visual") throw DescriptorError(at + ": only a subsystem or story exposes ports");
-      only_fields(x, {"side", "to", "name"}, at + ".expose");
+      only_fields(x, {"side", "to"}, at + ".expose");
       const auto side = x.value("side", std::string{});
       if (side != "in" && side != "out") throw DescriptorError(at + ".expose: side must be in or out");
       if (!x.contains("to") || !x["to"].is_array() || x["to"].size() != 2 || !x["to"][0].is_string() || !x["to"][1].is_string())
@@ -682,7 +682,6 @@ Catalog load_descriptor(std::string_view toml_text, const Registry& registry, co
       (!registry.package(catalog.domain).empty() || !registry.objects(catalog.domain).empty() ||
        !registry.connectors(catalog.domain).empty() || !registry.analyses(catalog.domain).empty()))
     imports.push_back(catalog.domain);
-
   auto add_import_name = [&](const std::string& name) {
     if (name == "__all__") {
       // Add all packages from registry (all built-in packages) and optional toolkits
@@ -711,6 +710,9 @@ Catalog load_descriptor(std::string_view toml_text, const Registry& registry, co
       add_import_name(doc[key].get<std::string>());
     }
   }
+  // A subsystem's or story's In and Out blocks: any flow can group blocks, so every catalog that
+  // has blocks has them, last.
+  if (!imports.empty() && !registry.package("group").empty() && std::ranges::find(imports, "group") == imports.end()) imports.push_back("group");
   for (const auto& package : imports) {
     const auto templates = registry.package(package);
     const auto station = registry.objects(package);
@@ -750,8 +752,9 @@ Catalog load_descriptor(std::string_view toml_text, const Registry& registry, co
     }
   }
   // Palette order: the domain's own blocks, then each imported package in import order
-  // (customised entries join their package), then packages used but not imported.
+  // (customised entries join their package), then packages used but not imported, then group (In, Out).
   auto rank = [&](const CatalogEntry& e) {
+    if (e.group == "group") return group_order.size() + 1;
     auto it = std::ranges::find(group_order, e.group);
     return it == group_order.end() ? group_order.size() : static_cast<std::size_t>(it - group_order.begin());
   };

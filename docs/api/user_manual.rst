@@ -231,13 +231,25 @@ Grouping and Subsystems
 - **Subsystems**: Collapse a group into a single compact block with clean external ports.
   Double-click a subsystem block to navigate into its internal sheet. Use the breadcrumb bar
   at the top or press :kbd:`Escape` (or :kbd:`Alt` + :kbd:`↑`) to pop back up.
-- **A subsystem's ports**: inside, a wire from outside comes in through an **In** pill on the
-  left and leaves through an **Out** pill on the right. A port stays when its last wire goes: it
-  shows as a dashed pill, ready for the next wire, and its dot stays on the block outside.
-  Double-click a pill's name to rename the port (the block outside shows the new name;
-  :kbd:`Enter` keeps it, :kbd:`Escape` cancels, an empty name puts ``block.port`` back). Hover
-  a pill and press **×** to remove the port and its wires across the edge. To add a port with no
-  wire yet, select the block inside and use **Expose port** on the selection dialog.
+- **A subsystem's ports are blocks**: an **In** block inside a subsystem (or story) is an input
+  port on its block outside, an **Out** block an output port. They are in the block browser's
+  **group** package, and work like any block: place as many as you like, wire them, move them
+  (the ports outside follow their order, top to bottom), delete one to remove its port. Each is
+  a pill that says which port it is, ``In 2`` (its number among the Ins, top to bottom), then its
+  name. Double-click the pill to name the port (:kbd:`Enter` keeps it, :kbd:`Escape` cancels);
+  outside, the port shows the name, or ``In 2`` while it has none. A port stays when its wires
+  go: it is the block.
+
+  - **Grouping wired blocks** puts an In where each wire comes in and an Out where each goes
+    out, so a new subsystem's ports are blocks from the start.
+  - **Adding a port from outside**: while you drag a wire, a subsystem shows a dashed **+** port
+    under its last port on each side. Drop the wire there: an In (or Out) block is added
+    inside, already wired.
+  - **Ungroup** takes the In and Out blocks away and joins the wires through them.
+
+  In and Out pass their value through unchanged, of any type, so a run is the same with or
+  without the subsystem. A wire straight into a block inside a subsystem from an older project
+  still works: it shows as an In or Out pill at the edge.
 - **Analyses**: when an installed toolkit offers one (the control toolkit's linear analysis, say),
   a subsystem's head has an **analyse** key and the selection dialog an **Analyse** key. The
   Analysis drawer opens beside the page with the toolkit's results for that part of the flow:

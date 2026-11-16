@@ -144,13 +144,15 @@ defaults = { k = -1 }
   // The domain's own package ("test": motor, bird) comes without being imported.
   // (signal's abstract parent, generator, isn't imported: it is only a parent)
   CHECK(catalog.entries.size() == 2 + tk::builtins().package("math").size() + tk::builtins().package("signal").size() - 1 +
-                                     tk::builtins().package("step").size());
+                                     tk::builtins().package("step").size() + tk::builtins().package("group").size());
   CHECK(catalog.find("generator") == nullptr);
   CHECK(catalog.find("gain")->def.params.at(0).default_value == -1.0);  // not replaced by the import
   CHECK(catalog.find("sine") != nullptr);
   CHECK(catalog.find("when") != nullptr);
   CHECK(catalog.find("pid") == nullptr);  // control wasn't imported
   CHECK(catalog.find("key") == nullptr);  // nor base
+  CHECK(catalog.find("inport") != nullptr);  // a subsystem's In and Out come with every catalog
+  CHECK(catalog.find("outport")->group == "group");
   CHECK(catalog.find("motor")->group == "test");
   CHECK(catalog.find("gain")->group == "math");
   CHECK(catalog.find("when")->group == "step");

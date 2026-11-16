@@ -2607,7 +2607,7 @@
         "kind",
         "nodes"
       ],
-      "description": "A group of blocks. subsystem: a block you open to see its insides, like a Simulink subsystem; its ports are the wires crossing its edge. story: a subsystem that runs as one step of a Step flow (ports in -> next): its blocks once per clock step for params.seconds (0: once), fresh each time if params.reset. visual: a frame that tidies the canvas only. Groups nest (parent); the graph's wires stay flat, block to block, so backends treat a subsystem or a frame as if it weren't there.",
+      "description": "A group of blocks. subsystem: a block you open to see its insides, like a Simulink subsystem; its ports are its inport and outport blocks (In, Out) and the wires crossing its edge. story: a subsystem that runs as one step of a Step flow (ports in -> next): its blocks once per clock step for params.seconds (0: once), fresh each time if params.reset. visual: a frame that tidies the canvas only. Groups nest (parent); the graph's wires stay flat, block to block, so backends treat a subsystem or a frame as if it weren't there.",
       "properties": {
         "id": {
           "type": "string"
@@ -2680,10 +2680,6 @@
                   "in",
                   "out"
                 ]
-              },
-              "name": {
-                "type": "string",
-                "description": "The port's name on the group's block; absent: node.port."
               },
               "to": {
                 "type": "array",

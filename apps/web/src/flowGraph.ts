@@ -37,7 +37,7 @@ export function fromGraph(graph: Graph, blocks: BlockDef[]): { nodes: FlowNode[]
       release: g.release,
       pos: g.pos,
       sides: g.ports,
-      expose: g.expose?.map((x) => ({ side: x.side, to: [x.to[0], x.to[1]] as [string, string], ...(x.name ? { name: x.name } : {}) })),
+      expose: g.expose?.map((x) => ({ side: x.side, to: [x.to[0], x.to[1]] as [string, string] })),
     });
     if (g.kind === "story") byId.set(g.id, STORY_DEF);
     const moved = new Map(children.map((c) => [c.id, c]));

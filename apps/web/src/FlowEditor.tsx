@@ -7,7 +7,7 @@ import { CANVAS_GESTURES, CanvasHelp } from "@paperboat/shared/components";
 import { SNAP, WireDragContext } from "./wireSnap";
 import { arrangeFlowNodes, canArrangeFlow, clearWireBends } from "./flowLayout";
 import type { WirePoint } from "./wireRouting.ts";
-import { Boundary, display, GroupActions, GroupBox, isFrame, keepPorts, type GroupData, type GroupNode } from "./groups";
+import { Boundary, display, GroupActions, GroupBox, isFrame, type GroupData, type GroupNode } from "./groups";
 import type { BlockDef, Connectors, FlowType } from "./protocol";
 import { isBlock, portType, type FlowNode, type Wire } from "./flowModel";
 import { withBlock } from "./flowGraph";
@@ -16,6 +16,7 @@ import { commentedOutIds, iconWireCounts, routeCanvasWires } from "./flowWires";
 import { wireRules } from "./wireRules";
 import { useFlowLevels } from "./flowLevels";
 import { useFlowGroups } from "./flowGroups";
+import { PORT_IN } from "./portBlocks";
 import { useLitWires } from "./litWires";
 import { useFlowClipboard } from "./flowClipboard";
 import { useWireDrag } from "./wireDrag";
@@ -103,11 +104,11 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
   // ---- Levels (#68): a subsystem or story opens on the canvas; the way back is the breadcrumb ----
   const { level, go, path } = useFlowLevels(wanted, setLevel, nodes, edges, setNodes, setEdges);
   // Which wires may join which ports, and the type a new one takes.
-  const rules = wireRules(nodes, connectors);
+  const rules = wireRules(nodes, connectors, blocks.some((b) => b.type === PORT_IN));
   const { defOf, isValidConnection } = rules;
   const shown = display(nodes, edges, (node, port, side) => portType(defOf(node), port, side) ?? "signal", level);
   const shownIds = new Set(shown.nodes.filter((n) => !n.hidden).map((n) => n.id));
-  const { actions, stateOf, canGroup, canFrame, canStory, group } = useFlowGroups(nodes, shownIds, setNodes, setEdges);
+  const { actions, stateOf, canGroup, canFrame, canStory, group } = useFlowGroups(nodes, edges, blocks, shownIds, setNodes, setEdges);
   const { lit, follow, unlit } = useLitWires(edges);
 
   // ---- Adding: quick add at the cursor, and cards dropped from the browser (#50) ----
@@ -151,7 +152,7 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
   const { copied, copySelected, pasteCopied, duplicateSelected } = useFlowClipboard(store, latest, setNodes, setEdges);
 
   // ---- Drawing and moving wires; while one is dragged (#52), the port it would join is raised ----
-  const { wireDrag, handlers } = useWireDrag(rules, setEdges, store, screenToFlowPosition);
+  const { wireDrag, handlers } = useWireDrag(rules, setEdges, store, screenToFlowPosition, actions.addPort);
   const iconWires = useMemo(() => iconWireCounts(nodes, edges), [nodes, edges]);
   const wrap = useRef<HTMLDivElement>(null);
   usePortDirections(wrap);
@@ -176,9 +177,6 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
   const pickedBlocks = pickedNodes.filter(isBlock);
   const pickedWires = shown.edges.filter((w) => w.selected);
   const pickedFrames = pickedNodes.filter(isFrame);
-  // One block picked inside an open subsystem or story: its ports can be exposed on the group.
-  const levelGroup = level ? nodes.find((n): n is GroupNode => n.id === level && isFrame(n)) : undefined;
-  const pickedBlock = pickedNodes.length === 1 && isBlock(pickedNodes[0]) ? pickedNodes[0] : undefined;
   const kept = pickedNodes.filter((n) => isBlock(n) && n.data.def.linked).length; // linked blocks aren't deleted
   const many = pickedNodes.length > 0; // a block or group, with or without wires (wires alone have ×)
   const allCommented = pickedBlocks.length > 0 && pickedBlocks.every((b) => b.data.commented);
@@ -345,12 +343,7 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
-          onEdgesChange={(changes) => {
-            // A wire removed across a subsystem's edge leaves its port there (keepPorts).
-            const gone = new Set(changes.flatMap((c) => (c.type === "remove" ? [c.id] : [])));
-            if (gone.size) setNodes((ns) => keepPorts(ns, edges.filter((w) => gone.has(w.id))));
-            onEdgesChange(changes);
-          }}
+          onEdgesChange={onEdgesChange}
           {...handlers}
           isValidConnection={isValidConnection}
           connectionRadius={SNAP.connect}
@@ -404,9 +397,6 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
             removePicked={removePicked}
             group={group}
             ungroup={actions.ungroup}
-            update={actions.update}
-            levelGroup={levelGroup}
-            pickedBlock={pickedBlock}
             {...(onAnalyse
               ? {
                   analyse: () => {
@@ -461,5 +451,5 @@ export const GESTURES: [string, string][] = [
   ["Inspect · edit a block", "Double-click its plate: the card floats over it · `Esc` or a click away closes it"],
   ["Unfold on the canvas", "unfold in the card's head (fold puts the plate back); what it covers moves aside"],
   ["Bind a variable", "Drag it from Variables onto a plate or a field"],
-  ["A group's ports", "Inside it, double-click an In or Out name to rename it · × removes it"],
+  ["A subsystem's ports", "Add an In or Out block inside it (rename it in its card) · or drop a wire on its dashed + port"],
 ];
