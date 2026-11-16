@@ -285,15 +285,21 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .help-pop dt { color: var(--text-muted); }
 .help-pop dd { margin: 0; color: var(--text); }
 
+/* A block's card: a 28px head, the port body (the plate's: ports 16px apart, the glyph faint in the
+   middle, at least 54px inside), then its params. A plate's ports land on the card's, so unfolding
+   moves none of them along their side (portOffset, sideLength). */
 .block {
   background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md);
-  min-width: 156px; font-size: var(--size-xs); color: var(--text);
+  min-width: 176px; font-size: var(--size-xs); color: var(--text);
 }
 .block-title {
-  display: flex; align-items: center; gap: var(--space-2);
-  padding: 6px 10px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 6px; height: 28px;
+  padding: 0 6px 0 10px; border-bottom: 1px solid var(--line);
   font: 600 var(--size-xs) var(--font-sans);
 }
+.port-rows { position: relative; display: flex; flex-direction: column; justify-content: center; min-height: 54px; padding: 4px 0; }
+.port-rows > .glyph { position: absolute; inset: 0; margin: auto; opacity: 0.3; }
+.block-params { border-top: 1px solid var(--line); padding: 4px 0; }
 .block-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .block-tag { font: 400 var(--size-2xs) var(--font-sans); color: var(--text-muted); }
 .tag-running { color: var(--signal-text); font-weight: 500; }
@@ -324,13 +330,13 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .block-progress { height: 2px; background: var(--line); }
 .block-progress > div { height: 100%; background: var(--signal); transition: width 0.1s linear; }
 
-.port { position: relative; padding: 3px 10px; color: var(--text-muted); }
+.port { position: relative; padding: 0 10px; line-height: 16px; font: 400 var(--size-2xs) / 16px var(--font-mono); color: var(--text-muted); }
 .port.out, .port.side-right { text-align: right; }
 .port.side-left { text-align: left; }
 /* A port moves by dragging its name: to another side of the block, or along its side. */
 .port[data-side] { cursor: grab; user-select: none; }
 .port[data-side].moving { color: var(--text); font-weight: 600; cursor: grabbing; }
-.port-row { display: flex; justify-content: space-between; gap: var(--space-3); white-space: nowrap; }
+.port-row { display: flex; justify-content: space-between; gap: var(--space-3); height: 16px; white-space: nowrap; }
 .port-strip { display: flex; justify-content: center; gap: var(--space-2); padding: 0 6px; }
 .port-strip.top { border-bottom: 1px solid var(--line); }
 .port-strip.bottom { border-top: 1px solid var(--line); }
@@ -363,9 +369,11 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 /* An acausal connector is both ways: its two coincident handles must not claim one direction. */
 .flow .react-flow__handle.k-acausal .port-tip::before { content: none; }
 
-.param { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); padding: 3px 10px; color: var(--text-muted); }
-.param input, .param select { width: 66px; text-align: right; background: transparent; border: 0; border-bottom: 1px solid var(--line-strong); border-radius: 0; padding: 1px 2px; color: var(--text); }
-.param input:focus, .param select:focus { box-shadow: none; border-bottom: 2px solid var(--line-ink); }
+.param { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); padding: 2px 10px; color: var(--text-muted); }
+/* Params are wells, as every field you type in. */
+.param input, .param select { width: 72px; height: 20px; padding: 0 6px; text-align: right; background: var(--surface-well); box-shadow: var(--well-shadow); border: 0; border-radius: var(--radius-sm); color: var(--text); font: 400 var(--size-2xs) var(--font-mono); }
+.param input:focus, .param select:focus { box-shadow: var(--well-shadow); outline: 2px solid var(--focus); outline-offset: 1px; }
+.param input[type="checkbox"] { width: auto; height: auto; box-shadow: none; }
 .param .text-param { width: 116px; text-align: left; }
 .param input[aria-invalid="true"], .var-value[aria-invalid="true"] { outline: 1.5px solid var(--danger); outline-offset: 1px; color: var(--danger-text); }
 .param .key-param { cursor: pointer; text-align: center; }
@@ -431,8 +439,15 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 /* In and Out: where the level's wires cross its edge. */
 .boundary { position: relative; box-sizing: border-box; width: 100%; height: 100%; overflow: visible; display: flex; align-items: center; gap: var(--space-2); padding: 4px 10px; font: var(--size-2xs) var(--font-mono); color: var(--text); background: var(--surface-sunken); border: 1px solid var(--line-strong); border-radius: 999px; white-space: nowrap; }
 .boundary-tag { font: 600 var(--size-2xs) var(--font-sans); color: var(--text-muted); }
-.boundary-name { overflow: hidden; text-overflow: ellipsis; }
-.react-flow__node-boundary { cursor: default; }
+.boundary-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+input.boundary-name { flex: 1; width: 0; height: 18px; padding: 0 4px; border: 0; border-radius: var(--radius-sm); background: var(--surface-well); box-shadow: var(--well-shadow); font: inherit; color: var(--text); }
+/* A port of the group with no wire across its edge yet: dashed, waiting for one (a wire removed leaves it). */
+.boundary.unwired { border-style: dashed; color: var(--text-muted); background: transparent; }
+.boundary-x { margin-left: auto; padding: 0 2px; border: 0; background: none; color: var(--text-muted); font: inherit; cursor: pointer; visibility: hidden; }
+.boundary:hover .boundary-x, .boundary-x:focus-visible { visibility: visible; }
+.boundary-x:hover { color: var(--danger-text); }
+/* Not selectable or draggable, so React Flow turns its pointer events off: its name and × need them. */
+.react-flow__node-boundary { cursor: default; pointer-events: all !important; }
 .group-tools button:disabled { opacity: 0.4; }
 
 /* ---- Dashboard: each instrument is a display with its name underneath. ------------- */
@@ -537,6 +552,8 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 /* The selection bar as a HUD: groups that unfold their actions on hover or focus, in corner
    brackets (the app's "chosen" mark), each action sliding out after the one before. */
 .hud { display: flex; align-items: center; gap: var(--space-1); user-select: none; }
+/* A card floated over its plate is the block's own surface: the selection bar steps aside meanwhile. */
+.flow-canvas:has(.block-float) .selection-dialog { visibility: hidden; }
 .hud-group { position: relative; display: inline-flex; align-items: center; height: 26px; padding: 0 6px; transition: background 0.18s var(--ease); }
 .hud-group::before, .hud-group::after { content: ""; position: absolute; top: -3px; bottom: -3px; width: 7px; border: 1.5px solid var(--line-ink); opacity: 0; transition: opacity 0.15s var(--ease), transform 0.22s var(--ease); pointer-events: none; }
 .hud-group::before { left: -2px; border-right: 0; transform: translateX(6px); }
@@ -645,16 +662,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .dragging-card .browser { opacity: 0.3; pointer-events: none; }
 
 /* ---- Compact blocks (#70): a plate with a glyph, the name and value in a caption. ----- */
-/* E1: its params in a popover under the plate; the only glass, like the Station's properties. */
-.react-flow__node:has(.popover) { z-index: 1000 !important; }
-.popover { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 5; min-width: 188px; padding: 10px 12px; cursor: default; background: var(--surface-float); -webkit-backdrop-filter: var(--float-blur); backdrop-filter: var(--float-blur); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.popover-title { display: flex; justify-content: space-between; gap: var(--space-3); margin-bottom: 6px; font: 600 var(--size-xs) var(--font-sans); }
-.popover-title span { font-weight: 400; color: var(--text-muted); }
-.popover .param { padding: 3px 0; }
-.popover .param input, .popover .param select { width: 84px; height: 24px; padding: 0 8px; background: var(--surface-well); box-shadow: var(--well-shadow); border: 0; border-radius: var(--radius-md); color: var(--text); font: 400 var(--size-xs) var(--font-mono); }
-.popover .param input:focus, .popover .param select:focus { border: 0; box-shadow: var(--well-shadow); outline: 2px solid var(--focus); outline-offset: 1px; }
-.popover .param .text-param { width: 116px; text-align: left; }
-/* E3: a compact block opened to the full card has a fold key in its head. */
+/* A block with a plate has an unfold / fold key in its card head. */
 .fold { border: 1px solid var(--line-strong); background: transparent; border-radius: var(--radius-sm); height: 18px; padding: 0 6px; font: 400 var(--size-2xs) var(--font-sans); color: var(--text-muted); }
 .fold:hover { color: var(--text); border-color: var(--line-ink); }
 /* ---- Variables (#36): a sheet beside any page; bound fields; "=" binding ---------------- */
@@ -924,7 +932,7 @@ button.link { border: 0; background: none; height: auto; padding: 0; font: inher
    in currentColor, 8 px in, so it follows the theme and the screens. The list names every select
    rule that sets a background or padding, so this one comes after them and wins. */
 select,
-.screen select, .well select, .run-options select, .param select, .popover .param select,
+.screen select, .well select, .run-options select, .param select,
 .var-row select.var-value, .var-control select.var-value, .scope-row select.well {
   -webkit-appearance: none;
   appearance: none;

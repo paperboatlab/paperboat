@@ -3,11 +3,11 @@ import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type
 import { QuickAdd, type Item } from "./Browser";
 import { copySelection } from "./clipboard";
 import { useCanvasHotkeys } from "@paperboat/shared";
-import { CanvasHelp } from "@paperboat/shared/components";
+import { CANVAS_GESTURES, CanvasHelp } from "@paperboat/shared/components";
 import { SNAP, WireDragContext } from "./wireSnap";
 import { arrangeFlowNodes, canArrangeFlow, clearWireBends } from "./flowLayout";
 import type { WirePoint } from "./wireRouting.ts";
-import { Boundary, display, GroupActions, GroupBox, isFrame, type GroupData, type GroupNode } from "./groups";
+import { Boundary, display, GroupActions, GroupBox, isFrame, keepPorts, type GroupData, type GroupNode } from "./groups";
 import type { BlockDef, Connectors, FlowType } from "./protocol";
 import { isBlock, portType, type FlowNode, type Wire } from "./flowModel";
 import { withBlock } from "./flowGraph";
@@ -345,7 +345,12 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          onEdgesChange={(changes) => {
+            // A wire removed across a subsystem's edge leaves its port there (keepPorts).
+            const gone = new Set(changes.flatMap((c) => (c.type === "remove" ? [c.id] : [])));
+            if (gone.size) setNodes((ns) => keepPorts(ns, edges.filter((w) => gone.has(w.id))));
+            onEdgesChange(changes);
+          }}
           {...handlers}
           isValidConnection={isValidConnection}
           connectionRadius={SNAP.connect}
@@ -449,18 +454,12 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
   );
 }
 
-/** What the canvas does with a pointer and keys, one line each (the canvas's ? key and Help). */
+/** What the canvas does with a pointer and keys, one line each (the canvas's ? key and Help): every canvas's, then the Flow's own. */
 export const GESTURES: [string, string][] = [
-  ["Add a block", "`/` or double-click the canvas"],
-  ["Select", "Click a block · `Ctrl`-drag a box · `Ctrl`-click adds"],
-  ["Rotate", "`R` turns clockwise · `Shift+R` counter-clockwise"],
-  ["Flip", "`F` mirrors horizontal · `Alt+F` vertical"],
-  ["Duplicate", "`Ctrl+D` · `Alt`-drag a block"],
+  ...CANVAS_GESTURES,
   ["Act on a selection", "The dialog above it: rotate, flip, duplicate, delete, group, comment"],
-  ["Comment out · bypass", "`Ctrl+/` · `Ctrl+Shift+Y`"],
-  ["Pan · zoom", "Drag the canvas · the wheel"],
-  ["Remove a wire", "Drag its end off the port"],
-  ["Move a port", "Drag its name to another side · double-click puts it back"],
-  ["Open a group", "Double-click it · `Alt+↑` or `Esc` comes back · ▾ collapses"],
-  ["Undo · redo", "`Ctrl+Z` · `Ctrl+Shift+Z`"],
+  ["Inspect · edit a block", "Double-click its plate: the card floats over it · `Esc` or a click away closes it"],
+  ["Unfold on the canvas", "unfold in the card's head (fold puts the plate back); what it covers moves aside"],
+  ["Bind a variable", "Drag it from Variables onto a plate or a field"],
+  ["A group's ports", "Inside it, double-click an In or Out name to rename it · × removes it"],
 ];

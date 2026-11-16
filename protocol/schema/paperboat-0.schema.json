@@ -2411,6 +2411,10 @@
         "comment": {
           "type": "string",
           "description": "User notes or documentation for this block."
+        },
+        "unfolded": {
+          "type": "boolean",
+          "description": "Shown unfolded on the canvas, as its card, instead of as a plate. Backends ignore it."
         }
       },
       "required": [
@@ -2676,6 +2680,10 @@
                   "in",
                   "out"
                 ]
+              },
+              "name": {
+                "type": "string",
+                "description": "The port's name on the group's block; absent: node.port."
               },
               "to": {
                 "type": "array",

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrangeFlowNodes, canArrangeFlow, clearWireBends } from "../src/flowLayout.ts";
+import { arrangeFlowNodes, canArrangeFlow, clearWireBends, makeRoom } from "../src/flowLayout.ts";
 import type { FlowNode, Wire } from "../src/flowModel.ts";
 import type { GroupNode } from "../src/groups.tsx";
 
@@ -134,4 +134,23 @@ test("arranging drops the bends dragged for the blocks' old places", () => {
   assert.deepEqual(edges[1].data?.points, [[10, 10], [20, 20]], "the input was not mutated");
   const plain = [wire("a", "b")];
   assert.equal(clearWireBends(plain), plain, "nothing to drop returns the same list");
+});
+
+test("makeRoom: a block unfolded in place pushes what it grew over, keeps the rest", () => {
+  const nodes = [
+    block("self", undefined, { x: 100, y: 100 }, { width: 64, height: 56 }),
+    block("right", undefined, { x: 200, y: 100 }), // in its rows: moves right
+    block("far", undefined, { x: 400, y: 120 }), // also in its rows: moves with it
+    block("below", undefined, { x: 120, y: 200 }), // in its columns: moves down
+    block("above", undefined, { x: 100, y: 20 }), // in its columns, above: moves up
+    block("away", undefined, { x: 600, y: 600 }), // nowhere near: stays
+  ];
+  const out = makeRoom(nodes, "self", { x: 100, y: 100, w: 64, h: 56 }, { x: 100, y: 72, w: 176, h: 140 });
+  const at = (id: string) => out.find((n) => n.id === id)!.position;
+  assert.deepEqual(at("right"), { x: 312, y: 100 });
+  assert.deepEqual(at("far"), { x: 512, y: 120 });
+  assert.deepEqual(at("below"), { x: 120, y: 256 });
+  assert.deepEqual(at("above"), { x: 100, y: -8 });
+  assert.deepEqual(at("away"), { x: 600, y: 600 });
+  assert.equal(makeRoom(nodes, "self", { x: 0, y: 0, w: 9, h: 9 }, { x: 0, y: 0, w: 9, h: 9 }), nodes);
 });

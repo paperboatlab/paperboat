@@ -456,7 +456,7 @@ void load_starters(const json& doc, Catalog& catalog) {
     // Ports the group shows as a block even with no wire: { side: "in" | "out", to: [node, port] }.
     for (const auto& x : g.value("expose", json::array())) {
       if (kind == "visual") throw DescriptorError(at + ": only a subsystem or story exposes ports");
-      only_fields(x, {"side", "to"}, at + ".expose");
+      only_fields(x, {"side", "to", "name"}, at + ".expose");
       const auto side = x.value("side", std::string{});
       if (side != "in" && side != "out") throw DescriptorError(at + ".expose: side must be in or out");
       if (!x.contains("to") || !x["to"].is_array() || x["to"].size() != 2 || !x["to"][0].is_string() || !x["to"][1].is_string())

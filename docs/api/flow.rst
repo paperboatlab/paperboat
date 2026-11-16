@@ -46,9 +46,11 @@ Groups
 
 ``graph.groups`` holds groups of blocks (a block is in at most one). Groups nest (``parent``). A
 subsystem's or story's ports are the wires crossing its edge, plus any listed in ``expose``
-(``{ side = "in" | "out", to = [node, port] }``): ports shown on the block with no wire yet. In the UI,
-select a block inside an open group and use **Expose port**. Copy and paste take a group with
-everything in it.
+(``{ side = "in" | "out", to = [node, port], name? }``): ports shown on the block with no wire yet,
+and the name the user gave a port (absent: ``node.port``). In the UI, select a block inside an open
+group and use **Expose port**; removing the last wire across the edge exposes its port, so it stays;
+inside, double-click an In or Out pill's name to rename the port, × removes it. Copy and paste take
+a group with everything in it.
 
 **Visual groups** tidy the canvas. The backend runs their blocks as if ungrouped, in the
 sheet's flow type. Collapsed, the UI draws a group as one block whose ports are the wires
@@ -69,6 +71,9 @@ blocks and Spin a story around a signal block that turns the actor while it runs
 
    {"groups": [{"id": "pull test", "kind": "story", "nodes": ["pull", "x of mass-2"], "params": {"seconds": 6}},
                {"id": "check", "kind": "story", "nodes": ["limit", "overloaded"]}]}
+
+A node may also carry ``unfolded: true``: the UI shows a block that has a plate as its card on the
+canvas (the user pressed **unfold**). Like ``pos``, ``ports`` and ``rotation``, backends ignore it.
 
 Lost and failing blocks
 -----------------------

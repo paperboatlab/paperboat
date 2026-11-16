@@ -488,9 +488,10 @@ coordinates are the block's own, y up; `view` is the area shown (absent: what fi
 
 A graph may carry `groups`: `{ id, kind: "visual" | "subsystem" | "story", label?, nodes: [ids],
 collapsed?, pos?, params?: { seconds, reset }, release?: [[node, port], ...],
-expose?: [{ side: "in" | "out", to: [node, port] }, ...] }`. A block is in at most one group.
+expose?: [{ side: "in" | "out", to: [node, port], name? }, ...] }`. A block is in at most one group.
 Groups nest (`parent`). `expose` lists ports a subsystem or story shows as a block even where no wire
-crosses its edge yet (an input or output of a block inside it); the UI sets it, backends ignore it.
+crosses its edge yet (an input or output of a block inside it), each with the name the user gave it
+(else `node.port`); the UI sets it (a port stays when its last wire goes), backends ignore it.
 
 - **visual** tidies the canvas: the backend runs its blocks as if ungrouped. Collapsed,
   the UI draws it as one block whose ports are the wires crossing its edge; the wires

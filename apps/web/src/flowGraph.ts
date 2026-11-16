@@ -3,7 +3,7 @@
 
 import { absolute, frameAround, isFrame, ordered, STORY_DEF, toGroups } from "./groups";
 import type { BlockDef, FlowType, Graph } from "./protocol";
-import { freeId, inForm, isBlock, makeNode, makeWire, missingDef, portType, type FlowNode, type Wire } from "./flowModel.ts";
+import { freeId, inForm, isBlock, makeNode, makeWire, missingDef, portType, viewFromGraph, viewToGraph, type FlowNode, type Wire } from "./flowModel.ts";
 
 /** Wire graph → editor state. A node whose type isn't in the catalog stays, as a missing block. */
 export function fromGraph(graph: Graph, blocks: BlockDef[]): { nodes: FlowNode[]; edges: Wire[] } {
@@ -12,38 +12,8 @@ export function fromGraph(graph: Graph, blocks: BlockDef[]): { nodes: FlowNode[]
   const nodes = graph.nodes.map((n, i) => {
     const [x, y] = n.pos ?? [0, 120 * i];
     const def = defs.get(n.type);
-    const ports = n.ports ? { ports: n.ports } : {};
-    const rotation = n.rotation !== undefined ? { rotation: n.rotation } : {};
-    const mirror = n.mirror !== undefined ? { mirror: n.mirror } : {};
-    if (def) {
-      const node = makeNode(def, n.id, x, y, n.params);
-      return {
-        ...node,
-        data: {
-          ...node.data,
-          ...ports,
-          ...rotation,
-          ...mirror,
-          ...(n.commented !== undefined ? { commented: n.commented } : {}),
-          ...(n.comment_mode !== undefined ? { commentMode: n.comment_mode } : {}),
-          ...(n.comment !== undefined ? { comment: n.comment } : {}),
-        },
-      };
-    }
-    const node = makeNode(missingDef(n.type, n.params ?? {}, wires, n.id), n.id, x, y, n.params);
-    return {
-      ...node,
-      data: {
-        ...node.data,
-        ...ports,
-        ...rotation,
-        ...mirror,
-        missing: true,
-        ...(n.commented !== undefined ? { commented: n.commented } : {}),
-        ...(n.comment_mode !== undefined ? { commentMode: n.comment_mode } : {}),
-        ...(n.comment !== undefined ? { comment: n.comment } : {}),
-      },
-    };
+    const node = makeNode(def ?? missingDef(n.type, n.params ?? {}, wires, n.id), n.id, x, y, n.params);
+    return { ...node, data: { ...node.data, ...viewFromGraph(n), ...(def ? {} : { missing: true }) } };
   });
   const byId = new Map<string, BlockDef>(nodes.map((n) => [n.id, inForm(n.data.def, n.data.params)]));
   // Groups round their blocks and the groups in them, innermost first: each is made while
@@ -67,7 +37,7 @@ export function fromGraph(graph: Graph, blocks: BlockDef[]): { nodes: FlowNode[]
       release: g.release,
       pos: g.pos,
       sides: g.ports,
-      expose: g.expose?.map((x) => ({ side: x.side, to: [x.to[0], x.to[1]] as [string, string] })),
+      expose: g.expose?.map((x) => ({ side: x.side, to: [x.to[0], x.to[1]] as [string, string], ...(x.name ? { name: x.name } : {}) })),
     });
     if (g.kind === "story") byId.set(g.id, STORY_DEF);
     const moved = new Map(children.map((c) => [c.id, c]));
@@ -95,12 +65,7 @@ export function toGraph(nodes: FlowNode[], edges: Wire[], flow?: FlowType | null
       id: n.id,
       type: n.data.def.type,
       params: n.data.params,
-      ...(n.data.ports ? { ports: n.data.ports } : {}),
-      ...(n.data.rotation !== undefined ? { rotation: n.data.rotation } : {}),
-      ...(n.data.mirror !== undefined ? { mirror: n.data.mirror } : {}),
-      ...(n.data.commented !== undefined ? { commented: n.data.commented } : {}),
-      ...(n.data.commentMode !== undefined ? { comment_mode: n.data.commentMode } : {}),
-      ...(n.data.comment !== undefined ? { comment: n.data.comment } : {}),
+      ...viewToGraph(n.data),
     })),
     edges: edges.map((e) => ({ from: [e.source, e.sourceHandle ?? ""], to: [e.target, e.targetHandle ?? ""] })),
     ...(groups.length > 0 ? { groups } : {}),

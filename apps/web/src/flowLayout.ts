@@ -21,6 +21,33 @@ function sizeOf(n: FlowNode): { width: number; height: number } {
   };
 }
 
+export type Rect = { x: number; y: number; w: number; h: number };
+
+/**
+ * Room for a block that grew in place from `was` to `now` (a plate unfolded on the canvas): what
+ * sits beside it on its level moves away by what it grew on that side, so nothing ends up under
+ * it and the blocks moved keep their places relative to one another. Right of it, in the rows it
+ * now spans, moves right; below it, in the columns it spans, moves down; above it, up.
+ */
+// ponytail: one push per side, no cascade; a block pushed into a third one stays overlapped, arrange (A) tidies that.
+export function makeRoom(nodes: FlowNode[], id: string, was: Rect, now: Rect): FlowNode[] {
+  const self = nodes.find((n) => n.id === id);
+  const right = Math.max(0, now.x + now.w - (was.x + was.w));
+  const down = Math.max(0, now.y + now.h - (was.y + was.h));
+  const up = Math.max(0, was.y - now.y);
+  if (!self || right + down + up === 0) return nodes;
+  return nodes.map((n) => {
+    if (n.id === id || n.parentId !== self.parentId || n.hidden) return n;
+    const { width, height } = sizeOf(n);
+    const { x, y } = n.position;
+    const rows = y < now.y + now.h && y + height > now.y;
+    const cols = x < now.x + now.w && x + width > now.x;
+    const dx = rows && x >= was.x + was.w ? right : 0;
+    const dy = cols && !dx ? (y >= was.y + was.h ? down : y + height <= was.y ? -up : 0) : 0;
+    return dx || dy ? { ...n, position: { x: x + dx, y: y + dy } } : n;
+  });
+}
+
 /** True when the open level itself has something the arrange action can move. */
 export function canArrangeFlow(nodes: FlowNode[], level: string | null): boolean {
   return nodes.some((n) => (n.parentId ?? null) === level);
