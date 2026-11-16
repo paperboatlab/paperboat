@@ -86,7 +86,12 @@ errors, a connection status pill (which opens File > Backend…) and the theme k
 (`StatusPill`, shared with Squero Studio) keeps the room of its widest label, so `connecting` →
 engine name never shifts the keys beside it. Its dot says the state with the words: live (connected,
 ready) fills in `--signal`, on the way (connecting, starting) is a hollow ring that breathes (still
-under reduced motion), failed is a `--danger` ring with the label in `--danger-text`. Everything else
+under reduced motion), failed is a `--danger` ring with the label in `--danger-text`. Until the
+backend's first `hello` the pages are the shared **wait screen** (`WaitScreen`, as Squero OM opens):
+in the middle, on the ground grey, the words (`connecting to the backend at ws://…`, `waiting for a
+backend at ws://…`), the seconds past 3 s, the busy wave (the logo's water, 8px dots), and past 6 s a
+hint in small type on how to start one; the run dock waits with it. A connection lost after that keeps
+the pages. Everything else
 you can do is a **command** in one registry (`src/commands.ts`); the menu bar, the command
 search and the registry's own shortcuts all read it, so a label, a shortcut and whether
 something is available can't drift between them. Shortcuts are written once, as on Windows and
