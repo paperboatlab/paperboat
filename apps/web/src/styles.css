@@ -128,6 +128,8 @@
 
 /* Pages: one at a time (Navigator), or all as tiles (Commander). */
 .pages { min-height: 0; min-width: 0; display: grid; gap: var(--gutter); }
+/* Waiting for the backend's hello: the shared WaitScreen over every page, on the ground. */
+.pages > .wait-screen { grid-area: 1 / 1 / -1 / -1; z-index: 5; display: grid; place-content: center; justify-items: center; width: 100%; height: 100%; margin: 0; background: var(--surface-ground); }
 .mode-navigator .pages { grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
 /* Navigator: the pages sit in a column, in rail order, and the column slides to the current
    one. Each page is offset by its place minus the current one's (--i, --at from Shell.tsx). */

@@ -399,6 +399,11 @@ it): a station belongs to a domain backend, and the workbench has none. The opti
 blocks are in the palette once their toolkit is installed in ``engine/toolkit``.
 Connect a domain backend from **File > Backend…** to switch.
 
+Until the backend answers, the pages show what Paperboat is waiting for (``connecting to the backend
+at ws://…``, then ``waiting for a backend at ws://…`` while it retries), with how long once it is
+slow and, after a few seconds, how to start one. A backend that drops later leaves your pages as they
+are: the status pill and the Console say it is reconnecting.
+
 Project Management
 ------------------
 

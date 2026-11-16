@@ -34,7 +34,7 @@ import { count } from "./words";
 import { AppHeader } from "./AppHeader";
 import { StationView } from "./StationView";
 import { useBackendKeys } from "./backendKeys";
-import { HelpWindow, MODES, PAGES, Panel, Rail, useThemeChoice, type Drawer, type Mode, type Page } from "./Shell";
+import { HelpWindow, MODES, PAGES, Panel, Rail, useThemeChoice, WaitScreen, type Drawer, type Mode, type Page } from "./Shell";
 import type { StationControls } from "./StationGraph";
 import { withObject } from "./StationPanel";
 import { BackendWindow, Dock } from "./Dock";
@@ -496,6 +496,15 @@ export function App() {
       <Rail page={page} onPage={setPage} hidden={mode !== "navigator"} allowedPages={allowedPages} pages={pages} />
       <VarsContext.Provider value={varsApi}>
       <main className="pages">
+        {/* Until the backend says hello there is nothing to draw: say what we are waiting for. A
+            connection lost later keeps the pages (the pill and the Console say so). */}
+        {!state.engine && (
+          <WaitScreen
+            key={url}
+            words={state.connection === "connecting" ? `connecting to the backend at ${url}` : `waiting for a backend at ${url}`}
+            hint="Start one with paperboat start <backend> (paperboat backends lists them), or pick another under File › Backend…"
+          />
+        )}
         <div className="page-stack">
         {stationShown && (
         <Panel {...panel("station")} actions={<>{projectionKey}{gridKey}{arrangeKey("station")}{addKey("station")}</>} info={station ? `${count(station.objects.length, "object")} · ${view === "scene" ? state.view.mode : view}` : view}>
@@ -592,24 +601,26 @@ export function App() {
           onUndo={undoVars}
           toml={() => toToml(variables.filter((v) => v.source !== "mx"))}
         />
-        <Dock
-          canRun={canRun}
-          whyNot={whyNotRun}
-          running={running}
-          status={state.run ? status : undefined}
-          statusText={status === "running" ? <>running {elapsed}{delayNotice}</> : status}
-          defaults={state.runDefaults}
-          settings={dockSettings(state.run, runSettings)}
-          onSettings={(next) => {
-            // A new speed during a run goes to the run (#219); every change is the next run's too.
-            const tell = speedChange(running, dockSettings(state.run, runSettings), next, state.runDefaults);
-            if (tell) send(tell);
-            setRunSettings(next);
-          }}
-          onRun={run}
-          onCancel={() => send({ type: "run.cancel" })}
-          replay={<ReplayBar state={state} replay={replayApi} />}
-        />
+        {state.engine && (
+          <Dock
+            canRun={canRun}
+            whyNot={whyNotRun}
+            running={running}
+            status={state.run ? status : undefined}
+            statusText={status === "running" ? <>running {elapsed}{delayNotice}</> : status}
+            defaults={state.runDefaults}
+            settings={dockSettings(state.run, runSettings)}
+            onSettings={(next) => {
+              // A new speed during a run goes to the run (#219); every change is the next run's too.
+              const tell = speedChange(running, dockSettings(state.run, runSettings), next, state.runDefaults);
+              if (tell) send(tell);
+              setRunSettings(next);
+            }}
+            onRun={run}
+            onCancel={() => send({ type: "run.cancel" })}
+            replay={<ReplayBar state={state} replay={replayApi} />}
+          />
+        )}
       </main>
       </VarsContext.Provider>
       {missingDialog && (
