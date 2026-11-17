@@ -179,7 +179,8 @@ class BackendManager {
                            double* elapsed_seconds = nullptr,
                            const std::function<void(std::string_view stage)>& on_stage = {});
   // A checkout's built workbench (engine/build/workbench/paperboat-workbench, or under Release/ etc.
-  // with a multi-config generator, .exe on Windows); empty when not built.
+  // with a multi-config generator, .exe on Windows), or the sibling prebuilt binary next to the
+  // running executable in an installed prefix; empty when neither exists.
   static std::filesystem::path workbench_binary(const std::filesystem::path& root);
 
   // Python environment resolution & C++ binding builder

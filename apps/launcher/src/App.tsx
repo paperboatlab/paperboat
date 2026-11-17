@@ -95,6 +95,12 @@ const reduceMotion = () =>
 const GLIDE = "top var(--slide), bottom var(--slide), left var(--slide), right var(--slide)";
 const PAD = 8;
 
+const isPrebuiltBackend = (b: { source?: string; dir: string }): boolean =>
+  b.source === "builtin" && /[/\\]paperboat-workbench(?:\.exe)?$/i.test(b.dir);
+
+const backendFolder = (b: { source?: string; dir: string }): string =>
+  isPrebuiltBackend(b) ? b.dir.replace(/[/\\][^/\\]+$/, "") || b.dir : b.dir;
+
 function LauncherPageIcon({ page }: { page: LauncherPage }) {
   return (
     <svg className="page-icon" viewBox="0 0 18 18" aria-hidden="true">
@@ -830,13 +836,15 @@ export function App() {
                 label: `Reveal ${b.name} in file manager`,
                 menu: "file" as MenuId,
                 group: "reveal",
-                run: () => void api.openFolderPath(b.dir),
+                run: () => void api.openFolderPath(backendFolder(b)),
               },
               {
                 id: "be.build",
                 label: b.language === "cpp" ? `Build ${b.name}` : `Install ${b.name} dependencies`,
                 menu: "model" as MenuId,
                 group: "build",
+                enabled: !isPrebuiltBackend(b),
+                why: "Prebuilt workbench binary — source build not needed",
                 run: () =>
                   void runCmd(
                     b.language === "cpp" ? ["build", b.dir] : ["deps", "install", b.dir],
@@ -852,6 +860,8 @@ export function App() {
                       label: `Rebuild ${b.name} (--clean)`,
                       menu: "model" as MenuId,
                       group: "build",
+                      enabled: !isPrebuiltBackend(b),
+                      why: "Prebuilt workbench binary — source build not needed",
                       run: () => void runCmd(["rebuild", b.dir], `rebuild ${b.name}`, "task", fbKey),
                     },
                   ]
@@ -861,6 +871,8 @@ export function App() {
                 label: "Run 4-stage verification (check)",
                 menu: "model" as MenuId,
                 group: "verify",
+                enabled: !isPrebuiltBackend(b),
+                why: "Verification applies to backend project folders",
                 run: () => void runCmd(["check", b.dir, "--json-stream"], `check ${b.name}`, "task", fbKey),
               },
               {
@@ -868,6 +880,8 @@ export function App() {
                 label: "Run fast check (--fast)",
                 menu: "model" as MenuId,
                 group: "verify",
+                enabled: !isPrebuiltBackend(b),
+                why: "Verification applies to backend project folders",
                 run: () => void runCmd(["check", b.dir, "--fast", "--json-stream"], `check --fast ${b.name}`, "task", fbKey),
               },
               {
@@ -875,6 +889,8 @@ export function App() {
                 label: "Pack .ppk archive",
                 menu: "model" as MenuId,
                 group: "pack",
+                enabled: !isPrebuiltBackend(b),
+                why: "Prebuilt workbench is bundled with Paperboat",
                 run: () => void runCmd(["pack", b.dir, "--json-stream"], `pack ${b.name}`, "task", fbKey),
               },
               {
@@ -1776,7 +1792,7 @@ export function App() {
                                 <button
                                   type="button"
                                   className="key small"
-                                  onClick={() => void api.openFolderPath(curBackend.dir)}
+                                  onClick={() => void api.openFolderPath(backendFolder(curBackend))}
                                 >
                                   Open folder
                                 </button>
@@ -1869,22 +1885,26 @@ export function App() {
 
                               {showRunOptions && (
                                 <div className="be-run-drawer">
-                                  <label className={`flag-toggle${o.noBuild ? " on" : ""}`}>
-                                    <input
-                                      type="checkbox"
-                                      checked={o.noBuild}
-                                      onChange={(e) => patchOpts(curBackend, { noBuild: e.target.checked })}
-                                    />
-                                    --no-build
-                                  </label>
-                                  <label className={`flag-toggle${o.clean ? " on" : ""}`}>
-                                    <input
-                                      type="checkbox"
-                                      checked={o.clean}
-                                      onChange={(e) => patchOpts(curBackend, { clean: e.target.checked })}
-                                    />
-                                    --clean
-                                  </label>
+                                  {!isPrebuiltBackend(curBackend) && (
+                                    <>
+                                      <label className={`flag-toggle${o.noBuild ? " on" : ""}`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={o.noBuild}
+                                          onChange={(e) => patchOpts(curBackend, { noBuild: e.target.checked })}
+                                        />
+                                        --no-build
+                                      </label>
+                                      <label className={`flag-toggle${o.clean ? " on" : ""}`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={o.clean}
+                                          onChange={(e) => patchOpts(curBackend, { clean: e.target.checked })}
+                                        />
+                                        --clean
+                                      </label>
+                                    </>
+                                  )}
                                   <label className={`flag-toggle${o.time ? " on" : ""}`}>
                                     <input
                                       type="checkbox"
@@ -1939,6 +1959,18 @@ export function App() {
                           </div>
 
                           {/* Structured 2-Column Build/Package & Verification Grid */}
+                          {isPrebuiltBackend(curBackend) ? (
+                            <div className="workflow-box">
+                              <div className="workflow-head">
+                                <h3>Bundled Workbench</h3>
+                                <span className="tag">Prebuilt binary</span>
+                              </div>
+                              <p className="sheet-desc">
+                                Built-in standard toolkits host (Flow &amp; Dashboard) plus installed toolkit plugins.
+                                Starts automatically when you launch Paperboat, or run it standalone above.
+                              </p>
+                            </div>
+                          ) : (
                           <div className="be-workflow-grid">
                             <div className="workflow-box">
                               <div className="workflow-head">
@@ -2041,6 +2073,7 @@ export function App() {
                               </div>
                             </div>
                           </div>
+                          )}
                         </>
                       );
                     })()}
