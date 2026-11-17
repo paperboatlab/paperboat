@@ -18,6 +18,8 @@ html_theme_options["nav_links"] = [
     {
         "title": "Manuals",
         "children": [
+            {"title": "Installation", "url": "installation"},
+            {"title": "Launcher", "url": "launcher"},
             {"title": "User Manual", "url": "user_manual"},
             {"title": "Technical Manual", "url": "technical_manual"},
             {"title": "Tutorials", "url": "tutorials"},

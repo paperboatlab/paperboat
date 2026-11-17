@@ -15,6 +15,8 @@ and the toolkit doesn't.
    :maxdepth: 2
    :caption: Core Manuals & Tutorials
 
+   installation
+   launcher
    user_manual
    technical_manual
    tutorials
