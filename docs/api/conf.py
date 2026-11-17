@@ -10,7 +10,8 @@ from pbsite import *  # noqa: E402,F401,F403
 from pbsite import ORG, html_theme_options  # noqa: E402
 
 project = html_title = "Paperboat"
-version = "0 (protocol paperboat/0)"
+if not os.environ.get("PB_VERSION"):
+    version = "0 (protocol paperboat/0)"
 cpp_index_common_prefix = ["paperboat::"]
 
 html_theme_options["github_url"] = "https://github.com/paperboatlab/paperboat"

@@ -5,6 +5,7 @@
 #
 #   python3 docs/site/build.py <docs dir> <out dir> --name control --title "control toolkit"
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -42,3 +43,12 @@ html_theme_options = {
     # Every site's top bar leads back to the hub, so the org reads as one site.
     "nav_links": [{"title": "All docs", "url": ORG}],
 }
+
+_versions_raw = os.environ.get("PB_VERSIONS_JSON", "").strip()
+if _versions_raw:
+    _parsed = json.loads(_versions_raw)
+    _choices = [(v["version"], v["url"]) if isinstance(v, dict) else (v[0], v[1]) for v in _parsed]
+    html_context = {
+        "versions": _choices,
+        "current_version": release or (_choices[0][0] if _choices else ""),
+    }

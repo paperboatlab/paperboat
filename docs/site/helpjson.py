@@ -104,6 +104,7 @@ def _finish(app, exc):
     # Pages in reading order (the index first), each page's sections in their own order.
     app.env.pb_help["items"].sort(key=lambda i: rank.get(i["id"].split("#")[0], len(rank)))
     help = {"site": app.config.pb_site, "title": app.config.project, "url": app.config.html_baseurl,
+            **({"version": app.config.release} if app.config.release else {}),
             **app.env.pb_help}
     Path(app.outdir, "help.json").write_text(json.dumps(help, ensure_ascii=False))
 
