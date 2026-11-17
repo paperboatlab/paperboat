@@ -10,6 +10,7 @@ on:
     paths:
       - "apps/web/**"
       - "apps/cli/**"
+      - "apps/launcher/**"
       # the instruments live in engine/toolkit and are typed and tested with the app
       - "engine/toolkit/**"
       - "protocol/**"
@@ -56,6 +57,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test -w @paperboat/web
       - run: npm test -w @paperboat/cli
+      - run: npm test -w @paperboat/launcher
       - run: npm run build
 
   # npm ci, not npm install: it fails if package-lock.json loses the macOS builds of the native
@@ -84,6 +86,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test -w @paperboat/web
       - run: npm test -w @paperboat/cli
+      - run: npm test -w @paperboat/launcher
       - run: npm run build
 
   # npm ci here too, for the win32 builds of the same native packages
@@ -112,4 +115,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test -w @paperboat/web
       - run: npm test -w @paperboat/cli
+      - run: npm test -w @paperboat/launcher
       - run: npm run build

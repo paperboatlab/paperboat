@@ -169,11 +169,9 @@ Optimization:
 #endif
   std::cout << R"(
 Updating:
-  update [--check] [--no-build] [--channel release|source|main]
-                             Update paperboat, its installed apps and toolkits, each on its channel.
-                             A per-user install (scripts/install.sh) downloads or rebuilds itself;
-                             --channel switches it. A checkout pulls (fast-forward only) with its
-                             sibling app checkouts and rebuilds what changed. --check only reports.
+  update [--check] [--no-build] [--channel release|beta|dev]
+                             Update paperboat, its installed apps and toolkits, each on its channel
+                             ([release] stable, beta prereleases, dev branch). --check only reports.
 
 Dependencies:
   deps install [path]        Create the backend's isolated environment and install its
@@ -191,7 +189,8 @@ Packages (apps from other repositories, see apps.toml):
   pkg versions <name>        Release versions on GitHub, prereleases too, newest first
   pkg path <name>            The installed app's output folder
 
-Console:
+Console & Launcher:
+  launcher                   Open the Paperboat Launcher desktop app (if installed)
   (no command)               Open the interactive console (apps/cli) on a terminal;
                              the basic prompt when it isn't built or PAPERBOAT_NO_CONSOLE is set
   repl                       The basic prompt
@@ -1470,9 +1469,12 @@ int cmd_update(const std::vector<std::string_view>& args) {
     if (a == "--check") check_only = true;
     else if (a == "--no-build") build = false;
     else if (a == "--channel" && i + 1 < args.size() &&
-             (args[i + 1] == "release" || args[i + 1] == "source" || args[i + 1] == "main")) channel = std::string(args[++i]);
-    else {
-      std::cerr << "usage: paperboat update [--check] [--no-build] [--channel release|source|main]\n";
+             (args[i + 1] == "release" || args[i + 1] == "beta" || args[i + 1] == "dev" ||
+              args[i + 1] == "source" || args[i + 1] == "main")) {
+      channel = std::string(args[++i]);
+      if (channel == "main") channel = "dev";
+    } else {
+      std::cerr << "usage: paperboat update [--check] [--no-build] [--channel release|beta|dev]\n";
       return 2;
     }
   }
@@ -1535,13 +1537,17 @@ int cmd_update(const std::vector<std::string_view>& args) {
   if (managed || (!channel.empty() && !checkout)) {
     // install.sh (install.ps1 on Windows) is in the checkout's scripts/ and in a package's share/paperboat/scripts/.
 #ifdef _WIN32
-    if (!channel.empty() && channel != "release") {
-      say("paperboat", "on Windows paperboat updates from releases only (the source and main channels need scripts/install.sh)");
+    if (!channel.empty() && channel != "release" && channel != "beta") {
+      say("paperboat", "on Windows paperboat updates from release or beta releases only");
       return 1;
     }
     std::vector<std::string> cmd = {"powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                                     (root / "scripts" / "install.ps1").string()};
     if (check_only) cmd.emplace_back("-Check");
+    if (!channel.empty()) {
+      cmd.emplace_back("-Channel");
+      cmd.push_back(channel);
+    }
 #else
     std::vector<std::string> cmd = {"sh", (root / "scripts" / "install.sh").string()};
     if (check_only) cmd.emplace_back("--check");
@@ -1821,6 +1827,7 @@ int cmd_unpack(const std::vector<std::string_view>& args) {
 
 int cmd_commands(const std::vector<std::string_view>& args);
 int cmd_top(const std::vector<std::string_view>&);
+int cmd_launcher(const std::vector<std::string_view>& args);
 
 // What a command's free argument names, for completion: a backend, a toolkit, something
 // running (name or port), a .ppk file, or nothing.
@@ -1868,9 +1875,11 @@ const std::vector<CommandSpec>& command_table() {
        {"--fast", "--json", "--json-stream"}, "backend"},
       {"pack", cmd_pack, "Package a backend as .ppk", {}, {}, {"--out", "--json-stream"}, "backend"},
       {"unpack", cmd_unpack, "Unpack and verify a .ppk", {}, {}, {"--dir", "--json-stream"}, "ppk"},
-      {"update", cmd_update, "Pull this repository and its app checkouts, rebuild", {}, {}, {"--check", "--no-build"}},
+      {"update", cmd_update, "Pull this repository and its app checkouts, rebuild", {}, {},
+       {"--check", "--no-build", "--channel"}},
       {"pkg", cmd_pkg, "Apps from other repositories (package manager)", {},
        {"list", "install", "update", "uninstall", "versions", "path"}, {"--json", "--all", "--version", "--force"}},
+      {"launcher", cmd_launcher, "Open the Paperboat Launcher desktop app", {"gui"}},
       {"top", cmd_top, "Process dashboard (console)"},
       {"commands", cmd_commands, "The command table", {}, {}, {"--json"}},
   };
@@ -1907,6 +1916,51 @@ int cmd_top(const std::vector<std::string_view>&) {
   std::cerr << "paperboat top needs the console on a terminal (npm run build:cli); `paperboat list` "
                "shows the same backends\n";
   return 2;
+}
+
+int cmd_launcher(const std::vector<std::string_view>& args) {
+  std::error_code ec;
+  const fs::path exe = platform::exe_path();
+  const fs::path root = tk::find_repo_root();
+  std::vector<std::string> extra;
+  for (auto a : args) extra.emplace_back(a);
+
+  std::vector<fs::path> electron_bins;
+#ifdef _WIN32
+  electron_bins.push_back(exe.parent_path() / "Paperboat Launcher.exe");
+  if (const char* local = std::getenv("LOCALAPPDATA"); local && *local) {
+    electron_bins.push_back(fs::path(local) / "Programs" / "Paperboat Launcher" / "Paperboat Launcher.exe");
+  }
+  electron_bins.push_back("C:\\Program Files\\Paperboat Launcher\\Paperboat Launcher.exe");
+#elif defined(__APPLE__)
+  electron_bins.push_back("/Applications/Paperboat Launcher.app/Contents/MacOS/Paperboat Launcher");
+#else
+  electron_bins.push_back("/opt/Paperboat Launcher/paperboat-launcher");
+#endif
+  for (const auto& eb : electron_bins) {
+    if (fs::is_regular_file(eb, ec)) {
+      std::vector<std::string> argv = {eb.string()};
+      argv.insert(argv.end(), extra.begin(), extra.end());
+      if (core::ProcessRunner::run_detached(argv, {}, {{"PAPERBOAT_BIN", exe.string()}}) > 0) return 0;
+    }
+  }
+  if (!root.empty()) {
+    const fs::path dev_app = root / "apps" / "launcher";
+#ifdef _WIN32
+    const fs::path dev_electron = dev_app / "node_modules" / ".bin" / "electron.cmd";
+#else
+    const fs::path dev_electron = dev_app / "node_modules" / ".bin" / "electron";
+#endif
+    if (fs::is_regular_file(dev_electron, ec) && fs::is_regular_file(dev_app / "dist" / "index.html", ec)) {
+      std::vector<std::string> argv = {dev_electron.string(), dev_app.string()};
+      argv.insert(argv.end(), extra.begin(), extra.end());
+      if (core::ProcessRunner::run_detached(argv, dev_app, {{"PAPERBOAT_BIN", exe.string()}}) > 0) return 0;
+    }
+  }
+  std::cerr << "paperboat launcher: Paperboat Launcher desktop app is not installed\n"
+               "  install the Paperboat Launcher package (.rpm, .deb, .dmg, .msi), or in a checkout run:\n"
+               "  npm run electron -w @paperboat/launcher\n";
+  return 1;
 }
 
 // The console (apps/cli, Ink) takes over on a terminal: it replaces this process (POSIX) or

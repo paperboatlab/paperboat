@@ -25,6 +25,7 @@ on:
       - "engine/core/**"
       - "engine/toolkit/**"
       - "engine/tools/**"
+      - "apps/launcher/**"
       - ".github/workflows/release.yml"
   workflow_dispatch:
 
@@ -34,7 +35,7 @@ concurrency:
 
 jobs:
   web:
-    name: Web app and console (built once, for every package)
+    name: Web app, launcher, and console (built once, for every package)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -54,11 +55,12 @@ jobs:
           name: web-console
           path: |
             apps/web/dist
+            apps/launcher/dist
             apps/cli/bundle
           if-no-files-found: error
 
   linux:
-    name: Linux (.tar.gz)
+    name: Linux (.tar.gz, .deb, .rpm)
     needs: web
     runs-on: ubuntu-22.04  # glibc 2.35: the binary runs on Debian 12, Ubuntu 22.04+, Fedora, ...
     outputs:
@@ -92,8 +94,8 @@ jobs:
         with:
           name: web-console
           path: apps
-      - run: sudo apt-get update && sudo apt-get install -y g++-12 ninja-build file
-      - name: Build, test, package (.tar.gz, Python wheels)
+      - run: sudo apt-get update && sudo apt-get install -y g++-12 ninja-build dpkg-dev rpm fakeroot libcrypt1 file
+      - name: Build, test, package (.tar.gz, .deb, .rpm, Python wheels)
         env:
           PYTHONS: ${{ steps.py311.outputs.python-path }} ${{ steps.py312.outputs.python-path }}
         run: CC=gcc-12 CXX=g++-12 WEB=OFF scripts/build_release.sh dist
@@ -107,13 +109,37 @@ jobs:
           cp engine/build-standalone/tools/paperboat "dist/paperboat-${{ steps.version.outputs.version }}-Linux-x86_64"
       - name: The install tree, for the bundle check
         run: cmake --install engine/build --prefix "$RUNNER_TEMP/root"   # the binary, share/ and the SDK
+      - name: Package Electron Launcher (.deb, .rpm)
+        run: |
+          mkdir -p apps/launcher/resources/paperboat
+          cp -a "$RUNNER_TEMP/root/." apps/launcher/resources/paperboat/
+          (cd apps/launcher && npm install --no-save --workspaces=false electron electron-builder && npx electron-builder --linux deb rpm --x64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
+          cp apps/launcher/release/*.deb apps/launcher/release/*.rpm dist/
       - name: No optional toolkit is bundled
         run: |
           python3 scripts/check_bundle.py --self-test
           python3 scripts/check_bundle.py --prefix "$RUNNER_TEMP/root"
           shopt -s nullglob
-          archives=(dist/*.tar.gz dist/*.whl)
+          archives=(dist/*.tar.gz dist/*.deb dist/*.rpm dist/*.whl)
           python3 scripts/check_bundle.py --archive "${archives[@]}"
+      - name: "The CLI .debs on Debian 12: installs only CLI, builds and checks a backend"
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-backend:/src:ro" debian:bookworm sh -ec '
+            apt-get update -qq && apt-get install -y -qq /dist/paperboat_[0-9]*.deb /dist/paperboat-dev_*.deb curl python3-pip >/dev/null
+            pip install -q --break-system-packages websockets jsonschema
+            paperboat --version && test ! -e "/opt/Paperboat Launcher"
+            cp -r /src /tmp/sdk-backend && paperboat build /tmp/sdk-backend && paperboat check /tmp/sdk-backend'
+      - name: "The CLI .rpms on Fedora: installs only CLI, builds and checks a backend"
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-backend:/src:ro" fedora:latest sh -ec '
+            dnf install -y -q /dist/paperboat-[0-9]*.rpm /dist/paperboat-devel-*.rpm python3-pip >/dev/null
+            paperboat --version && test ! -e "/opt/Paperboat Launcher"
+            pip install -q websockets jsonschema
+            cp -r /src /tmp/sdk-backend && paperboat build /tmp/sdk-backend && paperboat check /tmp/sdk-backend'
+      - name: "The Launcher .deb and .rpm install Paperboat Launcher desktop app"
+        run: |
+          dpkg -c dist/paperboat-launcher-*.deb | grep -q "/opt/Paperboat Launcher/paperboat-launcher"
+          rpm -qlp dist/paperboat-launcher-*.rpm | grep -q "/opt/Paperboat Launcher/paperboat-launcher"
       # The SDK (pb#177): with only the .tar.gz, a C++ backend builds and passes paperboat check.
       - name: "The .tar.gz on Debian 12: runs, serves the web app, builds and checks a backend, paperboat new writes, and checks a Python backend"
         run: |
@@ -169,7 +195,7 @@ jobs:
           path: dist/
 
   macos:
-    name: macOS arm64 (.tar.gz)
+    name: macOS arm64 (.tar.gz, .dmg)
     # macOS runners cost about ten Linux minutes and run in parallel, so they are checked on
     # pushes to dev and main; label a PR `ci:macos` to run them before merging.
     if: github.event_name != 'pull_request'
@@ -217,10 +243,14 @@ jobs:
             -DPAPERBOAT_PYTHON_MODULES_DIR="$PWD/engine/build/python/modules"
           cmake --build engine/build
           engine/build/tests/paperboat_tests
-      - name: Package (.tar.gz, and the one-file paperboat)
+      - name: Package (.tar.gz, Electron .dmg, and the one-file paperboat)
         run: |
           (cd engine/build && cpack -G TGZ -B "$GITHUB_WORKSPACE/dist")
           cmake --install engine/build --prefix "$RUNNER_TEMP/root"
+          mkdir -p apps/launcher/resources/paperboat
+          cp -R "$RUNNER_TEMP/root/." apps/launcher/resources/paperboat/
+          (cd apps/launcher && npm install --no-save --workspaces=false electron electron-builder && npx electron-builder --mac dmg --arm64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
+          cp apps/launcher/release/*.dmg "$GITHUB_WORKSPACE/dist/"
           cmake -S engine -B engine/build-standalone -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
             -DPAPERBOAT_SHARED_LIBS=OFF -DPAPERBOAT_BUILD_TESTS=OFF
           cmake --build engine/build-standalone --target paperboat
@@ -268,7 +298,7 @@ jobs:
 
   windows:
     needs: web
-    name: Windows (.zip)
+    name: Windows (.zip, .msi)
     runs-on: windows-2022
     defaults:
       run:
@@ -323,10 +353,14 @@ jobs:
           "$exe" commands | grep -q pkg
           "$exe" pkg versions squero-studio-om || true   # git over the pipe layer
           "$exe" < /dev/null                              # the prompt: its banner runs git through the process layer
-      - name: Package (.zip, and the one-file paperboat.exe)
+      - name: Package (.zip, Electron .msi, and the one-file paperboat.exe)
         run: |
           (cd engine/build && cpack -G ZIP -C Release -B "$GITHUB_WORKSPACE/dist")
           cmake --install engine/build --config Release --prefix "$RUNNER_TEMP/root"
+          mkdir -p apps/launcher/resources/paperboat
+          cp -r "$RUNNER_TEMP/root/." apps/launcher/resources/paperboat/
+          (cd apps/launcher && npm install --no-save --workspaces=false electron electron-builder && npx electron-builder --win msi --x64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
+          cp apps/launcher/release/*.msi "$GITHUB_WORKSPACE/dist/"
           # The Windows build is static already (no shared libraries, the static MSVC runtime): its exe is the one file.
           cp engine/build/tools/Release/paperboat.exe "dist/paperboat-${{ steps.version.outputs.version }}-Windows-AMD64.exe"
       - name: The one-file paperboat.exe installs itself and runs
@@ -389,4 +423,4 @@ jobs:
           shopt -s nullglob
           case "$GITHUB_REF_NAME" in *-*) pre=--prerelease;; esac   # v0.1.0-alpha.1
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes $pre \
-            dist/*.tar.gz dist/*.zip dist/*.whl dist/paperboat-*-Linux-x86_64 dist/paperboat-*-Darwin-arm64 dist/paperboat-*-Windows-AMD64.exe
+            dist/*.tar.gz dist/*.deb dist/*.rpm dist/*.dmg dist/*.msi dist/*.zip dist/*.whl dist/paperboat-*-Linux-x86_64 dist/paperboat-*-Darwin-arm64 dist/paperboat-*-Windows-AMD64.exe

@@ -1,0 +1,36 @@
+{
+  "name": "@paperboat/launcher",
+  "private": true,
+  "version": "0.0.1",
+  "description": "The Paperboat GUI Launcher: full graphical parity with the paperboat CLI",
+  "author": "PaperboatLab <hello@paperboatlab.dev>",
+  "homepage": "https://github.com/paperboatlab/paperboat",
+  "license": "Apache-2.0",
+  "desktopName": "paperboat-launcher.desktop",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "electron": "electron .",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "e2e": "playwright test -c e2e/playwright.config.ts"
+  },
+  "dependencies": {
+    "@fontsource/geist-mono": "^5.3.0",
+    "@fontsource/geist-sans": "^5.3.0",
+    "@paperboat/shared": "file:../../../paperboat-shared",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}
