@@ -113,7 +113,7 @@ jobs:
         run: |
           mkdir -p apps/launcher/resources/paperboat
           cp -a "$RUNNER_TEMP/root/." apps/launcher/resources/paperboat/
-          (cd apps/launcher && npm install --no-save --workspaces=false electron electron-builder && npx electron-builder --linux deb rpm --x64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
+          (cd apps/launcher && npm install --no-save --omit=dev --workspaces=false electron electron-builder && npx electron-builder --linux deb rpm --x64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
           cp apps/launcher/release/*.deb apps/launcher/release/*.rpm dist/
       - name: No optional toolkit is bundled
         run: |
@@ -244,12 +244,14 @@ jobs:
           cmake --build engine/build
           engine/build/tests/paperboat_tests
       - name: Package (.tar.gz, Electron .dmg, and the one-file paperboat)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           (cd engine/build && cpack -G TGZ -B "$GITHUB_WORKSPACE/dist")
           cmake --install engine/build --prefix "$RUNNER_TEMP/root"
           mkdir -p apps/launcher/resources/paperboat
           cp -R "$RUNNER_TEMP/root/." apps/launcher/resources/paperboat/
-          (cd apps/launcher && npm install --no-save --workspaces=false electron electron-builder && npx electron-builder --mac dmg --arm64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
+          (cd apps/launcher && npm install --no-save --omit=dev --workspaces=false electron electron-builder && npx electron-builder --mac dmg --arm64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
           cp apps/launcher/release/*.dmg "$GITHUB_WORKSPACE/dist/"
           cmake -S engine -B engine/build-standalone -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
             -DPAPERBOAT_SHARED_LIBS=OFF -DPAPERBOAT_BUILD_TESTS=OFF
@@ -359,7 +361,7 @@ jobs:
           cmake --install engine/build --config Release --prefix "$RUNNER_TEMP/root"
           mkdir -p apps/launcher/resources/paperboat
           cp -r "$RUNNER_TEMP/root/." apps/launcher/resources/paperboat/
-          (cd apps/launcher && npm install --no-save --workspaces=false electron electron-builder && npx electron-builder --win msi --x64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
+          (cd apps/launcher && npm install --no-save --omit=dev --workspaces=false electron electron-builder && npx electron-builder --win msi --x64 -c.extraMetadata.version="${{ steps.version.outputs.version }}")
           cp apps/launcher/release/*.msi "$GITHUB_WORKSPACE/dist/"
           # The Windows build is static already (no shared libraries, the static MSVC runtime): its exe is the one file.
           cp engine/build/tools/Release/paperboat.exe "dist/paperboat-${{ steps.version.outputs.version }}-Windows-AMD64.exe"
