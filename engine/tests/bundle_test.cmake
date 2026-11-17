@@ -1,7 +1,7 @@
 # Optional toolkits never enter an install tree (pb#297). ctest installs this build into a scratch
 # prefix and hands it to scripts/check_bundle.py, so a stray install() fails locally and not in a
-# release. The engine is Apache-2.0; a toolkit installed from engine/toolkit/<name> carries its own
-# licence (the mesh toolkit is GPL-3.0), so one file in an artifact relicences the artifact.
+# release. The engine is GPL-3.0-only; a toolkit installed from engine/toolkit/<name> may carry its
+# own licence, so one file in an artifact can change the artifact's terms.
 if(NOT DEFINED BUILD_DIR OR NOT DEFINED ROOT OR NOT DEFINED PYTHON)
   message(FATAL_ERROR "bundle_test.cmake needs BUILD_DIR, ROOT and PYTHON")
 endif()

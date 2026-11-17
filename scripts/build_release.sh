@@ -36,7 +36,7 @@ if [ "${TESTS:-ON}" = ON ]; then (cd "$src" && "$build/tests/paperboat_tests"); 
 (cd "$build" && cpack -G TGZ -B "$out")
 if command -v dpkg-deb >/dev/null 2>&1; then (cd "$build" && cpack -G DEB -B "$out"); fi
 if command -v rpmbuild >/dev/null 2>&1; then (cd "$build" && cpack -G RPM -B "$out"); fi
-# Optional toolkits never ship (pb#297): the engine is Apache-2.0, a toolkit may be GPL-3.0.
+# Optional toolkits never ship (pb#297): the engine is GPL-3.0-only, a toolkit may carry another licence.
 python3 "$src/scripts/check_bundle.py" --self-test
 shopt -s nullglob
 for artifact in "$out"/*.tar.gz "$out"/*.deb "$out"/*.rpm "$out"/*.whl; do

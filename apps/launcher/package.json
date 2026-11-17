@@ -5,7 +5,7 @@
   "description": "The Paperboat GUI Launcher: full graphical parity with the paperboat CLI",
   "author": "PaperboatLab <hello@paperboatlab.dev>",
   "homepage": "https://github.com/paperboatlab/paperboat",
-  "license": "Apache-2.0",
+  "license": "GPL-3.0-only",
   "desktopName": "paperboat-launcher.desktop",
   "main": "electron/main.cjs",
   "type": "module",

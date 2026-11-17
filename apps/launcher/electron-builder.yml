@@ -1,6 +1,6 @@
 appId: dev.paperboatlab.launcher
 productName: Paperboat Launcher
-copyright: Copyright © PaperboatLab (Apache-2.0)
+copyright: Copyright © PaperboatLab (GPL-3.0-only)
 directories:
   output: release
   buildResources: build
@@ -10,6 +10,8 @@ files:
   - public/favicon.svg
   - package.json
 extraResources:
+  - from: ../../LICENSE
+    to: LICENSE
   - from: resources/paperboat
     to: paperboat
     filter:

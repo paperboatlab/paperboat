@@ -103,6 +103,6 @@ Versioned in `engine/CMakeLists.txt` and tagged `vX.Y.Z[-alpha.N]` on the same `
 
 ## Licence
 
-Apache License 2.0 (see [LICENSE](LICENSE)). Third-party notices for bundled math and solver
-libraries live under [`engine/third_party/`](engine/third_party/). Optional toolkits carry their own
+GNU General Public License version 3 (see [LICENSE](LICENSE)). Third-party notices for bundled math
+and solver libraries live under [`engine/cmake/`](engine/cmake/). Optional toolkits carry their own
 licences and are never bundled into release artifacts.

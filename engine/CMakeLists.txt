@@ -213,7 +213,7 @@ if(PAPERBOAT_INSTALL)
   write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfigVersion.cmake COMPATIBILITY SameMinorVersion)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfigVersion.cmake
           DESTINATION ${PAPERBOAT_CMAKE_DIR} COMPONENT dev)
-  # Apache-2.0: the notice travels with every runtime package (tar.gz, zip).
+  # GPL-3.0-only: the notice travels with every runtime package (tar.gz, zip).
   install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} COMPONENT runtime)
 endif()
 
@@ -286,7 +286,7 @@ if(PROJECT_IS_TOP_LEVEL)
 
   set(CPACK_RPM_COMPONENT_INSTALL ON)
   set(CPACK_RPM_PACKAGE_VERSION "${PAPERBOAT_LINUX_PKG_VERSION}")
-  set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
+  set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-only")
   set(CPACK_RPM_PACKAGE_GROUP "Applications/Engineering")
   set(CPACK_RPM_PACKAGE_URL "${CPACK_PACKAGE_HOMEPAGE_URL}")
   set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
