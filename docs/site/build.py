@@ -119,6 +119,7 @@ def main() -> int:
     ap.add_argument("--url", help="where it is served (default: the org site + name)")
     ap.add_argument("--repo", help="its repository, for the top bar")
     ap.add_argument("--version", default="")
+    ap.add_argument("--versions-json", default="", help="JSON list of {version, url} entries for the version switcher")
     ap.add_argument("--catalog", type=Path)
     ap.add_argument("--engine", help="a paperboat-catalog binary, to dump the catalog of --package")
     ap.add_argument("--package")
@@ -138,6 +139,9 @@ def main() -> int:
             write_blocks(src, catalog, args.blocks)
         env = {**os.environ, "PB_SITE": args.name, "PB_TITLE": args.title or args.name.split("/")[-1],
                "PB_VERSION": args.version, "PB_SITE_DIR": str(HERE)}
+        if args.versions_json:
+            vj = Path(args.versions_json)
+            env["PB_VERSIONS_JSON"] = vj.read_text() if vj.exists() else args.versions_json
         if args.url:
             env["PB_SITE_URL"] = args.url
         if args.repo:

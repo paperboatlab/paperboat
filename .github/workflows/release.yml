@@ -426,3 +426,9 @@ jobs:
           case "$GITHUB_REF_NAME" in *-*) pre=--prerelease;; esac   # v0.1.0-alpha.1
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes $pre \
             dist/*.tar.gz dist/*.deb dist/*.rpm dist/*.dmg dist/*.msi dist/*.zip dist/*.whl dist/paperboat-*-Linux-x86_64 dist/paperboat-*-Darwin-arm64 dist/paperboat-*-Windows-AMD64.exe
+      - name: Tell the org docs site
+        if: env.TOKEN != ''
+        env:
+          TOKEN: ${{ secrets.DOWNSTREAM_TOKEN }}
+          GH_TOKEN: ${{ secrets.DOWNSTREAM_TOKEN }}
+        run: gh api repos/paperboatlab/paperboatlab.github.io/dispatches -f event_type=release

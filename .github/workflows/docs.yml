@@ -5,7 +5,7 @@ name: docs
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev, main, release]
   pull_request:
     paths:
       - "docs/**"
@@ -15,7 +15,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/dev' && github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/dev' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/release' }}
 
 permissions:
   contents: read
@@ -45,8 +45,11 @@ jobs:
         working-directory: paperboat
       # The org site redeploys on this signal, so a docs change is live minutes after it lands.
       - name: Tell the org site
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev' && env.TOKEN != ''
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/release') && env.TOKEN != ''
         env:
           TOKEN: ${{ secrets.DOWNSTREAM_TOKEN }}
           GH_TOKEN: ${{ secrets.DOWNSTREAM_TOKEN }}
-        run: gh api repos/paperboatlab/paperboatlab.github.io/dispatches -f event_type=docs
+        run: |
+          ev=docs
+          if [ "${{ github.ref }}" = "refs/heads/release" ]; then ev=release; fi
+          gh api repos/paperboatlab/paperboatlab.github.io/dispatches -f event_type="$ev"
