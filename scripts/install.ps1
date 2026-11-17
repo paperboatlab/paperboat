@@ -1,8 +1,9 @@
-# Install or update paperboat for this user on Windows, with nothing but this script:
+﻿# Install or update paperboat for this user on Windows, with nothing but this script:
 #
 #   irm https://raw.githubusercontent.com/paperboatlab/paperboat/HEAD/scripts/install.ps1 | iex
 #
-#   (no flag)        the newest GitHub release's .zip (prereleases included)
+#   (no flag)        the newest stable GitHub release's .zip
+#   -Channel C       release (stable) | beta (prereleases) | dev
 #   -Version V       that release instead of the newest
 #   -Archive FILE    install this release .zip instead of downloading one (offline, or CI)
 #   -Check           say what is installed and what is available, change nothing
@@ -10,14 +11,18 @@
 # Running it again updates; `paperboat update` runs it, and so does the one-file paperboat.exe on its first
 # run. Layout: $env:PAPERBOAT_HOME (default %LOCALAPPDATA%\paperboat) holds self\<version>\ and apps\
 # (`paperboat pkg`); bin\paperboat.cmd runs the one in use, and bin\ is put on the user's PATH.
-# The source and main channels are POSIX only (scripts/install.sh); Windows takes releases.
-param([string]$Version = "", [string]$Archive = "", [switch]$Check)
+param([string]$Version = "", [string]$Archive = "", [string]$Channel = "release", [switch]$Check)
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"   # Invoke-WebRequest is many times slower drawing its bar
 $Repo = "paperboatlab/paperboat"
 $Root = if ($env:PAPERBOAT_HOME) { $env:PAPERBOAT_HOME } else { Join-Path $env:LOCALAPPDATA "paperboat" }
 $Bin = if ($env:PAPERBOAT_BIN) { $env:PAPERBOAT_BIN } else { Join-Path $Root "bin" }
 $Shim = Join-Path $Bin "paperboat.cmd"
+$ChanFile = Join-Path $Root "channel"
+if (-not $PSBoundParameters.ContainsKey("Channel") -and (Test-Path $ChanFile)) {
+  $Channel = (Get-Content $ChanFile -Raw).Trim()
+}
+if ($Channel -notin @("release", "beta", "dev")) { $Channel = "release" }
 
 # What is installed now: the version the shim points at.
 $have = ""
@@ -28,15 +33,24 @@ if (Test-Path $Shim) {
 # paperboat-<version>-Windows-<arch>.zip
 if ($Archive) { $Version = [IO.Path]::GetFileName($Archive) -replace '^paperboat-(.*)-Windows-[^-]*\.zip$', '$1' }
 if (-not $Version) {
-  $Version = ((Invoke-RestMethod "https://api.github.com/repos/$Repo/releases?per_page=1")[0].tag_name) -replace '^v', ''
+  if ($Channel -eq "release") {
+    try {
+      $Version = ((Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest").tag_name) -replace '^v', ''
+    } catch { $Version = "" }
+  }
+  if (-not $Version) {
+    $Version = ((Invoke-RestMethod "https://api.github.com/repos/$Repo/releases?per_page=1")[0].tag_name) -replace '^v', ''
+  }
   if (-not $Version) { throw "cannot read the releases of $Repo (offline, or rate limited)" }
 }
 
 if ($Check) {
-  Write-Output "installed: $(if ($have) { $have } else { 'nothing' }) (release)"
-  Write-Output "available: $Version (release)"
+  Write-Output "installed: $(if ($have) { $have } else { 'nothing' }) ($Channel)"
+  Write-Output "available: $Version ($Channel)"
   exit 0
 }
+New-Item -ItemType Directory $Root -Force | Out-Null
+Set-Content $ChanFile $Channel -Encoding ASCII -NoNewline
 if ($have -eq $Version) { Write-Output "paperboat $Version is up to date"; exit 0 }
 
 $dest = Join-Path $Root "self\$Version"

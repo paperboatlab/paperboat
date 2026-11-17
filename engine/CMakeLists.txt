@@ -253,20 +253,49 @@ endif()
 # Backends (examples/backends/*-cpp) are projects of their own that use the engine; the
 # engine never builds or reads them.
 
-# Packages (cpack -G TGZ, ZIP on Windows; pb#357): the paperboat binary and the registries it reads (see tools/).
+# Packages (cpack -G TGZ / DEB / RPM / ZIP): CLI-only packages (paperboat + SDK, no GUI launcher).
 if(PROJECT_IS_TOP_LEVEL)
   set(CPACK_PACKAGE_NAME paperboat)
+  set(CPACK_PACKAGE_VENDOR "PaperboatLab")
   set(CPACK_PACKAGE_VERSION ${PAPERBOAT_VERSION})
-  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Paperboat: a framework for engineering apps (scene, node graph, live results)")
+  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Paperboat CLI & C++20 engine (scene, node graph, live results)")
   set(CPACK_PACKAGE_CONTACT "paperboat <noreply@github.com>")
   set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/paperboatlab/paperboat")
   set(CPACK_PACKAGE_FILE_NAME "paperboat-${PAPERBOAT_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+  set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE")
   set(CPACK_GENERATOR TGZ)
   if(WIN32)
     set(CPACK_GENERATOR ZIP)
   endif()
   # One archive holds both components: the runtime (bin, share, the engine libraries) and the SDK.
   set(CPACK_COMPONENTS_ALL runtime dev)
+
+  # Debian / RPM sort "~" before the release ("0.1.0~alpha.4" < "0.1.0"), matching SemVer prereleases.
+  string(REPLACE "-" "~" PAPERBOAT_LINUX_PKG_VERSION "${PAPERBOAT_VERSION}")
+  set(CPACK_DEB_COMPONENT_INSTALL ON)
+  set(CPACK_DEBIAN_PACKAGE_VERSION "${PAPERBOAT_LINUX_PKG_VERSION}")
+  set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "${CPACK_PACKAGE_HOMEPAGE_URL}")
+  set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+  set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME paperboat)
+  set(CPACK_DEBIAN_RUNTIME_PACKAGE_SHLIBDEPS ON)
+  set(CPACK_DEBIAN_RUNTIME_PACKAGE_RECOMMENDS "git, nodejs, npm")
+  set(CPACK_DEBIAN_DEV_PACKAGE_NAME paperboat-dev)
+  set(CPACK_DEBIAN_DEV_PACKAGE_DEPENDS "paperboat (= ${PAPERBOAT_LINUX_PKG_VERSION}), cmake (>= 3.25), g++ (>= 4:12)")
+  set(CPACK_DEBIAN_DEV_PACKAGE_SHLIBDEPS OFF)
+  set(CPACK_DEBIAN_DEV_PACKAGE_SECTION libdevel)
+
+  set(CPACK_RPM_COMPONENT_INSTALL ON)
+  set(CPACK_RPM_PACKAGE_VERSION "${PAPERBOAT_LINUX_PKG_VERSION}")
+  set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
+  set(CPACK_RPM_PACKAGE_GROUP "Applications/Engineering")
+  set(CPACK_RPM_PACKAGE_URL "${CPACK_PACKAGE_HOMEPAGE_URL}")
+  set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+  set(CPACK_RPM_RUNTIME_PACKAGE_NAME paperboat)
+  set(CPACK_RPM_RUNTIME_PACKAGE_SUGGESTS "git, nodejs, npm")
+  set(CPACK_RPM_DEV_PACKAGE_NAME paperboat-devel)
+  set(CPACK_RPM_DEV_PACKAGE_REQUIRES "paperboat = ${PAPERBOAT_LINUX_PKG_VERSION}, cmake >= 3.25, gcc-c++ >= 12")
+  set(CPACK_RPM_DEV_PACKAGE_AUTOREQ OFF)
+
   include(CPack)
 endif()
 

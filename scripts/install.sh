@@ -2,11 +2,14 @@
 # Install or update paperboat for this user, with nothing but this script:
 #
 #   curl -fsSL https://raw.githubusercontent.com/paperboatlab/paperboat/HEAD/scripts/install.sh | sh
-#   curl -fsSL …/install.sh | sh -s -- --main      # build the default branch from source
+#   curl -fsSL …/install.sh | sh -s -- --dev       # build the dev branch from source
 #
-#   (no flag)    release: the newest GitHub release's prebuilt .tar.gz (prereleases included)
+#   (no flag)    release: the newest stable GitHub release's prebuilt .tar.gz
+#   --release    the newest stable GitHub release's prebuilt .tar.gz
+#   --beta       the newest GitHub release including prereleases (beta/alpha/rc)
+#   --dev        the dev branch, built from source
 #   --source     release, built from source at its tag
-#   --main       the default branch (main or dev), built from source
+#   --main       alias for --dev
 #   --version V  that release instead of the newest (with or without --source)
 #   --archive F  install this release .tar.gz instead of downloading one (offline, or CI)
 #   --check      say what is installed and what is available, change nothing
@@ -21,17 +24,19 @@ HOME_DIR=${PAPERBOAT_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/paperboat}
 BIN_DIR=${PAPERBOAT_BIN:-$HOME/.local/bin}
 SRC=$HOME_DIR/src/paperboat
 LINK=$BIN_DIR/paperboat
+CHAN_FILE=$HOME_DIR/channel
 
 mode="" version="" check=0 archive=""
 while [ $# -gt 0 ]; do
   case $1 in
     --source) mode=source ;;
-    --main) mode=main ;;
+    --dev|--main) mode=dev ;;
+    --beta) mode=beta ;;
     --release) mode=release ;;
     --version) version=${2#v}; shift ;;
     --archive) archive=$2; mode=release; shift ;;
     --check) check=1 ;;
-    -h|--help) sed -n '2,16p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "install.sh: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -42,24 +47,29 @@ die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "needs $1${2:+ ($2)}"; }
 fetch() { if command -v curl >/dev/null 2>&1; then curl -fsSL "$@"; else need wget "or curl"; wget -qO- "$1"; fi; }
 
-# What is installed now: the channel from where the link points (main | source | release | "").
+# What is installed now: the channel from $CHAN_FILE or where the link points (dev | source | beta | release | "").
 current() {
   target=$(readlink "$LINK" 2>/dev/null || true)
   case $target in
     "$SRC"/*)
-      if git -C "$SRC" symbolic-ref -q HEAD >/dev/null; then echo main; else echo source; fi ;;
-    "$HOME_DIR"/self/*) echo release ;;
+      if git -C "$SRC" symbolic-ref -q HEAD >/dev/null; then echo dev; else echo source; fi ;;
+    "$HOME_DIR"/self/*)
+      if [ -f "$CHAN_FILE" ]; then cat "$CHAN_FILE"; else echo release; fi ;;
   esac
 }
 installed_version() {
   case $(current) in
-    main) echo "main@$(git -C "$SRC" rev-parse --short HEAD)" ;;
+    dev) echo "dev@$(git -C "$SRC" rev-parse --short HEAD)" ;;
     source) git -C "$SRC" describe --tags --exact-match 2>/dev/null | sed 's/^v//' ;;
-    release) basename "$(dirname "$(dirname "$(readlink "$LINK")")")" ;;
+    release|beta) basename "$(dirname "$(dirname "$(readlink "$LINK")")")" ;;
   esac
 }
-# The newest release's tag without the v (GitHub lists the newest first, prereleases too).
-latest() {
+# Newest stable release tag without the v, or newest release including prereleases for beta.
+latest_stable() {
+  fetch "https://api.github.com/repos/$REPO/releases/latest" |
+    sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n1
+}
+latest_beta() {
   fetch "https://api.github.com/repos/$REPO/releases?per_page=1" |
     sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n1
 }
@@ -67,22 +77,30 @@ latest() {
 was=$(current)
 [ -n "$mode" ] || mode=${was:-release}
 
-if [ "$mode" = main ]; then
-  want=main
+if [ "$mode" = dev ]; then
+  want=dev
 else
   # paperboat-<version>-<OS>-<arch>.tar.gz
   [ -z "$archive" ] || version=$(basename "$archive" | sed 's/^paperboat-\(.*\)-[^-]*-[^-]*\.tar\.gz$/\1/')
-  want=${version:-$(latest)}
+  if [ -n "$version" ]; then
+    want=$version
+  elif [ "$mode" = beta ]; then
+    want=$(latest_beta)
+  else
+    want=$(latest_stable)
+    # If no stable release exists yet, fall back to newest prerelease.
+    [ -n "$want" ] || want=$(latest_beta)
+  fi
   [ -n "$want" ] || die "cannot read the releases of $REPO (offline, or rate limited)"
 fi
 have=$(installed_version)
 
 if [ $check -eq 1 ]; then
   say "installed: ${have:-nothing} (${was:-no channel})"
-  if [ "$mode" = main ] && [ "$was" = main ]; then
+  if [ "$mode" = dev ] && [ "$was" = dev ]; then
     git -C "$SRC" fetch -q origin
     behind=$(git -C "$SRC" rev-list --count HEAD..@{upstream})
-    say "main: $behind commit(s) behind $(git -C "$SRC" rev-parse --abbrev-ref @{upstream})"
+    say "dev: $behind commit(s) behind $(git -C "$SRC" rev-parse --abbrev-ref @{upstream})"
   else
     say "available: $want ($mode)"
   fi
@@ -92,12 +110,14 @@ fi
 link() {
   mkdir -p "$BIN_DIR"
   ln -sfn "$1" "$LINK"
+  mkdir -p "$HOME_DIR"
+  printf '%s' "$mode" > "$CHAN_FILE"
   say "paperboat → $1"
   case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "add $BIN_DIR to PATH: export PATH=\"$BIN_DIR:\$PATH\"" ;; esac
 }
 
-if [ "$mode" = release ]; then
-  if [ "$was" = release ] && [ "$have" = "$want" ]; then say "paperboat $want is up to date"; exit 0; fi
+if [ "$mode" = release ] || [ "$mode" = beta ]; then
+  if [ "$was" = "$mode" ] && [ "$have" = "$want" ]; then say "paperboat $want is up to date"; exit 0; fi
   asset="paperboat-$want-$(uname -s)-$(uname -m).tar.gz"
   dest=$HOME_DIR/self/$want
   say "installing ${archive:-$asset}…"
@@ -136,7 +156,7 @@ if [ -n "$(git -C "$SRC" status --porcelain --untracked-files=no)" ]; then
 fi
 before=$(git -C "$SRC" rev-parse HEAD)
 git -C "$SRC" fetch -q --tags origin
-if [ "$mode" = main ]; then
+if [ "$mode" = dev ]; then
   branch=$(git -C "$SRC" symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||')
   git -C "$SRC" checkout -q "$branch"
   git -C "$SRC" merge -q --ff-only "origin/$branch"
