@@ -731,7 +731,20 @@ bool BackendManager::needs_rebuild(const fs::path& backend_dir, const fs::path& 
 }
 
 fs::path BackendManager::workbench_binary(const fs::path& root) {
-  return built_binary(root / "engine" / "build" / "workbench");
+  if (!root.empty()) {
+    if (auto b = built_binary(root / "engine" / "build" / "workbench"); !b.empty()) return b;
+  }
+  std::error_code ec;
+  if (const fs::path exe = platform::exe_path(); !exe.empty()) {
+    const fs::path installed = exe.parent_path() /
+#ifdef _WIN32
+                               "paperboat-workbench.exe";
+#else
+                               "paperboat-workbench";
+#endif
+    if (fs::is_regular_file(installed, ec)) return installed;
+  }
+  return {};
 }
 
 bool BackendManager::ensure_built(const fs::path& backend_dir,
@@ -1043,8 +1056,13 @@ fs::path BackendManager::resolve_backend_dir(const fs::path& path_or_domain) {
   const std::string name = p_check.string();
   const fs::path ub_dir = user_backends_dir();
 
-  if (name == "workbench" && !root.empty() && fs::is_directory(root / "engine" / "workbench")) {
-    return root / "engine" / "workbench";
+  if (name == "workbench") {
+    if (!root.empty() && fs::is_directory(root / "engine" / "workbench")) {
+      return root / "engine" / "workbench";
+    }
+    if (const fs::path wb = workbench_binary(root); !wb.empty()) {
+      return wb;
+    }
   }
 
   std::vector<fs::path> candidates = {
@@ -1200,12 +1218,15 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
   }
 
   const fs::path dir = resolve_backend_dir(target);
-  if (!fs::is_directory(dir)) {
+  const fs::path wb_bin = workbench_binary(toolkit::find_repo_root(dir));
+  std::error_code wb_ec;
+  const bool is_prebuilt_wb = !wb_bin.empty() && fs::is_regular_file(dir, wb_ec) && fs::equivalent(dir, wb_bin, wb_ec);
+  if (!is_prebuilt_wb && !fs::is_directory(dir)) {
     std::cerr << "error: directory not found: " << path_or_domain << '\n';
     return 1;
   }
 
-  const BackendKind kind = detect_backend_kind(dir);
+  const BackendKind kind = is_prebuilt_wb ? BackendKind::Cpp : detect_backend_kind(dir);
   if (kind == BackendKind::Unknown) {
     std::cerr << "error: cannot detect backend type (neither CMakeLists.txt nor server.py found) in " << dir << '\n';
     return 1;
@@ -1222,11 +1243,11 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
 
   // Determine port
   int port = opts.port;
-  BackendManifest manifest = load_manifest(dir);
+  BackendManifest manifest = is_prebuilt_wb ? BackendManifest{} : load_manifest(dir);
   if (port <= 0) {
     if (manifest.has_manifest && manifest.port > 0) {
       port = manifest.port;
-    } else {
+    } else if (!is_prebuilt_wb) {
       const auto desc = dir / "descriptor.toml";
       if (fs::is_regular_file(desc)) {
         try {
@@ -1244,7 +1265,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
     free_port(port, 2000);
   }
 
-  const std::string domain_name = dir.filename().string();
+  const std::string domain_name = is_prebuilt_wb ? "workbench" : dir.filename().string();
   // Flushed per line: when stdout is a pipe (the console, a log file) lines still come live.
   auto log_cb = [domain_name](std::string_view stream, std::string_view line) {
     (stream == "stderr" ? std::cerr : std::cout) << "[" << domain_name << "] " << line << std::endl;
@@ -1276,7 +1297,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
   };
 
   if (kind == BackendKind::Cpp) {
-    if (opts.build) {
+    if (opts.build && !is_prebuilt_wb) {
       std::string err;
       double elapsed = 0.0;
       if (!ensure_built(dir, opts.clean, opts.verbose, &err, &elapsed, [&](std::string_view stage) { now_at("building", stage); })) {
@@ -1288,15 +1309,18 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
       }
     }
 
-    // Locate binary in build/
-    fs::path bin = manifest.has_manifest && !manifest.run.empty() && fs::is_regular_file(dir / manifest.run)
-                             ? dir / manifest.run
-                             : built_binary(dir / "build");
+    // Locate binary in build/ (or use installed prebuilt workbench executable directly)
+    fs::path bin = is_prebuilt_wb
+                       ? wb_bin
+                       : (manifest.has_manifest && !manifest.run.empty() && fs::is_regular_file(dir / manifest.run)
+                              ? dir / manifest.run
+                              : built_binary(dir / "build"));
     if (bin.empty() && dir.filename() == "workbench") {
       const fs::path root = toolkit::find_repo_root(dir);
       if (!root.empty()) bin = workbench_binary(root);
     }
     if (bin.empty()) return failed("compiled binary not found in " + (dir / "build").string());
+    const fs::path run_cwd = is_prebuilt_wb ? dir.parent_path() : dir;
 
     std::vector<std::string> args = {bin.string(), "--port", std::to_string(port)};
     if (opts.run) args.emplace_back("--run");
@@ -1313,7 +1337,7 @@ int BackendManager::run_backend(const fs::path& path_or_domain, const BackendRun
     env.emplace_back(core::kSupervisedEnv, "1");
     now_at("starting", "waiting");
     for (;;) {
-      const int code = ProcessRunner::run_stream(args, dir, env, log_cb);
+      const int code = ProcessRunner::run_stream(args, run_cwd, env, log_cb);
       if (code != core::kRestartExit) return code;
       std::cout << "restarting " << bin.filename().string() << "…" << std::endl;
     }
@@ -1424,7 +1448,9 @@ bool BackendManager::restart_backend(const std::string& target, const BackendRun
   fs::path backend_dir;
   int port = 0;
   if (found) {
-    backend_dir = match.backend_dir.empty() ? match.cwd : match.backend_dir;
+    backend_dir = match.backend_dir.empty()
+                      ? (match.domain == "workbench" ? resolve_backend_dir("workbench") : match.cwd)
+                      : match.backend_dir;
     port = match.port;
     std::cout << "Stopping backend on port " << match.port << "…\n";
     free_port(match.port, 2000);
@@ -1436,7 +1462,10 @@ bool BackendManager::restart_backend(const std::string& target, const BackendRun
     } catch (...) {}
   }
 
-  if (!fs::is_directory(backend_dir)) {
+  std::error_code ec;
+  const fs::path wb_bin = workbench_binary(toolkit::find_repo_root());
+  const bool is_prebuilt_wb = !wb_bin.empty() && fs::is_regular_file(backend_dir, ec) && fs::equivalent(backend_dir, wb_bin, ec);
+  if (!is_prebuilt_wb && !fs::is_directory(backend_dir)) {
     std::cerr << "error: cannot locate backend to restart for \"" << target << "\"\n";
     return false;
   }

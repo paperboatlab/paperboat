@@ -801,6 +801,16 @@ int cmd_backends(const std::vector<std::string_view>& args) {
   const fs::path root = tk::find_repo_root();
   if (!root.empty() && fs::is_directory(root / "engine" / "workbench")) {
     add(root / "engine" / "workbench", "builtin", 8765);
+  } else if (const fs::path wb = core::BackendManager::workbench_binary(root); !wb.empty()) {
+    order.push_back("workbench");
+    found["workbench"] = {
+        {"name", "workbench"},
+        {"language", "cpp"},
+        {"port", 8765},
+        {"dir", wb.string()},
+        {"description", "Standard toolkits with no domain (Flow & Dashboard)"},
+        {"source", "builtin"},
+    };
   }
   for (const auto& ex : core::BackendManager::get_examples()) add(ex.dir, "example", ex.port);
   std::error_code ec;
@@ -1142,7 +1152,7 @@ int cmd_start(const std::vector<std::string_view>& args) {
     return start_program(*app, without(args, target));
   }
   std::error_code ec;
-  if (!fs::exists(target, ec) && !fs::is_directory(core::BackendManager::resolve_backend_dir(target), ec)) {
+  if (!fs::exists(target, ec) && !fs::exists(core::BackendManager::resolve_backend_dir(target), ec)) {
     std::cerr << "error: \"" << target << "\" is neither a backend nor a program\n"
               << "  backends: `paperboat backends` (or a folder or .ppk)   programs: `paperboat pkg list`\n";
     return 1;
@@ -2030,25 +2040,32 @@ void print_interactive_help() {
 }
 
 /**
- * The workbench is the default backend of a checkout: start it on 8765 when nothing is
- * listening and the checkout has one. Installed packages without a checkout have none.
+ * The workbench is the default backend: built from `engine/workbench` in a checkout, or launched
+ * from the installed `paperboat-workbench` binary beside `paperboat` in a package / desktop app.
  */
 void start_workbench() {
   const fs::path root = tk::find_repo_root();
-  if (core::BackendManager::is_port_listening(8765) || root.empty() || !fs::is_directory(root / "engine" / "workbench")) return;
-  std::string err;
-  if (!core::BackendManager::ensure_built(root / "engine" / "workbench", false, false, &err)) return;
+  if (core::BackendManager::is_port_listening(8765)) return;
+  const fs::path wb_dir = (!root.empty() && fs::is_directory(root / "engine" / "workbench"))
+                              ? (root / "engine" / "workbench")
+                              : fs::path{};
+  if (!wb_dir.empty()) {
+    std::string err;
+    if (!core::BackendManager::ensure_built(wb_dir, false, false, &err)) return;
+  }
   const fs::path bin = core::BackendManager::workbench_binary(root);
   if (bin.empty()) return;
+  const fs::path cwd = wb_dir.empty() ? bin.parent_path() : wb_dir;
   const fs::path log_path = platform::shared_tmp_dir() / "backend-8765.log";
-  const int pid = core::ProcessRunner::run_detached({bin.string(), "--port", "8765"}, root / "engine" / "workbench", {}, log_path);
+  const int pid = core::ProcessRunner::run_detached({bin.string(), "--port", "8765"}, cwd, {}, log_path);
   if (pid <= 0) return;
   core::RunningBackend rb;
   rb.port = 8765;
   rb.pid = pid;
   rb.engine = "workbench";
   rb.domain = "workbench";
-  rb.cwd = root / "engine" / "workbench";
+  rb.cwd = cwd;
+  rb.backend_dir = wb_dir;
   rb.executable = bin.string();
   rb.ws_url = "ws://localhost:8765";
   rb.started_at = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();

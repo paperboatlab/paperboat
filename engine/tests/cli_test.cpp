@@ -745,3 +745,59 @@ TEST_CASE("paperboat status: a start's stage, its failure, and stale records pru
   clear(dead.pid);
   CHECK(status("pb332-demo").empty());
 }
+
+TEST_CASE("Installed package discovers sibling workbench binary when engine/workbench is absent") {
+  const fs::path cli = find_cli();
+  REQUIRE(fs::is_regular_file(cli));
+
+  // Checkout root (where tests run): resolves source engine/workbench and built binary.
+  const fs::path repo_root = cli.parent_path().parent_path().parent_path().parent_path();
+  if (fs::is_directory(repo_root / "engine" / "workbench")) {
+    CHECK(core::BackendManager::resolve_backend_dir("workbench") == repo_root / "engine" / "workbench");
+    const fs::path built_wb = core::BackendManager::workbench_binary(repo_root);
+    if (!built_wb.empty()) CHECK(fs::is_regular_file(built_wb));
+  }
+
+  // Simulated installed prefix (<tmp>/bin/paperboat + sibling paperboat-workbench, <tmp>/share/paperboat, no checkout).
+  const fs::path prefix = fs::temp_directory_path() / ("pb_wb_install_" + std::to_string(getpid()));
+  std::error_code ec;
+  fs::remove_all(prefix, ec);
+  const fs::path bin_dir = prefix / "bin";
+  const fs::path share_dir = prefix / "share" / "paperboat";
+  fs::create_directories(bin_dir);
+  fs::create_directories(share_dir);
+  std::ofstream(share_dir / "toolkits.toml") << "toolchains = []\n";
+  const fs::path installed_cli = bin_dir / "paperboat";
+  fs::copy_file(cli, installed_cli, fs::copy_options::overwrite_existing);
+
+  // Without sibling paperboat-workbench, workbench is not listed.
+  const auto without_wb = core::ProcessRunner::run_sync(
+      {installed_cli.string(), "backends", "--json"}, prefix, {{"HOME", prefix.string()}});
+  REQUIRE(without_wb.ok());
+  const auto rows_before = nlohmann::json::parse(without_wb.stdout_text);
+  const bool has_before = std::any_of(rows_before.begin(), rows_before.end(),
+                                      [](const auto& r) { return r.value("name", "") == "workbench"; });
+  CHECK_FALSE(has_before);
+
+  // With sibling executable paperboat-workbench, backends --json exposes it as builtin prebuilt workbench.
+  const fs::path installed_wb = bin_dir / "paperboat-workbench";
+  {
+    std::ofstream out(installed_wb);
+    out << "#!/bin/sh\nexit 0\n";
+  }
+  fs::permissions(installed_wb, fs::perms::owner_exec | fs::perms::owner_read | fs::perms::owner_write,
+                  fs::perm_options::replace);
+
+  const auto with_wb = core::ProcessRunner::run_sync(
+      {installed_cli.string(), "backends", "--json"}, prefix, {{"HOME", prefix.string()}});
+  REQUIRE(with_wb.ok());
+  const auto rows_after = nlohmann::json::parse(with_wb.stdout_text);
+  auto it = std::find_if(rows_after.begin(), rows_after.end(),
+                         [](const auto& r) { return r.value("name", "") == "workbench"; });
+  REQUIRE(it != rows_after.end());
+  CHECK((*it)["source"] == "builtin");
+  CHECK((*it)["port"] == 8765);
+  CHECK((*it)["dir"] == fs::weakly_canonical(installed_wb).string());
+
+  fs::remove_all(prefix, ec);
+}
