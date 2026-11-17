@@ -118,5 +118,5 @@ the generator checks (seconds).
 
 ## License
 
-Paperboat is licensed under the [Apache License 2.0](LICENSE). By contributing, you agree that
-your contributions are licensed under the same terms.
+Paperboat is licensed under the [GNU General Public License version 3](LICENSE). By contributing,
+you agree that your contributions are licensed under the same terms.

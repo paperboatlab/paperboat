@@ -2,6 +2,7 @@
   "name": "@paperboat/cli",
   "private": true,
   "version": "0.0.1",
+  "license": "GPL-3.0-only",
   "description": "The Paperboat developer console: an Ink front end that drives the C++ paperboat CLI",
   "type": "module",
   "bin": {

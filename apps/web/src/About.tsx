@@ -46,7 +46,7 @@ export function AboutWindow({ state, onClose }: { state: EngineState; onClose: (
             <dt>License</dt>
             <dd>
               <a href={LICENSE} target="_blank" rel="noreferrer">
-                Apache-2.0
+                GPL-3.0-only
               </a>
             </dd>
           </dl>

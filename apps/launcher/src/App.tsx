@@ -2382,7 +2382,7 @@ export function App() {
                     <dt>Toolkits</dt>
                     <dd className="mono">{installedToolkitsCount} optional installed</dd>
                     <dt>License</dt>
-                    <dd>Apache-2.0</dd>
+                    <dd>GPL-3.0-only</dd>
                   </dl>
                   <section className="about-section">
                     <h3>Optional Toolkits</h3>

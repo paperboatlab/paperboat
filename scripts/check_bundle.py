@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Optional toolkits never enter a release artifact (pb#297).
 
-An optional toolkit is installed by the user into ``engine/toolkit/<name>/`` and may carry a
-licence the engine does not (the mesh toolkit is GPL-3.0; the engine is Apache-2.0). An artifact
-that carries one is a combined work under that licence, so this checker fails on every trace of
-one:
+An optional toolkit is installed by the user into ``engine/toolkit/<name>/`` and carries its own
+licence (the mesh toolkit is GPL-3.0; the engine is GPL-3.0-only). An artifact that carries one is
+a combined work under that licence, so this checker fails on every trace of one:
 
     scripts/check_bundle.py --prefix <install tree>          # a `cmake --install` output
     scripts/check_bundle.py --archive <tar.gz|zip|whl|deb|rpm> ...
@@ -191,7 +190,7 @@ def report(offences: list[tuple[str, list[str]]], source: str) -> int:
     for entry, why in offences:
         print(f"bundled optional toolkit: {entry} ({', '.join(why)})")
     print(f"\n{source}: {len(offences)} file(s) from an optional toolkit would ship.")
-    print("Optional toolkits are never bundled (pb#297): the engine is Apache-2.0, a toolkit")
+    print("Optional toolkits are never bundled (pb#297): the engine is GPL-3.0-only, a toolkit")
     print("carries its own licence, and a user installs one with `paperboat toolkit install <name>`.")
     return 1
 
