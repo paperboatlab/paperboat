@@ -80,10 +80,12 @@ Switching Modes
 Working with the Station
 ------------------------
 
-The Station page represents the "physical" world of your project. **View > Station page**
-shows or hides it; a hidden Station leaves the other pages as they are (Commander puts the
-Flow and the Board side by side, and Lookout has no Station drawer). A backend can start with
-it hidden by setting ``[station] visible = false`` in its descriptor.
+The Station page represents the "physical" world of your project. Each backend starts from
+its own default (a backend can start hidden by setting ``[station] visible = false`` in its
+descriptor). **View > Station page** shows or hides it for the current backend without
+affecting other backends, and **View > Station page: follow backend** returns to the
+backend's default. A hidden Station leaves the other pages as they are (Commander puts the
+Flow and the Board side by side, and Lookout has no Station drawer).
 
 Interacting with the 3D Scene
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

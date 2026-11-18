@@ -21,6 +21,7 @@ import { AboutWindow } from "./About";
 import { Dashboard } from "./Dashboard";
 import { loadSaved, save as saveLayout } from "./dashboardLayout";
 import { remembered, useDrawer } from "./remembered";
+import { resolveStationVisible, useStationVisibility } from "./stationVisibility";
 import { PAGE_IDS, useUiLock } from "./uiLock";
 import { useVariables, varsApiFor } from "./variablesState";
 import { useCanvasSync } from "./canvasSync";
@@ -70,8 +71,6 @@ export function App() {
   const [arrange, setArrange] = useState(false);
   // The floor grid of a 3D Station: the user's switch wins, else the backend's `view.grid`, else shown.
   const [gridChoice, setGridChoice] = remembered<"auto" | "on" | "off">("paperboat.grid", "auto", ["auto", "on", "off"]);
-  // The Station page's visibility: the user's switch wins, else the backend's `station.visible`, else shown.
-  const [stationChoice, setStationChoice] = remembered<"auto" | "shown" | "hidden">("paperboat.station", "auto", ["auto", "shown", "hidden"]);
   const [page, setPage] = remembered<Page>("paperboat.page", "flow", PAGE_IDS);
   const [themeChoice, setThemeChoice, theme] = useThemeChoice("paperboat.theme");
   const { projectLock, setProjectLock, unlocked, setUnlocked, lockModalOpen, setLockModalOpen, locked, lockedArrange, allowedPages, allowedModes } = useUiLock(arrange, setArrange, page, setPage, mode, setMode);
@@ -85,9 +84,11 @@ export function App() {
   const flow = useRef<FlowControls | null>(null); // the canvas's actions, for the menus
   const stationCanvas = useRef<StationControls | null>(null);
   const { state, send, subscribe, log, replay: replayApi } = useEngine(url);
+  // The Station page's visibility: per-backend override, else this backend's `hello.station.visible`.
+  const [stationChoice, setStationChoice] = useStationVisibility(url, state.engine);
   // While no backend has said hello: what the one on this URL's port is doing, if it is starting (pb#332).
   const starting = startWords(useBackendStatus(!state.engine), url);
-  const stationShown = stationChoice === "auto" ? state.stationView.visible !== false : stationChoice === "shown";
+  const stationShown = resolveStationVisible(stationChoice, state.stationView.visible);
   const setStationShown = (shown: boolean) => setStationChoice(shown ? "shown" : "hidden");
   const pages = useMemo(() => (stationShown ? PAGES : PAGES.filter((p) => p.id !== "station")), [stationShown]);
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
@@ -440,7 +441,7 @@ export function App() {
   const commands = [...menuCommands({
     state, send, openFile, saveProject, lastSession, restore, recent, openProject, projectLock, unlocked, locked, lockedArrange, setLockModalOpen, setBackendOpen, restartBackend,
     history, undoOpen, flow, stationCanvas, setBrowser, running, variables, varsShown, setVarsShown,
-    setSearchOpen, mode, setMode, allowedModes, pages, page, setPage, open, stationShown, setStationShown, stationDrawer, flowDrawer, view, themeChoice, setThemeChoice, consoleShown, setConsoleShown, aboutShown, setAboutShown, errors,
+    setSearchOpen, mode, setMode, allowedModes, pages, page, setPage, open, stationShown, setStationShown, stationChoice, setStationChoice, stationDrawer, flowDrawer, view, themeChoice, setThemeChoice, consoleShown, setConsoleShown, aboutShown, setAboutShown, errors,
     gridOn, setGridChoice, cameraProjection, setCameraProjection, arrangeCanvas, arrange, setArrange,
     canRun, whyNotRun, run, usesSolvers, currentSolver, solvers, setRunSettings, setSolverOpen,
     loadRecord, saveRecord, startReplay: replayApi.start,
