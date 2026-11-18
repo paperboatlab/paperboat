@@ -61,7 +61,14 @@ export function StationView({ view, state, url, subscribe, send, station, editSt
         <StationGraph objects={state.objects} station={station ?? { objects: [] }} onChange={editStation} locked={running} controls={stationCanvas} />
       ) : (
         <Suspense fallback={null}>
-          <SceneView key={`${theme}:${JSON.stringify(state.view)}`} view={state.view} grid={gridOn} projection={cameraProjection} entities={entities} />
+          <SceneView
+            key={`${theme}:${JSON.stringify(state.view)}:${state.stationView.orientation ?? "cube"}`}
+            view={state.view}
+            grid={gridOn}
+            projection={cameraProjection}
+            orientation={state.stationView.orientation ?? "cube"}
+            entities={entities}
+          />
         </Suspense>
       )}
       {station && state.objects.length > 0 && (

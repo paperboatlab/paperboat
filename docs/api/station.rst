@@ -29,7 +29,9 @@ hides the page by default; the user can still show or hide it from **View > Stat
    ``pos``, ``size``, ``rot`` (radians, x, y, z order), ``scale``, ``color``. Station objects,
    the domain state and blocks draw them; ``scene.patch`` updates them during a run. The
    backend's ``view`` hint picks the camera (``{"mode": "2d", "center": [x, y], "height": h}``; in 3D,
-   ``camera`` and ``floor``, the height of the floor grid).
+   ``camera`` and ``floor``, the height of the floor grid). ``[station] orientation`` picks the
+   3D corner widget: ``"cube"`` (default, the CAD view cube) or ``"axes"`` (the bottom-left
+   axis triad).
 
 ``graph``
    Station objects as nodes and their links as wires: drag from an object's right handle

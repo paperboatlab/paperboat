@@ -74,6 +74,8 @@ struct Catalog {
   // Whether the Station page is offered (the descriptor's [station] visible, default true).
   // False hides it in the UI: the backend's default, which the user can change in View.
   bool station_visible = true;
+  // Which 3D corner orientation widget a scene station shows: "cube" (default) or "axes".
+  std::string station_orientation = "cube";
   std::vector<std::string> missing_imports;
   // What the imported packages can analyse outside the flows (pb#370), in import order.
   std::vector<const AnalysisTemplate*> analyses;

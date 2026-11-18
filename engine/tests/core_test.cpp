@@ -222,7 +222,8 @@ TEST_CASE("a session sends the handshake, checks station edits and runs") {
 TEST_CASE("hello says the Station is hidden when the descriptor says so") {
   const auto shown = tk::load_descriptor("domain = \"rig\"\n", rig::registry());
   const auto hidden = tk::load_descriptor("domain = \"rig\"\n[station]\nvisible = false\n", rig::registry());
-  for (const auto* catalog : {&shown, &hidden}) {
+  const auto axes = tk::load_descriptor("domain = \"rig\"\n[station]\norientation = \"axes\"\n", rig::registry());
+  for (const auto* catalog : {&shown, &hidden, &axes}) {
     const core::Backend backend{.engine = "test", .catalog = catalog};
     std::vector<json> sent;
     {
@@ -230,7 +231,8 @@ TEST_CASE("hello says the Station is hidden when the descriptor says so") {
     }
     REQUIRE(!sent.empty());
     CHECK(sent.front()["type"] == "hello");
-    CHECK(sent.front()["station"].value("visible", true) == (catalog == &shown));
+    CHECK(sent.front()["station"].value("visible", true) == (catalog != &hidden));
+    CHECK(sent.front()["station"].value("orientation", std::string{"cube"}) == (catalog == &axes ? "axes" : "cube"));
   }
 }
 

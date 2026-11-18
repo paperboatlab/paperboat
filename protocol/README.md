@@ -15,7 +15,7 @@ Default address: `ws://localhost:8765`.
 
 | `type`         | Fields                                      | Sent                         |
 | -------------- | ------------------------------------------- | ---------------------------- |
-| `hello`        | `protocol: "paperboat/0"`, `engine: string`, `station?: { view: "scene" \| "graph" \| "web", page?: string }`, `run?: RunSettings` (its defaults), `toolkits?: ToolkitStatus[]`, `flows?: FlowType[]` (the flow types a sheet may be, #9) | on connect. `station.page` (web view only) is a path on the backend's own port, over HTTP |
+| `hello`        | `protocol: "paperboat/0"`, `engine: string`, `station?: { view: "scene" \| "graph" \| "web", page?: string, visible?: boolean, orientation?: "cube" \| "axes" }`, `run?: RunSettings` (its defaults), `toolkits?: ToolkitStatus[]`, `flows?: FlowType[]` (the flow types a sheet may be, #9) | on connect. `station.page` (web view only) is a path on the backend's own port, over HTTP |
 | `catalog`      | `blocks: BlockDef[]`, `connectors?: Connectors` (see below), `objects?`, `dashboard?` | on connect                   |
 | `scene`        | `entities: Entity[]`, `view?: View`         | on connect, and on reset     |
 | `graph.load`   | `graph: { flow?, nodes, edges }`            | on connect (starter graph)   |
