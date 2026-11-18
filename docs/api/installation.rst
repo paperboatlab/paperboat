@@ -355,14 +355,16 @@ macOS
 ~~~~~
 
 Open ``Paperboat-Launcher-<version>-arm64.dmg`` and drag **Paperboat Launcher** to
-**Applications**. The build is currently unsigned; if macOS refuses the first launch,
-use **right-click → Open** once. Code signing and notarization are tracked separately.
+**Applications** (the GPL-3.0 licence notice is included as ``LICENSE.txt`` inside the
+disk image). The build is currently unsigned; if macOS refuses the first launch, use
+**right-click → Open** once. Code signing and notarization are tracked separately.
 
 Windows
 ~~~~~~~
 
-Run ``Paperboat-Launcher-<version>-x64.msi``. It installs per user, creates the desktop
-and Start-menu shortcuts, and can launch the app when it finishes.
+Run ``Paperboat-Launcher-<version>-x64.msi``. The setup wizard presents the GPL-3.0
+licence, lets you pick the per-user install folder, creates desktop and Start-menu
+shortcuts, and offers to launch **Paperboat Launcher** when it finishes.
 
 The first window
 ~~~~~~~~~~~~~~~~
