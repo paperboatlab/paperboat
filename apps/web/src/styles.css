@@ -719,7 +719,7 @@ input.port-pill-name { height: 20px; padding: 0 4px; border: 0; border-radius: v
 .vars-list .empty code { font-family: var(--font-mono); }
 .vars-group { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-1); font: 600 var(--size-2xs) var(--font-sans); color: var(--text-muted); }
 .vars-group::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.var-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px 64px 64px 46px; align-items: center; gap: 6px; padding: 5px var(--space-3); margin: 0 var(--space-1); border-radius: var(--radius-md); font-size: var(--size-xs); }
+.var-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px 64px 64px 46px 16px; align-items: center; gap: 6px; padding: 5px var(--space-3); margin: 0 var(--space-1); border-radius: var(--radius-md); font-size: var(--size-xs); cursor: pointer; }
 .var-row.open { outline: var(--select-outline); outline-offset: -2px; margin: var(--space-1); background: var(--surface-raised); }
 .var-name { font: 500 var(--size-xs) var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: grab; }
 .var-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -729,6 +729,13 @@ input.port-pill-name { height: 20px; padding: 0 4px; border: 0; border-radius: v
 .var-row .var-value.text { text-align: left; }
 .var-row select.var-value { text-align: left; }
 .var-row .var-value.out { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; line-height: 24px; background: transparent; box-shadow: none; text-align: right; }
+.var-row .var-inspect { padding: 0 4px; border-radius: var(--radius-sm); cursor: pointer; font: var(--size-xs) var(--font-mono); color: var(--text); }
+.var-row .var-inspect:hover { background: var(--surface-raised); }
+.var-row .var-inspect output { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; color: inherit; }
+.var-chevron { display: grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; background: none; color: var(--text-muted); border-radius: var(--radius-sm); }
+.var-chevron svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--motion); }
+.var-row.open .var-chevron svg { transform: rotate(90deg); }
+.var-row:hover .var-chevron { color: var(--text); }
 .var-check { width: 14px; height: 14px; justify-self: start; }
 .var-unit { font: var(--size-2xs) var(--font-mono); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .var-uses { border: 0; background: none; padding: 0; height: auto; font: var(--size-2xs) var(--font-sans); color: var(--text-muted); text-align: right; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
@@ -760,11 +767,11 @@ input.port-pill-name { height: 20px; padding: 0 4px; border: 0; border-radius: v
 .var-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; align-items: center; padding-top: var(--space-1); }
 .vars-foot { display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--line); font: var(--size-2xs) var(--font-sans); color: var(--text-muted); }
 button.link { border: 0; background: none; height: auto; padding: 0; font: inherit; color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
-.mode-commander .var-row, .mode-lookout .var-row { grid-template-columns: minmax(0, 1fr) 64px 64px 50px; }
+.mode-commander .var-row, .mode-lookout .var-row { grid-template-columns: minmax(0, 1fr) 64px 64px 50px 16px; }
 .mode-commander .var-row .var-type, .mode-lookout .var-row .var-type { display: none; }
 /* MX's live variables: the source badge already says MX, and a long array text gets the
    value column instead of spilling over the name and type. */
-.var-row.remote { grid-template-columns: minmax(0, 1fr) 52px minmax(0, 2.2fr); }
+.var-row.remote { grid-template-columns: minmax(0, 1fr) 52px minmax(0, 2.2fr); cursor: default; }
 .var-row.remote .var-unit { display: none; }
 .var-row.remote .var-value.out { text-align: left; }
 

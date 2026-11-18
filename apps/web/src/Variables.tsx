@@ -1,9 +1,10 @@
 import { useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useDismiss } from "@paperboat/shared/components";
+import { VariableEditor, useDismiss } from "@paperboat/shared/components";
 import { parseNumber } from "./NumberField";
 import type { ParamDef, ParamValue, Variable } from "./protocol";
 import { VarsContext } from "./VarsContext";
 import { badName, emptyOf, fits, freeName, isRef, parseMatrix, type Ref, type Use } from "./bindings";
+import { inspectVariable } from "./variableInspect";
 
 
 /** A variable being dragged from the sheet onto a field (dataTransfer can't be read on dragover). */
@@ -276,6 +277,8 @@ function ValueField({ v, onChange, disabled, wide }: { v: Variable; onChange: (v
 function NumberCell({ v, onChange, disabled, wide }: { v: Variable; onChange: (v: Variable) => void; disabled?: boolean; wide?: boolean }) {
   const vars = useContext(VarsContext);
   const [text, setText] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useDismiss(inputRef, () => setText(null), { enabled: text !== null, outside: false });
   const formula = v.expr !== undefined;
   const now = formula ? vars?.values[v.name] : v.value;
   const inRange = (x: number) => (v.min === undefined || x >= v.min) && (v.max === undefined || x <= v.max) && (!v.whole || Number.isInteger(x));
@@ -290,6 +293,7 @@ function NumberCell({ v, onChange, disabled, wide }: { v: Variable; onChange: (v
   };
   return (
     <input
+      ref={inputRef}
       className={`var-value well${formula ? " is-formula" : ""}${wide ? " wide" : ""}`}
       aria-label={`${v.name}: a number or a formula`}
       title={formula ? `= ${v.expr}` : "A number, or a formula over other variables (kp_theta / 5)"}
@@ -365,6 +369,7 @@ export function VariablesSheet({
   const vars = useContext(VarsContext)!;
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState(false);
+  const [inspecting, setInspecting] = useState<Variable | null>(null);
   const copy = () =>
     navigator.clipboard?.writeText(toml()).then(
       () => {
@@ -401,7 +406,8 @@ export function VariablesSheet({
         const inField = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
         if (e.key === "Escape" && !inField) {
           e.preventDefault();
-          onClose();
+          if (open) onOpen(null);
+          else onClose();
         } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !inField) {
           e.preventDefault();
           e.stopPropagation(); // not the Flow's undo
@@ -460,6 +466,8 @@ export function VariablesSheet({
                   open={open === v.name}
                   bad={badVar === v.name ? vars.error!.text : ""}
                   onOpen={() => onOpen(open === v.name ? null : v.name)}
+                  onClose={() => onOpen(null)}
+                  onInspect={() => setInspecting(v)}
                   onChange={(next) => update(v.name, next)}
                   onShow={onShow}
                 />
@@ -473,28 +481,65 @@ export function VariablesSheet({
           {copied ? "Copied" : "Copy as TOML"}
         </button>
       </footer>
+      {inspecting && (() => {
+        const inspected = inspectVariable(inspecting);
+        return (
+          <VariableEditor
+            name={inspecting.name}
+            type={inspecting.type}
+            value={inspected.value}
+            tags={inspected.tags}
+            readOnly
+            onClose={() => setInspecting(null)}
+          />
+        );
+      })()}
     </section>
   );
 }
 
-function Row({ v, open, bad, onOpen, onChange, onShow }: { v: Variable; open: boolean; bad: string; onOpen: () => void; onChange: (v: Variable) => void; onShow: (use: Use) => void }) {
+function Row({
+  v,
+  open,
+  bad,
+  onOpen,
+  onClose,
+  onInspect,
+  onChange,
+  onShow,
+}: {
+  v: Variable;
+  open: boolean;
+  bad: string;
+  onOpen: () => void;
+  onClose: () => void;
+  onInspect: () => void;
+  onChange: (v: Variable) => void;
+  onShow: (use: Use) => void;
+}) {
   const vars = useContext(VarsContext)!;
   const uses = vars.uses(v.name);
   const formula = v.expr !== undefined;
   const remote = v.source === "mx";
+  const rowRef = useRef<HTMLDivElement>(null);
+  useDismiss(rowRef, () => onClose(), { enabled: open && !remote });
   return (
     <div
+      ref={rowRef}
       className={`var-row${remote ? " remote" : ""}${open ? " open" : ""}${bad ? " bad" : ""}`}
       data-var={v.name}
       role="listitem"
       title={remote ? `${v.name} (${v.type}) = ${live(v)}` : undefined}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("button, input, select, label, a, .var-detail")) return;
+        if (!remote) onOpen();
+      }}
     >
       <span
         className="var-name"
         draggable={!vars.locked}
         tabIndex={0}
         title={remote ? "A live variable from Squero MX: drag it onto a field to bind it" : "Click to open; drag onto a field to bind it, or onto a Board label to show its value"}
-        onClick={remote ? undefined : onOpen}
         onKeyDown={(e) => !remote && (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onOpen())}
         onDragStart={(e) => {
           dragged.current = v;
@@ -513,7 +558,9 @@ function Row({ v, open, bad, onOpen, onChange, onShow }: { v: Variable; open: bo
       </span>
       <span className="var-type">{formula && v.type !== "number" ? "ƒ formula" : v.type}</span>
       {remote ? (
-        <output className="var-value out">{live(v)}</output>
+        <button type="button" className="var-value out var-inspect" onClick={onInspect} title={`Inspect ${v.name}: ${live(v)}`}>
+          <output>{live(v)}</output>
+        </button>
       ) : formula && v.type !== "number" ? (
         <output className="var-value out">{show(vars.values[v.name])}</output>
       ) : (
@@ -523,6 +570,20 @@ function Row({ v, open, bad, onOpen, onChange, onShow }: { v: Variable; open: bo
       {!remote && (
         <button className={`var-uses${uses.length ? "" : " none"}`} onClick={onOpen} tabIndex={-1}>
           {uses.length ? count(uses.length, "use") : "unused"}
+        </button>
+      )}
+      {!remote && (
+        <button
+          type="button"
+          className="var-chevron"
+          aria-expanded={open}
+          aria-label={open ? `Collapse ${v.name}` : `Expand ${v.name}`}
+          title={open ? "Hide details" : "Show details"}
+          onClick={onOpen}
+        >
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M4.5 2.5L8 6l-3.5 3.5" />
+          </svg>
         </button>
       )}
       {formula && <div className="var-expr">= {v.expr}</div>}
