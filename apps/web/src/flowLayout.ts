@@ -1,6 +1,7 @@
 import type { GroupNode } from "./groups";
 import type { BlockNode, FlowNode, Wire } from "./flowModel";
 import { layoutGraph, type LayoutEdge, type LayoutNode, type LayoutPoint } from "./graphLayout.ts";
+import { routeWires, scoreWireRoutes, type Obstacle, type RouteInput, type RouteScore } from "./wireRouting.ts";
 
 const BLOCK_W = 190;
 const BLOCK_H = 130;
@@ -199,7 +200,86 @@ export function arrangeFlowNodes(
 
     const isVisual = container.node?.data.kind === "visual";
     const origin = isVisual ? { x: FRAME_PAD, y: FRAME_PAD + FRAME_HEAD } : { x: 0, y: 0 };
-    const positions = layoutGraph([...layoutNodes.values()], layoutEdges, { origin });
+    const layoutList = [...layoutNodes.values()];
+
+    const directEdges = edges
+      .map((e) => {
+        if (container.id !== null && (e.source === container.id || e.target === container.id)) return null;
+        const source = project(e.source);
+        const target = project(e.target);
+        if (!source || !target || source === target) return null;
+        return {
+          id: e.id,
+          source,
+          target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+          sourceOffset: resolveOffset(e.source, e.sourceHandle, "source"),
+          targetOffset: resolveOffset(e.target, e.targetHandle, "target"),
+          step: e.data?.type === "step",
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    const evaluate = (positions: Map<string, LayoutPoint>): RouteScore => {
+      if (directEdges.length === 0) return { insideBlocks: 0, clearanceHits: 0, collinearOverlaps: 0, crossings: 0, bends: 0, length: 0 };
+      const obstacles: Obstacle[] = direct.map((n) => {
+        const at = positions.get(n.id)!;
+        const sz = sizeOf(n);
+        return { id: n.id, x: at.x, y: at.y, width: sz.width, height: sz.height };
+      });
+      const routeInputs: RouteInput[] = directEdges.map((e) => {
+        const sPos = positions.get(e.source)!;
+        const tPos = positions.get(e.target)!;
+        const sSize = sizeOf(byId.get(e.source)!);
+        const tSize = sizeOf(byId.get(e.target)!);
+        return {
+          id: e.id,
+          source: e.source,
+          sourceHandle: e.sourceHandle,
+          target: e.target,
+          targetHandle: e.targetHandle,
+          sx: sPos.x + sSize.width,
+          sy: sPos.y + (e.sourceOffset ?? sSize.height / 2),
+          tx: tPos.x,
+          ty: tPos.y + (e.targetOffset ?? tSize.height / 2),
+          sourcePosition: "right",
+          targetPosition: "left",
+          step: e.step,
+        };
+      });
+      const routes = routeWires(routeInputs, obstacles);
+      return scoreWireRoutes(routes.values(), routeInputs, obstacles);
+    };
+
+    const betterScore = (a: RouteScore, b: RouteScore): boolean => {
+      const keys = ["insideBlocks", "collinearOverlaps", "crossings", "clearanceHits", "bends", "length"] as const;
+      for (const k of keys) {
+        if (a[k] !== b[k]) return a[k] < b[k];
+      }
+      return false;
+    };
+
+    const baseline = layoutGraph(layoutList, layoutEdges, { origin });
+    const baseScore = evaluate(baseline);
+    let positions = baseline;
+    let bestScore = baseScore;
+
+    if (directEdges.length > 0 && (bestScore.insideBlocks > 0 || bestScore.collinearOverlaps > 0 || bestScore.clearanceHits > 0)) {
+      const candidates = [
+        layoutGraph(layoutList, layoutEdges, { origin, reserveDummies: true }),
+        layoutGraph(layoutList, layoutEdges, { origin, reserveDummies: true, columnGap: 120 }),
+        layoutGraph(layoutList, layoutEdges, { origin, reserveDummies: true, columnGap: 160 }),
+        layoutGraph(layoutList, layoutEdges, { origin, columnGap: 120 }),
+      ];
+      for (const cand of candidates) {
+        const sc = evaluate(cand);
+        if (sc.crossings <= baseScore.crossings && betterScore(sc, bestScore)) {
+          positions = cand;
+          bestScore = sc;
+        }
+      }
+    }
     for (const n of direct) {
       const at = positions.get(n.id);
       if (!at || samePoint(n.position, at)) continue;
