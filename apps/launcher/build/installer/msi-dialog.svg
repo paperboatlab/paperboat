@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 493 312" width="493" height="312">
+  <!-- Right content area: pure white required by WiX black wizard text -->
+  <rect width="493" height="312" fill="#ffffff"/>
+
+  <!-- Left branded panel (164px wide): Paperboat brand slate (#241f31) -->
+  <rect width="164" height="312" fill="#241f31"/>
+  <line x1="164" y1="0" x2="164" y2="312" stroke="#cfcfca" stroke-width="1"/>
+
+  <!-- Pixel Paperboat mark centered in left panel -->
+  <g transform="translate(45 96) scale(1.2)" shape-rendering="crispEdges">
+    <path fill="#e4e0ea" d="M30 0h2v2h-2zM28 2h4v2h-4zM26 4h6v2h-6zM24 6h8v2h-8zM22 8h10v2h-10zM20 10h12v2h-12zM18 12h14v2h-14zM16 14h16v2h-16z"/>
+    <path fill="#8d849e" d="M32 2h2v2h-2zM32 4h4v2h-4zM32 6h6v2h-6zM32 8h8v2h-8zM32 10h10v2h-10zM32 12h12v2h-12zM32 14h14v2h-14z"/>
+    <path fill="#e4e0ea" d="M0 18h62v2h-62zM4 20h54v2h-54zM6 22h50v2h-50zM8 24h46v2h-46zM10 26h42v2h-42zM12 28h38v2h-38zM14 30h34v2h-34z"/>
+    <path fill="#c6738f" d="M0 36h6v6h-6zM14 36h6v6h-6zM28 36h6v6h-6zM42 36h6v6h-6zM56 36h6v6h-6z"/>
+  </g>
+
+  <text x="82" y="182" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="14" font-weight="600" letter-spacing="0.4" fill="#e4e0ea">paperboat</text>
+  <text x="82" y="198" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9.5" letter-spacing="1.4" fill="#a3a39d">LAUNCHER</text>
+  <text x="82" y="288" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="9" fill="#8d849e">GPL-3.0-only</text>
+</svg>
