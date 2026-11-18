@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { arrangeFlowNodes, canArrangeFlow, clearWireBends, makeRoom } from "../src/flowLayout.ts";
+import { routeWires, scoreWireRoutes, type Obstacle, type RouteInput } from "../src/wireRouting.ts";
 import type { FlowNode, Wire } from "../src/flowModel.ts";
 import type { GroupNode } from "../src/groups.tsx";
 
@@ -153,4 +154,50 @@ test("makeRoom: a block unfolded in place pushes what it grew over, keeps the re
   assert.deepEqual(at("above"), { x: 100, y: -8 });
   assert.deepEqual(at("away"), { x: 600, y: 600 });
   assert.equal(makeRoom(nodes, "self", { x: 0, y: 0, w: 9, h: 9 }, { x: 0, y: 0, w: 9, h: 9 }), nodes);
+});
+
+test("arrange keeps bypass wires out from under intermediate blocks and is idempotent", () => {
+  // Five-block chain with bypass wires (like Harmonics -> Radial -> Erosion -> Vegetation -> Island):
+  // the bypass wires must not pass under intermediate blocks when arranged + routed.
+  const nodes = [block("a"), block("b"), block("c"), block("d"), block("e")];
+  const edges = [
+    wire("a", "b"),
+    wire("b", "c"),
+    wire("c", "d"),
+    wire("d", "e"),
+    { ...wire("a", "c"), id: "a-c" },
+    { ...wire("b", "d"), id: "b-d" },
+    { ...wire("c", "e"), id: "c-e" },
+  ];
+  const arranged = arrangeFlowNodes(nodes, edges);
+  assert.equal(arrangeFlowNodes(arranged, edges), arranged, "Arrange stays idempotent");
+
+  const obstacles: Obstacle[] = arranged.map((n) => ({
+    id: n.id,
+    x: n.position.x,
+    y: n.position.y,
+    width: n.measured?.width ?? 120,
+    height: n.measured?.height ?? 80,
+  }));
+  const inputs: RouteInput[] = edges.map((e) => {
+    const s = arranged.find((n) => n.id === e.source)!;
+    const t = arranged.find((n) => n.id === e.target)!;
+    return {
+      id: e.id,
+      source: e.source,
+      sourceHandle: e.sourceHandle,
+      target: e.target,
+      targetHandle: e.targetHandle,
+      sx: s.position.x + (s.measured?.width ?? 120),
+      sy: s.position.y + 40,
+      tx: t.position.x,
+      ty: t.position.y + 40,
+      sourcePosition: "right",
+      targetPosition: "left",
+    };
+  });
+  const routes = routeWires(inputs, obstacles);
+  const score = scoreWireRoutes(routes.values(), inputs, obstacles);
+  assert.equal(score.insideBlocks, 0, "no wire segment runs under a block");
+  assert.equal(score.collinearOverlaps, 0, "parallel bypass wires do not share collinear segments");
 });
