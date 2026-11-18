@@ -2893,6 +2893,13 @@
         "visible": {
           "type": "boolean",
           "description": "Whether the Station page is offered (default true). False hides it in every view mode; the user can still show it from View."
+        },
+        "orientation": {
+          "enum": [
+            "cube",
+            "axes"
+          ],
+          "description": "Which 3D corner orientation widget to show on a scene station (default \"cube\")."
         }
       }
     },

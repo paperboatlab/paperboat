@@ -260,6 +260,18 @@ defaults = { max_force = 10 }
 TEST_CASE("[station] says how the Station page shows the station") {
   CHECK(tk::load_descriptor("domain = \"test\"\n", test_registry()).station_view == "scene");
   CHECK(tk::load_descriptor("domain = \"test\"\n", test_registry()).station_visible);
+  CHECK(tk::load_descriptor("domain = \"test\"\n", test_registry()).station_orientation == "cube");
+  const auto axes = tk::load_descriptor("domain = \"test\"\n[station]\norientation = \"axes\"\n", test_registry());
+  CHECK(axes.station_orientation == "axes");
+  CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[station]\norientation = \"triad\"\n", test_registry()),
+                    ContainsSubstring("station.orientation"));
+  CHECK_THROWS_WITH(
+      tk::load_descriptor("domain = \"test\"\n[station]\nview = \"graph\"\norientation = \"axes\"\n", test_registry()),
+      ContainsSubstring("station.orientation"));
+  CHECK_THROWS_WITH(
+      tk::load_descriptor("domain = \"test\"\n[station]\nview = \"web\"\npage = \"s.html\"\norientation = \"axes\"\n",
+                          test_registry()),
+      ContainsSubstring("station.orientation"));
   const auto hidden = tk::load_descriptor("domain = \"test\"\n[station]\nvisible = false\n", test_registry());
   CHECK_FALSE(hidden.station_visible);
   const auto graph = tk::load_descriptor("domain = \"test\"\n[station]\nview = \"graph\"\n", test_registry());

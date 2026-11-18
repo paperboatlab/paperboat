@@ -505,12 +505,20 @@ void load_starters(const json& doc, Catalog& catalog) {
 
   if (!doc.contains("station")) return;
   json station = doc.at("station");
-  only_fields(station, {"view", "page", "objects", "visible"}, "station");
+  only_fields(station, {"view", "page", "objects", "visible", "orientation"}, "station");
   catalog.station_view = station.value("view", std::string{"scene"});
   catalog.station_page = station.value("page", std::string{});
   catalog.station_visible = station.value("visible", true);
   if (catalog.station_view != "scene" && catalog.station_view != "graph" && catalog.station_view != "web")
     throw DescriptorError("station.view must be scene, graph or web, not \"" + catalog.station_view + "\"");
+  if (station.contains("orientation")) {
+    if (!station["orientation"].is_string()) throw DescriptorError("station.orientation must be cube or axes");
+    catalog.station_orientation = station["orientation"].get<std::string>();
+    if (catalog.station_orientation != "cube" && catalog.station_orientation != "axes")
+      throw DescriptorError("station.orientation must be cube or axes, not \"" + catalog.station_orientation + "\"");
+    if (catalog.station_view != "scene")
+      throw DescriptorError("station.orientation is only supported when station.view is \"scene\"");
+  }
   if ((catalog.station_view == "web") != !catalog.station_page.empty())
     throw DescriptorError("station: a web station needs a page (and only a web station has one)");
   if (catalog.station_page.find("..") != std::string::npos || catalog.station_page.starts_with('/'))

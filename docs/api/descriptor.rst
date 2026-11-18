@@ -62,7 +62,9 @@ Top level
    at load: unknown types, ids and ports fail the backend's start, not a user's run.
 
 ``[station]`` — the starter station and its view (optional)
-   ``view``: ``"scene"`` (default), ``"graph"`` or ``"web"``; ``page``: the web station's
+   ``view``: ``"scene"`` (default), ``"graph"`` or ``"web"``; ``orientation``: ``"cube"``
+   (default) or ``"axes"`` (for ``"scene"`` only: picks the 3D corner orientation widget,
+   either the CAD view cube or the bottom-left axis triad); ``page``: the web station's
    page, a path inside the backend's folder (``"station/index.html"``), required for
    ``"web"`` only; ``visible``: ``false`` hides the Station page by default (the user
    can still show it from View). ``objects``: ``{ id, type, props?, links?, pos? }``;
