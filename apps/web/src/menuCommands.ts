@@ -6,6 +6,7 @@ import type { EngineState } from "./engine";
 import type { ClientMsg, Project, RunSettings, Variables } from "./protocol";
 import { ago, changed, type Stored } from "./project";
 import type { Mode, Page, PageInfo, Theme } from "./Shell";
+import type { StationChoice } from "./stationVisibility";
 import { isModeAllowed, isPageAllowed, type LockConfig } from "./lock";
 import { SEARCH_CHORD, type Command } from "./commands";
 import { availableSolvers, SOLVER_LABELS, solverShort, type Solver } from "./solvers";
@@ -70,6 +71,8 @@ export type CommandContext = {
   open: (p: Page) => void;
   stationShown: boolean;
   setStationShown: (shown: boolean) => void;
+  stationChoice: StationChoice;
+  setStationChoice: (choice: StationChoice) => void;
   stationDrawer: { open: boolean };
   flowDrawer: { open: boolean };
   view: EngineState["stationView"]["view"];
@@ -108,7 +111,7 @@ export function menuCommands(c: CommandContext): Command[] {
   const {
     state, send, openFile, saveProject, lastSession, restore, recent, openProject, projectLock, unlocked, locked, lockedArrange, setLockModalOpen, setBackendOpen, restartBackend,
     history, undoOpen, flow, stationCanvas, setBrowser, running, variables, varsShown, setVarsShown,
-    setSearchOpen, mode, setMode, allowedModes, pages, page, setPage, open, stationShown, setStationShown, stationDrawer, flowDrawer, view, themeChoice, setThemeChoice, consoleShown, setConsoleShown, aboutShown, setAboutShown, errors,
+    setSearchOpen, mode, setMode, allowedModes, pages, page, setPage, open, stationShown, setStationShown, stationChoice, setStationChoice, stationDrawer, flowDrawer, view, themeChoice, setThemeChoice, consoleShown, setConsoleShown, aboutShown, setAboutShown, errors,
     gridOn, setGridChoice, cameraProjection, setCameraProjection, arrangeCanvas, arrange, setArrange,
     canRun, whyNotRun, run, usesSolvers, currentSolver, solvers, setRunSettings, setSolverOpen,
     loadRecord, saveRecord, startReplay,
@@ -180,6 +183,16 @@ export function menuCommands(c: CommandContext): Command[] {
       };
     }),
     { id: "view.station", label: "Station page", menu: "view", group: "layout", checked: stationShown, run: () => setStationShown(!stationShown) },
+    {
+      id: "view.station.auto",
+      label: "Station page: follow backend",
+      menu: "view",
+      group: "layout",
+      checked: stationChoice === "auto",
+      enabled: stationChoice !== "auto",
+      why: "Already following this backend's default",
+      run: () => setStationChoice("auto"),
+    },
     { id: "view.mode.navigator", label: "Navigator", menu: "view", group: "mode", checked: mode === "navigator", enabled: isModeAllowed("navigator", projectLock, unlocked), why: isModeAllowed("navigator", projectLock, unlocked) ? undefined : "Locked by the project", run: () => setMode("navigator") },
     { id: "view.mode.commander", label: "Commander", menu: "view", group: "mode", checked: mode === "commander", enabled: isModeAllowed("commander", projectLock, unlocked), why: isModeAllowed("commander", projectLock, unlocked) ? undefined : "Locked by the project", run: () => setMode("commander") },
     { id: "view.mode.lookout", label: "Lookout", menu: "view", group: "mode", checked: mode === "lookout", enabled: isModeAllowed("lookout", projectLock, unlocked), why: isModeAllowed("lookout", projectLock, unlocked) ? undefined : "Locked by the project", run: () => setMode("lookout") },

@@ -21,7 +21,9 @@ Views
 -----
 
 ``[station] view`` says how the Station page shows the station. ``[station] visible = false``
-hides the page by default; the user can still show or hide it from **View > Station page**.
+hides the page by default; each backend connection starts from its own default, and
+**View > Station page** shows or hides it for that backend alone (**View > Station page:
+follow backend** returns to the backend's default).
 
 ``scene`` (default)
    The built-in 2D or 3D scene of **entities**: ``box``, ``sphere`` (``size[0]`` = radius), ``cylinder`` (``size[0]`` = radius, ``size[1]`` = length along y),
