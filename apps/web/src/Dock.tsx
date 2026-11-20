@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import type { RunSettings } from "@paperboat/shared";
-import { Dock as SharedDock, BackendWindow } from "@paperboat/shared/components";
+import { Dock as SharedDock, StationWindow } from "@paperboat/shared/components";
 import { RunOptions } from "./RunOptions";
 import { VarControls } from "./VarControls";
 
-export { BackendWindow };
+export { StationWindow };
 
 export function Dock({
   canRun,

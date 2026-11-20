@@ -1,4 +1,4 @@
-# The web app and the console: typecheck, tests, build. One workflow per check, so each has its own README badge.
+# The web app and the CLI: typecheck, tests, build. One workflow per check, so each has its own README badge.
 # @paperboat/shared is the sibling paperboat-shared repo ("file:../../../paperboat-shared" from apps/web),
 # so both are checked out side by side.
 name: web
@@ -63,7 +63,7 @@ jobs:
   # npm ci, not npm install: it fails if package-lock.json loses the macOS builds of the native
   # packages (typescript, rolldown, lightningcss), as a lockfile made on one platform can
   web-macos:
-    name: Web app and console on macOS arm64
+    name: Web app and CLI on macOS arm64
     # macOS runners cost about ten Linux minutes and run in parallel, so they are checked on
     # pushes to dev and main; label a PR `ci:macos` to run them before merging.
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci:macos')
@@ -91,7 +91,7 @@ jobs:
 
   # npm ci here too, for the win32 builds of the same native packages
   web-windows:
-    name: Web app and console on Windows x64
+    name: Web app and CLI on Windows x64
     runs-on: windows-2022
     defaults:
       run:

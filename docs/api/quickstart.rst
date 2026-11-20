@@ -1,14 +1,14 @@
 Quickstart
 ==========
 
-A backend is a folder of its own: a descriptor, its domain code, and a few lines that
+A station is a folder of its own: a descriptor, its domain code, and a few lines that
 serve it. Both versions below make the same app: a counter whose **Add** block adds its
-input to a running total, shown on the Dashboard.
+input to a running total, shown on the Board.
 
 .. tip::
 
-   ``paperboat new my-backend`` (``--python`` for Python) writes a backend like these that
-   passes ``paperboat check`` as it is, with its ``backend.toml`` and ``expected.json``: a
+   ``paperboat new my-station`` (``--python`` for Python) writes a station like these that
+   passes ``paperboat check`` as it is, with its ``station.toml`` and ``expected.json``: a
    starting point to edit instead of an empty folder.
 
 C++
@@ -111,7 +111,7 @@ Python
    import paperboat
 
    if __name__ == "__main__":
-       paperboat.serve(paperboat.Backend(engine="counter", descriptor=Path(__file__).with_name("descriptor.toml"),
+       paperboat.serve(paperboat.Station(engine="counter", descriptor=Path(__file__).with_name("descriptor.toml"),
                                          blocks=[Add], mode="clock", duration=5.0, port=8780))
 
 The descriptor
@@ -122,7 +122,7 @@ The same for both. The domain's own package (``counter``: Add) comes without lis
 .. code-block:: toml
 
    domain = "counter"
-   import = ["base", "signal", "dashboard"]     # Constant, Key; Sine, Clock…; Graph, Display
+   import = ["base", "signal", "board"]     # Constant, Key; Sine, Clock…; Graph, Display
 
    [graph]
    nodes = [
@@ -144,14 +144,14 @@ Run it
    ./counter                 # or: python3 server.py   → ws://localhost:8780
    ./counter --run           # the starter once, headless: protocol messages as JSON lines
 
-Open the UI on it: ``http://localhost:3047/?backend=ws://localhost:8780``. Press **Run**.
+Open the UI on it: ``http://localhost:3047/?station=ws://localhost:8780``. Press **Run**.
 Then write ``expected.json`` and pass the tests (:doc:`testing`).
 
 The console
 -----------
 
 ``paperboat`` with no command, on a terminal, opens the console: one place to run, build,
-check and stop backends and the web app while you keep typing. Build it once with
+check and stop stations and the web app while you keep typing. Build it once with
 ``npm install && npm run build:cli``; until then, and in scripts, ``paperboat`` falls back to
 the plain prompt (set ``PAPERBOAT_NO_CONSOLE=1`` to choose it).
 
@@ -162,35 +162,35 @@ the plain prompt (set ``PAPERBOAT_NO_CONSOLE=1`` to choose it).
    › start squero-studio-om   a program from apps.toml; list shows each running thing's KIND
    › check counter-cpp        each stage as it runs (manifest, catalog, smoke, golden)
    › logs counter-cpp         the job's last lines; logs -f follows them
-   › top                      every running backend: r restarts, s stops, Enter opens its log
-   › run                      no name: pick a backend from a list
+   › top                      every running station: r restarts, s stops, Enter opens its log
+   › run                      no name: pick a station from a list
    › toolkit                  no subcommand: tick the toolkits to install or remove
 
 Jobs never print over what you type: a job says when it is ready, and when it fails it shows
 its last lines. The bar at the bottom lists what is running and what is compiling.
 
-**Keys:** Tab completes commands, backends, toolkits and flags (again to cycle); the grey
+**Keys:** Tab completes commands, stations, toolkits and flags (again to cycle); the grey
 suggestion comes from your history, and → takes it; ↑ ↓ walk the history and Ctrl+R searches
 it; Ctrl+C clears the line, and twice quits, asking first when jobs are still running.
 
 The console runs the same ``paperboat`` commands you would type in a shell, through their
-machine-readable forms: ``paperboat backends --json``, ``paperboat commands --json``, and
+machine-readable forms: ``paperboat stations --json``, ``paperboat commands --json``, and
 ``--json-stream`` on ``check``, ``pack`` and ``unpack`` (one JSON event per line, then a
 ``result`` event). Scripts can use them the same way.
 
-**What a backend is doing while it starts.** A C++ backend compiles before it serves, which takes
-minutes on a cold engine. ``paperboat status [<backend|port>] [--json]`` says where every start is,
+**What a station is doing while it starts.** A C++ station compiles before it serves, which takes
+minutes on a cold engine. ``paperboat status [<station|port>] [--json]`` says where every start is,
 from any process:
 
 .. code-block:: json
 
-   {"backends": [{"name": "cart-pole", "state": "building", "stage": "compile", "elapsed": 42.1, "port": 8791},
-                 {"name": "workbench", "state": "running", "port": 8765, "url": "ws://localhost:8765"}]}
+   {"stations": [{"name": "cart-pole", "state": "building", "stage": "compile", "elapsed": 42.1, "port": 8791},
+                 {"name": "scratchpad", "state": "running", "port": 8765, "url": "ws://localhost:8765"}]}
 
 ``state`` is ``building`` (``stage``: ``prepare``, ``configure``, ``compile``), ``starting``
 (``waiting``: launched, not answering yet), ``failed`` (with ``error``, the compiler's first error
 line; kept a minute) or ``running``; ``elapsed`` counts from the start. A start's record lives in
-the runtime folder beside the running backends' and goes when its ``paperboat`` process ends; a dead
+the runtime folder beside the running stations' and goes when its ``paperboat`` process ends; a dead
 one is pruned. The web app reads the same document from its host (``/__paperboat/status``): until its
-backend answers, its wait screen says ``compiling cart-pole… 42s``. Squero Studio OM's dock shows the
-same while a generated backend builds.
+station answers, its wait screen says ``compiling cart-pole… 42s``. Squero Studio OM's dock shows the
+same while a generated station builds.

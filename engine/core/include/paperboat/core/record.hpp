@@ -1,9 +1,9 @@
 #pragma once
 
-// Run record v1 (#277): what one run of a backend did, as plain JSON next to the project.
+// Run record v1 (#277): what one run of a station did, as plain JSON next to the project.
 //
 // `paperboat run --record <dir>` and `paperboat open ... --record <dir>` set PAPERBOAT_RECORD
-// for the backend. The backend keeps every protocol message its run sends (signals, the
+// for the station. The station keeps every protocol message its run sends (signals, the
 // Station's scene, the graph and variables it was given) and writes `<dir>/record.json` when
 // the run finishes. A reader can replay it, diff two runs, or open it in a Studio.
 
@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 
 namespace paperboat::core {
 
@@ -27,7 +27,7 @@ struct RecordMeta {
   std::filesystem::path dir;
   std::string tool_version;      // paperboat's own version (PAPERBOAT_VERSION)
   std::string command;           // the command line that asked for the run (PAPERBOAT_COMMAND)
-  std::string backend_version;   // the backend's version from backend.toml (PAPERBOAT_BACKEND_VERSION)
+  std::string station_version;   // the station's version from station.toml (PAPERBOAT_STATION_VERSION)
 };
 
 /** PAPERBOAT_RECORD and the version/command hints the CLI passes; null when no record was asked for. */

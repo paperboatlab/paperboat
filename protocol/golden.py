@@ -1,4 +1,4 @@
-"""Golden results for every example backend: run each one's starter headless (`--run`) and
+"""Golden results for every example station: run each one's starter headless (`--run`) and
 compare what it reports with the expected.json next to it.
 
 The examples exist to prove the framework, so a framework change that alters any
@@ -11,7 +11,7 @@ example's result fails here. Every message is also checked against the protocol 
 expected.json: {"run": "build/paperboat-parts" | "server.py", "status": "done",
                 "signals": {"node": value | [value, tolerance]},   # the node's last number
                 "logs": ["text a log line contains", …]}
-C++ examples must be built first (npm run backend:<name> builds them; or cmake).
+C++ examples must be built first (npm run station:<name> builds them; or cmake).
 """
 
 import json
@@ -32,18 +32,18 @@ TO_UI = jsonschema.Draft202012Validator(SCHEMA)
 
 def run(example: Path, expected: dict) -> list[str]:
     target = expected.get("run")
-    if not target and (example / "backend.toml").exists():
+    if not target and (example / "station.toml").exists():
         try:
             try:
                 import tomllib
             except ImportError:
                 import tomli as tomllib
-            data = tomllib.loads((example / "backend.toml").read_text(encoding="utf-8"))
-            target = data.get("backend", {}).get("run")
+            data = tomllib.loads((example / "station.toml").read_text(encoding="utf-8"))
+            target = data.get("station", {}).get("run")
         except Exception:
             pass
     if not target:
-        return ["no run target specified in expected.json or backend.toml"]
+        return ["no run target specified in expected.json or station.toml"]
     if target.endswith(".py"):
         cmd = [sys.executable, target, "--run"]
         if "duration" in expected:
@@ -54,7 +54,7 @@ def run(example: Path, expected: dict) -> list[str]:
         if (ROOT / "python" / "paperboat").is_dir():
             env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT / "python"), os.environ.get("PYTHONPATH")]))
     elif target.endswith(".jl"):
-        # A Julia backend is served by Paperboat.jl; run it in its own depot and project.
+        # A Julia station is served by Paperboat.jl; run it in its own depot and project.
         julia = os.environ.get("PAPERBOAT_JULIA", "julia")
         env = dict(os.environ)
         env.setdefault("JULIA_DEPOT_PATH", str(example / ".julia"))
@@ -70,7 +70,7 @@ def run(example: Path, expected: dict) -> list[str]:
         if "duration" in expected:
             cmd += ["--duration", str(expected["duration"])]
     else:
-        if os.name == "nt" and not Path(target).suffix:  # a C++ backend's run names it without .exe
+        if os.name == "nt" and not Path(target).suffix:  # a C++ station's run names it without .exe
             target += ".exe"
         if not (example / target).exists():
             return [f"not built: {target}"]
@@ -119,7 +119,7 @@ def main() -> None:
         args = args[:i] + args[i + 2:]
     names = args or sorted(p.parent.name for p in EXAMPLES.glob("*/expected.json"))
     if not names:
-        sys.exit(f"no backends with an expected.json in {EXAMPLES} (pass --examples DIR)")
+        sys.exit(f"no stations with an expected.json in {EXAMPLES} (pass --examples DIR)")
     failed = 0
     for name in names:
         p = Path(name)

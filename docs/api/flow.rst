@@ -4,7 +4,7 @@ The Flow
 Graphs
 ------
 
-A graph is blocks (nodes) and wires (edges), sent with ``graph.run``. The backend checks it
+A graph is blocks (nodes) and wires (edges), sent with ``graph.run``. The station checks it
 against its catalog and station, makes an instance of each block, and runs it.
 
 - **A wire joins ports of one type** (step to step, signal to signal, image to image). A
@@ -19,7 +19,7 @@ against its catalog and station, makes an instance of each block, and runs it.
   functions and PID do), and a strictly proper transfer function has no feedthrough at all, as
   in Simulink. A block with state that can't, a loop with no single solution (a gain of 1 around it) or one that doesn't converge fails the run, naming
   a block in it.
-- **A run never crashes the backend.** A bad graph or a failing block fails the run with
+- **A run never crashes the station.** A bad graph or a failing block fails the run with
   an error ``log`` and ``run.finished`` ``failed``.
 
 Signal flow
@@ -49,11 +49,11 @@ subsystem's or story's ports are its **In** and **Out** blocks (``inport``, ``ou
 ``group`` package that every catalog has): each is a port of the group's block, named by its
 ``name`` param, in the order they stand. An In's ``outer`` input is wired from outside the group and
 its ``y`` inside; an Out's ``u`` inside and its ``outer`` output outside. They pass their value
-through unchanged, so backends run them as ordinary blocks. A wire straight across the edge (an
+through unchanged, so stations run them as ordinary blocks. A wire straight across the edge (an
 older graph) is a port too, as are ports listed in ``expose`` (``{ side = "in" | "out", to = [node,
 port] }``). Copy and paste take a group with everything in it.
 
-**Visual groups** tidy the canvas. The backend runs their blocks as if ungrouped, in the
+**Visual groups** tidy the canvas. The station runs their blocks as if ungrouped, in the
 sheet's flow type. Collapsed, the UI draws a group as one block whose ports are the wires
 crossing its edge.
 
@@ -74,19 +74,19 @@ blocks and Spin a story around a signal block that turns the actor while it runs
                {"id": "check", "kind": "story", "nodes": ["limit", "overloaded"]}]}
 
 A node may also carry ``unfolded: true``: the UI shows a block that has a plate as its card on the
-canvas (the user pressed **unfold**). Like ``pos``, ``ports`` and ``rotation``, backends ignore it.
+canvas (the user pressed **unfold**). Like ``pos``, ``ports`` and ``rotation``, stations ignore it.
 
 Lost and failing blocks
 -----------------------
 
-A block whose type the backend doesn't offer (an old graph, a block renamed in code)
+A block whose type the station doesn't offer (an old graph, a block renamed in code)
 stays on the canvas as a red **missing** block, with its type, params and wires; a run
 with it fails and names it. When a block fails a run (an unknown type, an error it
-throws, a bad wire's end), the backend sends ``node.state`` ``failed`` for it and puts its
+throws, a bad wire's end), the station sends ``node.state`` ``failed`` for it and puts its
 id in the error ``log`` (``node``); the UI marks it, and the Console line links to it.
 
-The canvas survives a backend coming back: if the user changed the graph since the same
-backend loaded it, the graph stays and is checked against the new catalog.
+The canvas survives a station coming back: if the user changed the graph since the same
+station loaded it, the graph stays and is checked against the new catalog.
 
 Commented and bypassed blocks
 -----------------------------

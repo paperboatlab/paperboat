@@ -5,7 +5,7 @@ import { RemoveIcon } from "./RemoveIcon";
 
 /**
  * The Analysis drawer (pb#370): one toolkit analysis of a subsystem or a selection, docked at
- * the pages' right edge. It asks the backend (analysis.request) and asks again when the part,
+ * the pages' right edge. It asks the station (analysis.request) and asks again when the part,
  * its params, the variables or the panel's options change; the toolkit's panel draws the
  * answer. The app knows no analysis: the panel comes from the toolkit that registered it.
  */

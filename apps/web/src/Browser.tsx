@@ -337,7 +337,7 @@ export function QuickAdd({
   }, [at]);
   useDismiss(box, onClose);
   const onKey = (e: KeyboardEvent) => {
-    e.stopPropagation(); // typing here is not input for the backend
+    e.stopPropagation(); // typing here is not input for the station
     if (e.key === "ArrowDown") (e.preventDefault(), setI((v) => Math.min(v + 1, list.length - 1)));
     else if (e.key === "ArrowUp") (e.preventDefault(), setI((v) => Math.max(v - 1, 0)));
     else if (e.key === "Enter" && pick) (e.preventDefault(), onPick(pick));

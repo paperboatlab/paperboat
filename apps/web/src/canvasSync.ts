@@ -1,5 +1,5 @@
-// The Flow canvas and the Station kept in step with the backend: what it loads them with, unless the
-// user changed them since this same backend did; linked blocks that follow station objects; and
+// The Flow canvas and the Station kept in step with the station: what it loads them with, unless the
+// user changed them since this same station did; linked blocks that follow station objects; and
 // wires that lost a block or a port.
 
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
@@ -20,18 +20,18 @@ export function useCanvasSync(
   setFlowChoice: (flow: FlowType | null) => void,
 ) {
   const [station, setStation] = useState<Station | null>(null);
-  // What the canvas and station were loaded as, and from which backend: a backend that
+  // What the canvas and station were loaded as, and from which station: a station that
   // comes back (restarted, reconnected) doesn't overwrite what the user changed since.
   const canvas = useRef({ engine: "", graph: "", station: "" });
   const current = useRef({ nodes, edges, station });
   current.current = { nodes, edges, station };
 
-  // The backend decides what the station opens with (station.load); edits go back to it.
+  // The station decides what the station opens with (station.load); edits go back to it.
   useEffect(() => {
     const mine = current.current.station;
     const edited = mine && canvas.current.engine === state.engine && JSON.stringify(mine) !== canvas.current.station;
     if (edited) {
-      send({ type: "station.set", station: mine }); // keep the user's station; tell the backend
+      send({ type: "station.set", station: mine }); // keep the user's station; tell the station
       return;
     }
     setStation(state.station);
@@ -55,8 +55,8 @@ export function useCanvasSync(
     setEdges((es) => withoutLooseWires(nodes, es));
   }, [nodes, setEdges]);
 
-  // The backend decides what the canvas opens with (graph.load), unless the user changed
-  // the canvas since this same backend loaded it: then the canvas stays, checked against the
+  // The station decides what the canvas opens with (graph.load), unless the user changed
+  // the canvas since this same station loaded it: then the canvas stays, checked against the
   // (perhaps new) catalog, so a block that's gone shows as missing instead of vanishing.
   useEffect(() => {
     const now = current.current;

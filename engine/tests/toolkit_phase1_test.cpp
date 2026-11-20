@@ -552,9 +552,9 @@ TEST_CASE("String Toolkit: All Blocks") {
   }
 }
 
-TEST_CASE("dashboard/view3d is a 3D station instrument on the Board") {
+TEST_CASE("board/view3d is a 3D station instrument on the Board") {
   const Registry reg = builtins();
-  const Template* t = reg.find("dashboard/view3d");
+  const Template* t = reg.find("board/view3d");
   REQUIRE(t != nullptr);
   CHECK(t->def.kind == Kind::Monitor);
   CHECK(t->def.instrument == "view3d");

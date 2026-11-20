@@ -1,7 +1,7 @@
 Descriptors
 ===========
 
-A backend's ``descriptor.toml`` says what its app offers: which packages and templates
+A station's ``descriptor.toml`` says what its app offers: which packages and templates
 are in the palette (customised or not), the starter graph and station, and how the
 Station page shows the station. It is data; it never defines a block (code does) and code
 never depends on what's in its starters. Unknown fields are errors, reported with where
@@ -59,13 +59,13 @@ Top level
    ``nodes``: ``{ id, type, params?, pos? }``. ``edges``: ``{ from = [node, port], to =
    [node, port] }``. ``groups``: ``{ id, kind = "visual" | "story", label?, nodes,
    collapsed?, pos?, params? = { seconds } }`` (:doc:`flow`). Checked against the catalog
-   at load: unknown types, ids and ports fail the backend's start, not a user's run.
+   at load: unknown types, ids and ports fail the station's start, not a user's run.
 
 ``[station]`` — the starter station and its view (optional)
    ``view``: ``"scene"`` (default), ``"graph"`` or ``"web"``; ``orientation``: ``"cube"``
    (default) or ``"axes"`` (for ``"scene"`` only: picks the 3D corner orientation widget,
    either the CAD view cube or the bottom-left axis triad); ``page``: the web station's
-   page, a path inside the backend's folder (``"station/index.html"``), required for
+   page, a path inside the station's folder (``"station/index.html"``), required for
    ``"web"`` only; ``visible``: ``false`` hides the Station page by default (the user
    can still show it from View). ``objects``: ``{ id, type, props?, links?, pos? }``;
    ``links`` maps each link slot to another object's id (checked: the slot exists, the
@@ -77,7 +77,7 @@ A complete example
 .. code-block:: toml
 
    domain = "chain"
-   import = ["step", "signal", "math", "dashboard"]
+   import = ["step", "signal", "math", "board"]
 
    [[blocks]]
    use = "math/threshold"
@@ -104,5 +104,5 @@ Loading
 -------
 
 C++: :cpp:func:`paperboat::toolkit::load_descriptor_file` (with the registry holding the
-domain's templates). Python: :py:class:`paperboat.Backend` does it. Text props of type
+domain's templates). Python: :py:class:`paperboat.Station` does it. Text props of type
 ``file`` are relative to the descriptor's folder.

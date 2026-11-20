@@ -8,7 +8,7 @@ import { OnBlocks, RunStates } from "./flowContexts";
 import { isBlock, type FlowNode, type Wire } from "./flowModel";
 import { fromGraph, toGraph, withBlock } from "./flowGraph";
 import { isFrame, levelOf } from "./groups";
-import type { DashboardLayout, FlowType, Project, RunSettings } from "./protocol";
+import type { BoardLayout, FlowType, StationFlow, RunSettings } from "./protocol";
 import { hasMixedLayers, inferFlow, offeredFlows, sheetFlow } from "./flowTypes";
 import { canArrangeFlow } from "./flowLayout";
 import { SheetFlow } from "./SheetFlow";
@@ -18,8 +18,8 @@ import { VarsContext } from "./VarsContext";
 import { inlineLive, toToml, type Use } from "./bindings";
 import { ConsoleWindow } from "@paperboat/shared/components";
 import { AboutWindow } from "./About";
-import { Dashboard } from "./Dashboard";
-import { loadSaved, save as saveLayout } from "./dashboardLayout";
+import { Board } from "./Board";
+import { loadSaved, save as saveLayout } from "./boardLayout";
 import { remembered, useDrawer } from "./remembered";
 import { resolveStationVisible, useStationVisibility } from "./stationVisibility";
 import { PAGE_IDS, useUiLock } from "./uiLock";
@@ -34,12 +34,12 @@ import { settingsForScope, solverShort } from "./solvers";
 import { count } from "./words";
 import { AppHeader } from "./AppHeader";
 import { StationView } from "./StationView";
-import { useBackendKeys } from "./backendKeys";
-import { startWords, useBackendStatus } from "./backendStart";
+import { useStationKeys } from "./stationKeys";
+import { startWords, useStationStatus } from "./stationStart";
 import { HelpWindow, MODES, PAGES, Panel, Rail, useThemeChoice, WaitScreen, type Drawer, type Mode, type Page } from "./Shell";
 import type { StationControls } from "./StationGraph";
 import { withObject } from "./StationPanel";
-import { BackendWindow, Dock } from "./Dock";
+import { StationWindow, Dock } from "./Dock";
 import { ReplayBar } from "./ReplayBar";
 import { formatProbe, parseRecord, recordOf } from "./replay";
 import { pickText, saveText } from "./projectFiles";
@@ -58,7 +58,7 @@ const FIT_PADDING = { top: "16px", right: "16px", bottom: "96px", left: "16px" }
 const FIT_PADDING_MINIMAP = { ...FIT_PADDING, bottom: "220px" } as const;
 
 const DEFAULT_URL =
-  new URLSearchParams(location.search).get("backend") ??
+  new URLSearchParams(location.search).get("station") ??
   import.meta.env.VITE_ENGINE_URL ??
   "ws://localhost:8765";
 
@@ -69,7 +69,7 @@ export function App() {
   const stationDrawer = useDrawer("lookoutStation", false, 420, "left");
   const flowDrawer = useDrawer("lookoutFlow", false, 520, "right");
   const [arrange, setArrange] = useState(false);
-  // The floor grid of a 3D Station: the user's switch wins, else the backend's `view.grid`, else shown.
+  // The floor grid of a 3D Station: the user's switch wins, else the station's `view.grid`, else shown.
   const [gridChoice, setGridChoice] = remembered<"auto" | "on" | "off">("paperboat.grid", "auto", ["auto", "on", "off"]);
   const [page, setPage] = remembered<Page>("paperboat.page", "flow", PAGE_IDS);
   const [themeChoice, setThemeChoice, theme] = useThemeChoice("paperboat.theme");
@@ -80,14 +80,14 @@ export function App() {
   const [searchOpen, setSearchOpen] = useState(false); // the command search (Ctrl+K)
   // A toolkit analysis of a subsystem or a selection (pb#370): what was picked, and which analysis.
   const [analysing, setAnalysing] = useState<{ ids: string[]; label: string; name: string } | null>(null);
-  const [backendOpen, setBackendOpen] = useState(false); // File > Backend…
+  const [stationOpen, setStationOpen] = useState(false); // File > Station…
   const flow = useRef<FlowControls | null>(null); // the canvas's actions, for the menus
   const stationCanvas = useRef<StationControls | null>(null);
   const { state, send, subscribe, log, replay: replayApi } = useEngine(url);
-  // The Station page's visibility: per-backend override, else this backend's `hello.station.visible`.
+  // The Station page's visibility: per-station override, else this station's `hello.station.visible`.
   const [stationChoice, setStationChoice] = useStationVisibility(url, state.engine);
-  // While no backend has said hello: what the one on this URL's port is doing, if it is starting (pb#332).
-  const starting = startWords(useBackendStatus(!state.engine), url);
+  // While no station has said hello: what the one on this URL's port is doing, if it is starting (pb#332).
+  const starting = startWords(useStationStatus(!state.engine), url);
   const stationShown = resolveStationVisible(stationChoice, state.stationView.visible);
   const setStationShown = (shown: boolean) => setStationChoice(shown ? "shown" : "hidden");
   const pages = useMemo(() => (stationShown ? PAGES : PAGES.filter((p) => p.id !== "station")), [stationShown]);
@@ -95,26 +95,26 @@ export function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Wire>([]);
   const { fitView, screenToFlowPosition } = useReactFlow();
   const [runSettings, setRunSettings] = useState<RunSettings>({});
-  // Variables (#36): the backend's defaults, then the user's own, kept in the project (#34).
+  // Variables (#36): the station's defaults, then the user's own, kept in the project (#34).
   const { variables, project: projectVars, keepVars, setVariables, varsHistory, undoVars } = useVariables(state, send, subscribe);
   const engineKey = state.engine || "default";
-  // The Dashboard's layout is kept here, so renaming or deleting a variable can rewrite the labels that use it (#86).
+  // The Board's layout is kept here, so renaming or deleting a variable can rewrite the labels that use it (#86).
   const [dashSaved, setDashSaved] = useState(() => loadSaved(engineKey));
   useEffect(() => setDashSaved(loadSaved(engineKey)), [engineKey]);
-  const saveDash = (next: DashboardLayout | undefined) => {
+  const saveDash = (next: BoardLayout | undefined) => {
     setDashSaved(next);
     saveLayout(engineKey, next);
   };
-  const dashLayout = dashSaved ?? state.dashboard;
+  const dashLayout = dashSaved ?? state.board;
   const [varsShown, setVarsShown] = remembered<"open" | "closed">("paperboat.variables", "closed", ["open", "closed"]);
   const [openVar, setOpenVar] = useState<string | null>(null);
   const [consoleShown, setConsoleShown] = useState(false);
   const consoleKey = useRef<HTMLButtonElement>(null);
   const [aboutShown, setAboutShown] = useState(false);
   const [helpQuery, setHelpQuery] = useState<string | null>(null);
-  // A new provider when the backend's blocks change, so an open Help window lists them.
+  // A new provider when the station's blocks change, so an open Help window lists them.
   const helpProvider = useMemo(() => paperboatHelp(() => state.blocks), [state.blocks]);
-  useEffect(() => setRunSettings({}), [state.engine]); // another backend: its own defaults
+  useEffect(() => setRunSettings({}), [state.engine]); // another station: its own defaults
 
   // The Flow sheet's flow type, if one was chosen (#9); null: taken from its blocks.
   const [flowChoice, setFlowChoice] = useState<FlowType | null>(null);
@@ -122,10 +122,10 @@ export function App() {
   const fitFlow = useCallback(() => {
     fitView({ padding: mode === "navigator" && page === "flow" ? FIT_PADDING_MINIMAP : FIT_PADDING });
   }, [fitView, mode, page]);
-  // The canvas and the station follow the backend, keeping what the user changed since it loaded them.
+  // The canvas and the station follow the station, keeping what the user changed since it loaded them.
   const { station, editStation } = useCanvasSync(state, send, nodes, edges, setNodes, setEdges, fitFlow, setFlowChoice);
 
-  // Ctrl+Z / Ctrl+Shift+Z on the Flow canvas; a new graph from the backend starts afresh.
+  // Ctrl+Z / Ctrl+Shift+Z on the Flow canvas; a new graph from the station starts afresh.
   const history = useUndo(nodes, edges, setNodes, setEdges, state.loaded);
 
   // A page that changes size (another mode, or brought into view) fits its flow again.
@@ -153,8 +153,8 @@ export function App() {
     if (next) setPage(next.id);
   }, [stationShown, page, pages, allowedPages, setPage]);
 
-  // Forward the keyboard to the backend (e.g. a Key block). Typing in a field is not input.
-  useBackendKeys(send);
+  // Forward the keyboard to the station (e.g. a Key block). Typing in a field is not input.
+  useStationKeys(send);
 
   const running = state.run?.status === "running";
   // Which blocks are on, as one key: the canvas re-renders when a block flips, not every frame a run streams.
@@ -231,7 +231,7 @@ export function App() {
   const varsApi = varsApiFor({ state, variables, setVariables, varsHistory, running, nodes, setNodes, station, editStation, dashLayout, saveDash, setOpenVar, setVarsShown });
   const showUse = (u: Use) => {
     if (u.page === "variables") setOpenVar(u.id);
-    else if (u.page === "dashboard") setPage("dashboard");
+    else if (u.page === "board") setPage("board");
     else if (u.page === "flow") showBlock(u.id);
     else {
       setStationShown(true);
@@ -286,7 +286,7 @@ export function App() {
       : running
         ? "Stop the run to add station objects"
         : state.objects.length === 0
-          ? "This backend has no station objects to add"
+          ? "This station has no station objects to add"
           : "Add a station object";
   const addKey = (which: "flow" | "station") => (
     <button
@@ -350,7 +350,7 @@ export function App() {
       </span>
     ));
   const drawerOf = (p: Page): Drawer | undefined =>
-    mode === "commander" && p === "dashboard" && stationShown
+    mode === "commander" && p === "board" && stationShown
       ? { ...boardDrawer, peek: peek.length ? peek : undefined }
       : mode === "lookout" && p === "station" && stationShown
         ? stationDrawer
@@ -397,16 +397,16 @@ export function App() {
 
   // ---- Projects (#82): the whole session as one file ----
   /** Put what a project holds in place of what is open: the Flow, the Station, variables, Board, run settings and lock. */
-  const loadProject = (p: Project) => {
+  const loadProject = (p: StationFlow) => {
     const g = fromGraph(p.flow, state.blocks);
     setNodes(g.nodes);
     setEdges(g.edges);
     setFlowChoice(p.flow.flow ?? null);
     setFlowLevel(null);
-    editStation(p.station ?? state.station ?? { objects: [] });
+    editStation(p.station_objects ?? state.station ?? { objects: [] });
     varsHistory.current = { past: [], future: [] };
     keepVars(p.variables);
-    saveDash(p.dashboard);
+    saveDash(p.board);
     setRunSettings(p.run ?? {});
     const lock = p.ui?.lock ?? null;
     setProjectLock(lock);
@@ -431,7 +431,7 @@ export function App() {
   );
 
   // ---- Missing toolkit notice and post-install restart prompt (#118) ----
-  const { missingDialog, setMissingDialog, restartBackend, installToolkit, toolkitVersions, uninstallToolkit, requestedToolkits } = useToolkitInstall(state, send, log, nodes);
+  const { missingDialog, setMissingDialog, restartStation, installToolkit, toolkitVersions, uninstallToolkit, requestedToolkits } = useToolkitInstall(state, send, log, nodes);
 
   // ---- The commands (#78): what the menus, the command search and the shortcuts all run ----
   const { usesSolvers, currentSolver, solvers } = solverChoice(state, nodes, runSettings);
@@ -439,7 +439,7 @@ export function App() {
   const helpContext = () =>
     window.getSelection()?.toString().trim().split("\n")[0].slice(0, 80) || nodes.filter(isBlock).find((n) => n.selected)?.data.def.label || "";
   const commands = [...menuCommands({
-    state, send, openFile, saveProject, lastSession, restore, recent, openProject, projectLock, unlocked, locked, lockedArrange, setLockModalOpen, setBackendOpen, restartBackend,
+    state, send, openFile, saveProject, lastSession, restore, recent, openProject, projectLock, unlocked, locked, lockedArrange, setLockModalOpen, setStationOpen, restartStation,
     history, undoOpen, flow, stationCanvas, setBrowser, running, variables, varsShown, setVarsShown,
     setSearchOpen, mode, setMode, allowedModes, pages, page, setPage, open, stationShown, setStationShown, stationChoice, setStationChoice, stationDrawer, flowDrawer, view, themeChoice, setThemeChoice, consoleShown, setConsoleShown, aboutShown, setAboutShown, errors,
     gridOn, setGridChoice, cameraProjection, setCameraProjection, arrangeCanvas, arrange, setArrange,
@@ -448,7 +448,7 @@ export function App() {
   }), helpCommand(() => setHelpQuery(helpContext()))];
   useShortcuts(commands);
 
-  // Analyses (pb#370): analysesOffered only when the backend lists one and a toolkit's web part shows it.
+  // Analyses (pb#370): analysesOffered only when the station lists one and a toolkit's web part shows it.
   const analysesOffered = offeredAnalyses(state.analyses);
   const analyse = analysesOffered.length ? (ids: string[], label: string) => setAnalysing({ ids, label, name: analysing?.name && analysesOffered.some((a) => a.name === analysing.name) ? analysing.name : analysesOffered[0].name }) : undefined;
   const analysis = useMemo(() => {
@@ -458,7 +458,7 @@ export function App() {
     try {
       graph.nodes = graph.nodes.map((n) => (n.params ? { ...n, params: inlineLive(n.params, live) } : n));
     } catch {
-      // a live variable without a value: the backend names it in its answer
+      // a live variable without a value: the station names it in its answer
     }
     return { target: analysisTarget(nodes, edges, analysing.ids, analysing.label), graph };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `analysesOffered` follows state.analyses
@@ -477,7 +477,7 @@ export function App() {
         installToolkit={installToolkit}
         uninstallToolkit={uninstallToolkit}
         requestedToolkits={requestedToolkits}
-        restartBackend={restartBackend}
+        restartStation={restartStation}
         toolkitVersions={toolkitVersions}
         errors={errors}
         consoleShown={consoleShown}
@@ -493,20 +493,20 @@ export function App() {
         projectLock={projectLock}
         locked={locked}
         onLock={() => setLockModalOpen(true)}
-        onBackend={() => setBackendOpen(true)}
+        onStation={() => setStationOpen(true)}
         themeChoice={themeChoice}
         setThemeChoice={setThemeChoice}
       />
       <Rail page={page} onPage={setPage} hidden={mode !== "navigator"} allowedPages={allowedPages} pages={pages} />
       <VarsContext.Provider value={varsApi}>
       <main className="pages">
-        {/* Until the backend says hello there is nothing to draw: say what we are waiting for. A
+        {/* Until the station says hello there is nothing to draw: say what we are waiting for. A
             connection lost later keeps the pages (the pill and the Console say so). */}
         {!state.engine && (
           <WaitScreen
             key={url}
-            {...(starting ?? { words: state.connection === "connecting" ? `connecting to the backend at ${url}` : `waiting for a backend at ${url}` })}
-            hint={starting && !starting.failed ? "A C++ backend compiles before it starts: the first time takes a few minutes." : "Start one with paperboat start <backend> (paperboat backends lists them), or pick another under File › Backend…"}
+            {...(starting ?? { words: state.connection === "connecting" ? `connecting to the station at ${url}` : `waiting for a station at ${url}` })}
+            hint={starting && !starting.failed ? "A C++ station compiles before it starts: the first time takes a few minutes." : "Start one with paperboat start <station> (paperboat stations lists them), or pick another under File › Station…"}
           />
         )}
         <div className="page-stack">
@@ -569,7 +569,7 @@ export function App() {
           )}
         </Panel>
         <Panel
-          {...panel("dashboard")}
+          {...panel("board")}
           actions={
             !lockedArrange ? (
               <button className={`key small${arrange ? " on" : ""}`} aria-pressed={arrange} title="Move instruments and pick their sizes" onClick={() => setArrange(!arrange)}>
@@ -579,7 +579,7 @@ export function App() {
           }
           info={count(Object.keys(monitors).length, "instrument")}
         >
-          <Dashboard state={state} monitors={monitors} taps={taps} onTap={tap} arrange={arrange} onBlock={showBlock} saved={dashSaved} onSave={saveDash} url={url} subscribe={subscribe} send={send} gridOn={gridOn} />
+          <Board state={state} monitors={monitors} taps={taps} onTap={tap} arrange={arrange} onBlock={showBlock} saved={dashSaved} onSave={saveDash} url={url} subscribe={subscribe} send={send} gridOn={gridOn} />
         </Panel>
         </div>
         {analysis && analysing && (
@@ -635,8 +635,8 @@ export function App() {
       )}
       {notice && <Notice key={notice.title + notice.text.join()} spec={notice} onClose={() => setNotice(null)} />}
       {searchOpen && <CommandSearch commands={commands} onClose={() => setSearchOpen(false)} />}
-      {backendOpen && (
-        <BackendWindow
+      {stationOpen && (
+        <StationWindow
           url={url}
           connection={state.connection}
           engine={state.engine}
@@ -652,7 +652,7 @@ export function App() {
             variablesCount: state.variables.length,
           }}
           onConnect={setUrl}
-          onClose={() => setBackendOpen(false)}
+          onClose={() => setStationOpen(false)}
         />
       )}
       {consoleShown && <ConsoleWindow logs={state.logs} errors={errors} onBlock={showBlock} onClose={() => setConsoleShown(false)} triggerRef={consoleKey} />}

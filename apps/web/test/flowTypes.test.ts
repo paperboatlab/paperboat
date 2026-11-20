@@ -63,7 +63,7 @@ test("the palette on a sheet: blocks that work in it, and the rest apart; statio
   assert.equal(objects.fits.length, 1);
 });
 
-test("the flow types offered: hello's, in order; an older backend: Signal flow, and Step flow if a block has step ports", () => {
+test("the flow types offered: hello's, in order; an older station: Signal flow, and Step flow if a block has step ports", () => {
   assert.deepEqual(offeredFlows(["step", "signal"], [gain]), ["signal", "step"]);
   assert.deepEqual(offeredFlows(["model"], [gain]), ["model"]);
   assert.deepEqual(offeredFlows(undefined, [gain, pid]), ["signal"]);

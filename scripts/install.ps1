@@ -10,7 +10,7 @@
 #
 # Running it again updates; `paperboat update` runs it, and so does the one-file paperboat.exe on its first
 # run. Layout: $env:PAPERBOAT_HOME (default %LOCALAPPDATA%\paperboat) holds self\<version>\ and apps\
-# (`paperboat pkg`); bin\paperboat.cmd runs the one in use, and bin\ is put on the user's PATH.
+# (`paperboat squero`); bin\paperboat.cmd runs the one in use, and bin\ is put on the user's PATH.
 param([string]$Version = "", [string]$Archive = "", [string]$Channel = "release", [switch]$Check)
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"   # Invoke-WebRequest is many times slower drawing its bar

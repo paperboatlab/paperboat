@@ -5,8 +5,8 @@
 // - clock: a Signal flow, every block once per clock step, for the run's duration;
 // - once: a Signal flow evaluated a single time (a build, a query, an image);
 // - steps: a Step flow (or a graph with stories): hats start paths, a path is at one block.
-// A backend with another run style (event-driven, a long job, an external solver) sets
-// Backend::executor and drives the same Run; it never touches the socket.
+// A station with another run style (event-driven, a long job, an external solver) sets
+// Station::executor and drives the same Run; it never touches the socket.
 
 #include <chrono>
 #include <map>
@@ -45,17 +45,17 @@ class Run {
  public:
   // `cache`: where a run that evaluates once finds the outputs of earlier runs and keeps its
   // own (see evaluate); null: every block is called.
-  Run(std::string id, const Backend& backend, RunSettings settings, Emit emit, KeysNow keys, std::stop_token stop,
+  Run(std::string id, const Station& station, RunSettings settings, Emit emit, KeysNow keys, std::stop_token stop,
       VariablesNow tune = nullptr, SpeedNow speed = nullptr, RunCache* cache = nullptr);
 
   // Makes the station and graph (references to `variables` resolved first, #36), runs them
-  // with the backend's executor (or the default) and reports the end. Returns "done",
+  // with the station's executor (or the default) and reports the end. Returns "done",
   // "failed" or "cancelled".
   std::string go(const json& graph, const json& station, const json& variables = nullptr);
 
   // ---- For executors ----
   Graph& graph() { return g_; }
-  const Station& station() const { return station_; }
+  const StationObjects& station() const { return objects_; }
   const RunSettings& settings() const { return settings_; }
   toolkit::Context& context() { return ctx_; }
 
@@ -154,7 +154,7 @@ class Run {
   };
 
   std::string id_;
-  const Backend& backend_;
+  const Station& spec_;
   RunSettings settings_;
   Emit emit_;
   KeysNow keys_now_;
@@ -193,7 +193,7 @@ class Run {
   toolkit::Variables vars_;        // ... resolved
   toolkit::Values live_variables_; // ... for Context::variable
   std::set<std::string> told_;     // "block.param" the user was told takes a change only with the next run
-  Station station_;
+  StationObjects objects_;
   std::unique_ptr<toolkit::DomainState> state_;
   Graph g_;
   std::map<std::string, toolkit::Values> outputs_;

@@ -1,7 +1,7 @@
 # The signal package's blocks that are only definitions: each `use`s the C++ parent
 # signal/generator (f(t) as an expression, waves.cpp) and adds its params and its f.
 # t is the block's input `t` when wired (a step's progress, say), else the run clock.
-# Embedded in the engine at build time; a backend's descriptor can define more the same way.
+# Embedded in the engine at build time; a station's descriptor can define more the same way.
 
 [[blocks]]
 use = "signal/generator"

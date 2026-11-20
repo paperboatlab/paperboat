@@ -132,7 +132,7 @@ file(APPEND "${package_registry_cpp}" "}\n}  // namespace paperboat::toolkit\n")
 # each listed function owns the definitions for its files. Similar blocks may share a file.
 file(GLOB_RECURSE package_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*/*.cpp")
 # The solvers as their own library: no toolkit types, only the state, the derivative and the
-# options. A native tool or another backend can link paperboat::solvers without the toolkit.
+# options. A native tool or another station can link paperboat::solvers without the toolkit.
 set(PAPERBOAT_SOLVER_SOURCES src/solve.cpp)
 if(PAPERBOAT_WITH_SUNDIALS)
   list(APPEND PAPERBOAT_SOLVER_SOURCES src/implicit.cpp)

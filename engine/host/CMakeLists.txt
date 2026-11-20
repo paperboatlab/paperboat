@@ -1,4 +1,4 @@
-# libpaperboat_host: the C ABI that lets a non-C++ runtime (Julia) serve a backend whose
+# libpaperboat_host: the C ABI that lets a non-C++ runtime (Julia) serve a station whose
 # domain code lives there. The engine, its registry, catalog, runs and protocol are the
 # same code the C++ and Python profiles use; the host answers events.
 

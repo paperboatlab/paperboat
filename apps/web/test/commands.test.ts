@@ -12,7 +12,7 @@ const cmd = (id: string, label: string, menu: Command["menu"], extra: Partial<Co
 });
 
 const all = [
-  cmd("file.backend", "Backend…", "file"),
+  cmd("file.station", "Station…", "file"),
   cmd("edit.undo", "Undo", "edit"),
   cmd("edit.addBlock", "Add block…", "edit"),
   cmd("edit.addObject", "Add station object…", "edit"),

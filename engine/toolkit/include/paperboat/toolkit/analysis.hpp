@@ -40,7 +40,7 @@ struct AnalysisRequest {
   std::vector<PortRef> inputs;        // u: inputs fed from outside the part (or not wired)
   std::vector<PortRef> outputs;       // y: outputs read outside it
   nlohmann::json options = nlohmann::json::object();  // the analysis's own, from its panel
-  double dt = 0.0;                    // the backend's run step, for an analysis that needs one
+  double dt = 0.0;                    // the station's run step, for an analysis that needs one
 
   const AnalysisBlock* find(std::string_view id) const {
     for (const auto& b : blocks)

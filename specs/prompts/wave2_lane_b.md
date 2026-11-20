@@ -2,7 +2,7 @@
 
 You are Lane B. Task: the `.mo` importer in C++: connector resolution through `extends`, the
 `iconTransformation` edge-slot quantiser, the `Icon(graphics)` → `view.icon` token quantiser,
-and passing `view.icon` + `connectors` through the engine so generated backends carry them.
+and passing `view.icon` + `connectors` through the engine so generated stations carry them.
 
 Read first, in this order: `CLAUDE.md`, `specs/issue-160-contracts.md` (rev 2: §0 Wave 2
 ownership, §3, §4, §5, §6, §7), `specs/wave-status.toml`, `docs/issue-160-openmodelica.md`

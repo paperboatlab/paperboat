@@ -1,15 +1,15 @@
-# @name@: a new Paperboat backend, a Scale block on a starter graph. Made by paperboat new.
+# @name@: a new Paperboat station, a Scale block on a starter graph. Made by paperboat new.
 #
 # The descriptor says what the UI shows: the packages the palette has and the graph the Flow
 # page opens with. The domain's own blocks (domain/blocks.py: Scale) are its package "@name@",
 # without listing them here.
 domain = "@name@"
-import = ["base", "signal", "dashboard"]  # Constant…; Sine, Clock…; Graph, Display
+import = ["base", "signal", "board"]  # Constant…; Sine, Clock…; Graph, Display
 
 [station]
 view = "graph"  # no station objects yet: the Station page shows the graph
 
-# The starter graph. Checked against the catalog when the backend starts.
+# The starter graph. Checked against the catalog when the station starts.
 [graph]
 nodes = [
   { id = "wave", type = "sine", pos = [0, 0] },

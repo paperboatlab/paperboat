@@ -148,7 +148,7 @@ struct BlockDef {
   std::vector<PortDef> inputs = {};
   std::vector<PortDef> outputs = {};
   std::vector<ParamDef> params = {};
-  // A monitor's instrument on the Dashboard: "graph", "display", "image"… Its kind is the name of a
+  // A monitor's instrument on the Board: "graph", "display", "image"… Its kind is the name of a
   // component a toolkit's web/index.tsx registers (the engine knows no instrument by name).
   std::string instrument = {};
   // How the run samples this monitor for its instrument. A vector input is sent as one sample (a

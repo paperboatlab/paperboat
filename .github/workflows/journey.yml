@@ -1,5 +1,5 @@
 # A user's first hour, on every OS: scripts/journey.py drives a built checkout through the CLI.
-# 1 bin/paperboat runs; 2 `paperboat start` serves the web app and starts the workbench; 3 an example
+# 1 bin/paperboat runs; 2 `paperboat start` serves the web app and starts the scratchpad; 3 an example
 # checks, starts and passes the smoke test; 4 an optional toolkit installs; 5 its example checks.
 # The Squero apps (squero-studio-om, squero-studio-mx) check their own `paperboat start` in their repos.
 name: journey
@@ -15,7 +15,7 @@ on:
       - "engine/toolkit/src/installer.cpp"
       - "engine/toolkit/src/apps.cpp"
       - "engine/toolkit/include/paperboat/toolkit/apps.hpp"
-      - "engine/workbench/**"
+      - "engine/scratchpad/**"
       - "apps/cli/**"
       - "python/**"
       - "protocol/smoke_test.py"
@@ -72,7 +72,7 @@ jobs:
             Linux) sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build g++-14 ;;
             macOS) brew list ninja >/dev/null 2>&1 || brew install ninja ;;
           esac
-      - name: Web app and console
+      - name: Web app and CLI
         run: |
           (cd ../paperboat-shared && npm ci --no-audit --no-fund)
           npm ci --no-audit --no-fund && npm run build
@@ -97,7 +97,7 @@ jobs:
           python scripts/journey.py --examples "$GITHUB_WORKSPACE/paperboat-examples" --keep
 
   fresh-apps:
-    name: Fresh pkg install (Squero Studio OM & MX)
+    name: Fresh squero install (Squero Studio OM & MX)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -117,7 +117,7 @@ jobs:
       - name: Missing prerequisites fail before fetching
         run: |
           export PAPERBOAT_HOME="$RUNNER_TEMP/pb-missing"
-          if PATH="" "$GITHUB_WORKSPACE/paperboat/engine/build/tools/paperboat" pkg install squero-studio-om; then
+          if PATH="" "$GITHUB_WORKSPACE/paperboat/engine/build/tools/paperboat" squero install squero-studio-om; then
             echo "expected prereq check to fail" >&2
             exit 1
           fi
@@ -127,20 +127,20 @@ jobs:
           PAPERBOAT_HOME: ${{ runner.temp }}/pb-fresh
         run: |
           pb="$GITHUB_WORKSPACE/paperboat/engine/build/tools/paperboat"
-          "$pb" pkg install squero-studio-om
+          "$pb" squero install squero-studio-om
           cd "$RUNNER_TEMP"
-          "$pb" start squero-studio-om --daemon
+          "$pb" squero start squero-studio-om --daemon
           for i in $(seq 60); do curl -sf http://127.0.0.1:59201/ >/dev/null && break; sleep 1; done
           node "$PAPERBOAT_HOME/apps/squero-studio-om/test/launch/check.mjs" 59201 || { cat /tmp/paperboat-squero-studio-om.log; exit 1; }
-          "$pb" stop squero-studio-om
+          "$pb" squero stop squero-studio-om
       - name: Install and launch squero-studio-mx
         env:
           PAPERBOAT_HOME: ${{ runner.temp }}/pb-fresh
         run: |
           pb="$GITHUB_WORKSPACE/paperboat/engine/build/tools/paperboat"
-          "$pb" pkg install squero-studio-mx
+          "$pb" squero install squero-studio-mx
           cd "$RUNNER_TEMP"
-          "$pb" start squero-studio-mx --daemon
+          "$pb" squero start squero-studio-mx --daemon
           for i in $(seq 60); do curl -sf http://127.0.0.1:59202/ >/dev/null && break; sleep 1; done
           node "$PAPERBOAT_HOME/apps/squero-studio-mx/test/launch/check.mjs" 59202 || { cat /tmp/paperboat-squero-studio-mx.log; exit 1; }
-          "$pb" stop squero-studio-mx
+          "$pb" squero stop squero-studio-mx

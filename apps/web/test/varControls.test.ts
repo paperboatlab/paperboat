@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { toToml } from "../src/bindings.ts";
-import { addDecoration, arrange } from "../src/dashboardLayout.ts";
+import { addDecoration, arrange } from "../src/boardLayout.ts";
 
 test("exposed, dock and tunable reach the descriptor TOML", () => {
   const toml = toToml([{ name: "g", type: "number", value: 9.8, exposed: true, dock: true, tunable: true }, { name: "k", type: "number", value: 1 }]);

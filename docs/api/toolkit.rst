@@ -14,7 +14,7 @@ Every toolkit's blocks are documented on its own site, built from its catalog:
 `math <https://paperboatlab.github.io/toolkits/math/>`_,
 `string <https://paperboatlab.github.io/toolkits/string/>`_,
 `list <https://paperboatlab.github.io/toolkits/list/>`_,
-`dashboard <https://paperboatlab.github.io/toolkits/dashboard/>`_,
+`board <https://paperboatlab.github.io/toolkits/board/>`_,
 `step <https://paperboatlab.github.io/toolkits/step/>`_, and the optional
 `control <https://paperboatlab.github.io/toolkits/control/>`_,
 `optimization <https://paperboatlab.github.io/toolkits/optimization/>`_,
@@ -53,7 +53,7 @@ A block that needs its own UI keeps it in its ``web/`` folder
 ``engine/toolkit/<package>/<block>/web/index.tsx``, or ``<package>/web/index.tsx`` for one UI for
 the whole package). The web app bundles every such entry and calls its ``register(host)`` export;
 ``host.registerInstrument(kind,
-component, { size, order })`` adds a Dashboard instrument for monitors whose block says
+component, { size, order })`` adds a Board instrument for monitors whose block says
 ``instrument = kind``. ``size`` is the cell size it opens at (``compact``, ``normal``, ``large``,
 ``xlarge``; default ``normal``) and ``order`` its place in the automatic order (readouts 0, pictures 1,
 plots 2, the default). The component gets ``name``, ``kind``, ``latest``, ``idle``, ``vector``, ``params``,
@@ -82,26 +82,26 @@ Optional toolkits
 
 Optional toolkits with external dependencies live in ``engine/toolkit/<package>/`` with the same
 layout plus a ``toolkit.toml`` and a package-local ``CMakeLists.txt``. The engine discovers the
-folder; the package's CMake file decides whether its dependency is available. The backend links and
+folder; the package's CMake file decides whether its dependency is available. The station links and
 registers an optional package explicitly.
 
 On an installed paperboat (a package, or ``scripts/install.sh``) there is no engine to rebuild:
 ``toolkit install`` puts the toolkit in ``$PAPERBOAT_HOME/toolkits/<name>/`` (default
 ``~/.local/share/paperboat``), builds it as a plugin against the installed SDK
-(``lib/libpaperboat_plugin_<name>``, loaded by the CLI and the backends at startup), bundles its
+(``lib/libpaperboat_plugin_<name>``, loaded by the CLI and the stations at startup), bundles its
 ``web/index.ts(x)`` into ``web-dist/`` for the web app (which imports it at startup from
 ``/__paperboat/toolkits``), and writes ``lib/paperboat-toolkit.cmake``, through which
-``find_package(Paperboat)`` gives a backend ``paperboat::toolkit_<name>``.
+``find_package(Paperboat)`` gives a station ``paperboat::toolkit_<name>``.
 
 An optional toolkit can ship 1–3 examples at its repository root. ``toolkits.toml`` gives it a
 ``prefix`` (``ocv``, ``opt``) and ``paperboat toolkit install <name>`` copies the examples to
 ``engine/toolkit/<name>/examples/`` (``$PAPERBOAT_HOME/toolkits/<name>/examples/`` on an installed
-paperboat); ``paperboat backends`` lists them and ``paperboat run ocv-01``
+paperboat); ``paperboat stations`` lists them and ``paperboat run ocv-01``
 starts the first one. The prefix keeps them distinct from the numbered ``paperboat-examples``
 curriculum.
 
 The root ``toolkits.toml`` is a catalog, not an installer: its ``repo`` is a suggested source.
-A backend's ``toolkits = [...]`` declares what it needs; ``paperboat check`` verifies the local
+A station's ``toolkits = [...]`` declares what it needs; ``paperboat check`` verifies the local
 install and never downloads. Install from any repository or local folder with
 ``paperboat toolkit install <name> --repo <url>`` (or ``--path <dir>``).
 
@@ -154,7 +154,7 @@ when its folder goes::
        doc.rst                    the block's prose, optional
 
 The block pages are generated: ``docs/site/build.py`` takes the toolkit's catalog (the
-``BlockDef`` list a backend sends; ``paperboat-catalog`` dumps it) and writes a page per block
+``BlockDef`` list a station sends; ``paperboat-catalog`` dumps it) and writes a page per block
 with its description, block graphic (compact plate and card), ports and params, and the block's
 ``doc.rst`` (or ``docs/blocks/<type>.rst``) as its prose. Write only what the catalog can't say. Build a toolkit's site locally with::
 

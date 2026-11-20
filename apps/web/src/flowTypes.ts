@@ -1,5 +1,5 @@
 // Flow types (#9): what a sheet on the Flow page is (a Signal flow, a Step flow…), which ones the
-// backend offers, and which blocks the palette offers on the sheet that is open. A block works in
+// station offers, and which blocks the palette offers on the sheet that is open. A block works in
 // the flow types its `flows` names; without them (an older catalog, or base and math), in every one.
 
 import type { BlockDef, FlowType } from "./protocol.ts";
@@ -28,7 +28,7 @@ export const worksIn = (def: BlockDef, flow: FlowType, mixed = false) => {
 };
 
 /**
- * The flow types a sheet may be: what the backend's hello says. An older backend doesn't say:
+ * The flow types a sheet may be: what the station's hello says. An older station doesn't say:
  * a Signal flow, and a Step flow if a block of its catalog has step ports.
  */
 export function offeredFlows(hello: readonly FlowType[] | undefined, blocks: BlockDef[]): FlowType[] {

@@ -1,6 +1,6 @@
 # Epic #160 contracts (Wave 0, locked)
 
-Squero Studio: OpenModelica (Squero Studio OM) and the Modelica-to-C++ backend generator.
+Squero Studio: OpenModelica (Squero Studio OM) and the Modelica-to-C++ station generator.
 Source of truth: pb#160 and its comments; later comments win (C5 replaces C4 §3, C6 names the
 product). This file fixes the interfaces both lanes code against. Change it only through the
 orchestrator, and bump `contracts_rev` in `wave-status.toml` when you do.
@@ -55,7 +55,7 @@ unchanged), B's engine output must validate against them (`npm run smoke`).
   `["apps/*", "packages/*"]`. Splitting into separate repos (C2) is deferred until the
   in-repo split is stable; nothing in `packages/shared` may import from `apps/*`.
 - ISA-88 (GUIDELINES §4): Studio builds equipment and exports `<model>-cpp/`. Paperboat opens
-  that backend; procedure (PID, step stories) and Board live in Paperboat. Studio's Simulate is
+  that station; procedure (PID, step stories) and Board live in Paperboat. Studio's Simulate is
   a local check, never a second Flow page.
 
 ## 2. `@paperboat/shared` (Lane B, Wave 1)
@@ -64,7 +64,7 @@ Moves from `apps/web/src/` with history-preserving `git mv`, re-exported from
 `packages/shared/src/index.ts`:
 
 `tokens.css, Menus.tsx, Dock.tsx, NumberField.tsx, Compact.tsx, portLayout.tsx, ports.ts,
-wireSnap.tsx, wireRouting.ts, Dashboard.tsx, Shell.tsx, Logo.tsx, undo.ts, clipboard.ts,
+wireSnap.tsx, wireRouting.ts, Board.tsx, Shell.tsx, Logo.tsx, undo.ts, clipboard.ts,
 graphLayout.ts`, plus the protocol types they need (`protocol.ts` types only; the socket code
 in `engine.ts` stays in web).
 
@@ -185,7 +185,7 @@ Composite models: Icon layer only in the first cut; open as a group with In/Out 
 ## 6. Generator (Lane A, Wave 1)
 
 CLI: `paperboat modelica generate <Model.mo> [--model <Qualified.Name>] --out <model>-cpp/
-[--path fmu|ode|auto]` (default `auto`). Studio's dock "Export backend" calls the same code.
+[--path fmu|ode|auto]` (default `auto`). Studio's dock "Export station" calls the same code.
 Also `paperboat modelica check <Model.mo>` (wraps `checkModel`).
 
 Path choice (`auto`): ODE when `dumpXMLDAE` gives no events/when-clauses, no nonlinear torn
@@ -195,7 +195,7 @@ Output (GUIDELINES §6.1 layout):
 
 ```
 <model>-cpp/
-  backend.toml  CMakeLists.txt  descriptor.toml  main.cpp
+  station.toml  CMakeLists.txt  descriptor.toml  main.cpp
   domain/<model>.hpp  domain/<model>.cpp   # ODE: class <Model> final : paperboat::Model
   fmu/<model>.fmu                          # FMU path only, + domain adapter on StationObject
   modelica/<Model>.mo                      # the source, for round-trip
@@ -285,7 +285,7 @@ canvas or the omc client for edits (raw `omc` is for read-only calls such as `ch
 - Dock: live balance `equations / unknowns` from `checkModel` (debounced after each edit),
   dangling flow connectors as `L1.n unconnected [ Fix: Ground ]` (fix by domain: electrical →
   `Ground`, translational/rotational → `Fixed`, others no fix button; fix = `addComponent` +
-  `connect`), and `Export backend` with the 2px signal progress line from `ExportProgress`.
+  `connect`), and `Export station` with the 2px signal progress line from `ExportProgress`.
 - Tests against `test/fake.ts` (a fake `StudioApi`), no omc needed.
 
 ## 9. Shared rules

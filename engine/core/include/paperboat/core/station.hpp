@@ -14,7 +14,7 @@ namespace paperboat::core {
 
 using json = nlohmann::json;
 
-// A station or graph that doesn't fit the catalog. Fails the run, never the backend.
+// A station or graph that doesn't fit the catalog. Fails the run, never the station.
 // `node` names the block or station object at fault, when there is one: the UI marks it.
 struct GraphError : std::runtime_error {
   using std::runtime_error::runtime_error;
@@ -27,14 +27,14 @@ struct StationItem {
   const toolkit::ObjectEntry* entry = nullptr;
   std::unique_ptr<toolkit::StationObject> instance;
 };
-using Station = std::vector<StationItem>;
+using StationObjects = std::vector<StationItem>;
 
 // {"objects": [{id, type, props, links}]} → instances, linked to each other. Throws
 // GraphError (unknown type, duplicate id, a bad link) or json::exception (malformed).
-Station make_station(const json& station, const toolkit::Catalog& catalog);
+StationObjects make_station(const json& station, const toolkit::Catalog& catalog);
 
 // Every object's entities as the protocol's Entity list, objects side by side in depth.
-json scene_of(const Station& station);
+json scene_of(const StationObjects& station);
 
 // A number param's (or prop's) value in a graph or station: its number, true / false as
 // 1 / 0, or `fallback` when absent.

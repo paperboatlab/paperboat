@@ -1,7 +1,7 @@
 # Apps that live in their own repositories. `paperboat pkg install <name>` clones one (a release tag,
 # or main) into the per-user store and builds it there. `deps` are installed first and sit next to the app (npm's file:../<dep>,
 # Julia's path deps), so an app's name is also its folder name.
-# kind: program (start/stop it; `launch` is the command that runs it, `port` where it listens) or library.
+# kind: squero (start/stop it; `launch` is the command that runs it, `port` where it listens) or library.
 #
 # A dep is "name" or "name@range"; the range is the leading numbers of a version ("0.1": any 0.1.x).
 # paperboat and paperboat-shared share a MAJOR.MINOR line, so the apps here pin paperboat-shared to this
@@ -60,8 +60,8 @@ build = ["bin/build-image"]  # the pinned image with podman or docker, else a na
 [[apps]]
 name = "squero-studio-om"
 repo = "https://github.com/paperboatlab/squero-studio-om.git"
-description = "Squero Studio: OpenModelica. The Modelica editor that exports Paperboat C++ backends."
-kind = "program"
+description = "Squero Studio: OpenModelica. The Modelica editor that exports Paperboat C++ stations."
+kind = "squero"
 launch = "bin/squero-om"  # `paperboat start squero-studio-om` runs its native launcher
 port = 59201  # squero-om's first free port (59201..59299)
 deps = ["paperboat-shared@0.1"]
@@ -75,7 +75,7 @@ output = "dist"
 name = "squero-studio-mx"
 repo = "https://github.com/paperboatlab/squero-studio-mx.git"
 description = "Squero Studio: MX. The MATLAB-like Julia workbench with Paperboat simulation."
-kind = "program"
+kind = "squero"
 launch = "bin/squero-mx"  # `paperboat start squero-studio-mx` runs its native launcher
 port = 59202  # squero-mx's first free port (59202 up; the Squero Studios share 592xx)
 deps = ["paperboat-shared@0.1", "squero-julia-kernel@1.11"]

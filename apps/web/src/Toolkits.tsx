@@ -46,7 +46,7 @@ export function MissingToolkitsDialog({
       </header>
       <div className="notice-body">
         <p>
-          This backend or project requires {missing.length === 1 ? "a toolkit" : "toolkits"} that{" "}
+          This station or project requires {missing.length === 1 ? "a toolkit" : "toolkits"} that{" "}
           {missing.length === 1 ? "is" : "are"} not installed. Install from the repository or folder you trust;
           the manifest only suggests a source.
         </p>
@@ -112,7 +112,7 @@ export function ToolkitsButton({
   connected,
   requested,
   version,
-  backend,
+  station,
   onInstall,
   onUninstall,
   onRestart,
@@ -122,10 +122,10 @@ export function ToolkitsButton({
   connected: boolean;
   /** What was asked for and not yet acknowledged (ink installs, web sends), so the row says so at once. */
   requested: Record<string, string>;
-  /** The Paperboat build serving the backend (hello.version). */
+  /** The Paperboat build serving the station (hello.version). */
   version?: string;
-  /** The backend's name (hello.engine). */
-  backend?: string;
+  /** The station's name (hello.engine). */
+  station?: string;
   onInstall: (name: string, version?: string) => void;
   onUninstall: (name: string) => void;
   onRestart: () => void;
@@ -150,32 +150,32 @@ export function ToolkitsButton({
         Toolkits
       </button>
       {open && (
-        <PackageWindow title="Toolkits" tags={[version && `paperboat ${version}`, backend].filter((t): t is string => !!t)} onClose={() => setOpen(false)}>
+        <PackageWindow title="Toolkits" tags={[version && `paperboat ${version}`, station].filter((t): t is string => !!t)} onClose={() => setOpen(false)}>
           <PackagePanel
             noun="toolkit"
             busy={busy}
-            error={connected ? undefined : "Not connected to a backend: connect one to install toolkits."}
+            error={connected ? undefined : "Not connected to a station: connect one to install toolkits."}
             runtime={{
               title: "paperboat",
               tag: version,
-              hint: "Update Paperboat itself with `paperboat update`; toolkits install into the backend it serves.",
+              hint: "Update Paperboat itself with `paperboat update`; toolkits install into the station it serves.",
             }}
             environment={{
               title: "toolkits",
-              tag: backend,
+              tag: station,
               packages: items
                 .filter((t) => t.installed || busyOf(t))
                 .map((t) => ({
                   name: t.name,
                   version: versionOf(t),
                   status: busyOf(t) ? `${busyOf(t)}…` : undefined,
-                  keep: t.required ? "Required by this backend: it can't be removed" : undefined,
+                  keep: t.required ? "Required by this station: it can't be removed" : undefined,
                   update: newerRelease(versionOf(t), t.versions),
                 })),
               empty: "No optional toolkits installed. Add one from the registry.",
               remove: connected ? (name) => onUninstall(name) : undefined,
               update: connected ? (name, v) => onInstall(name, v) : undefined,
-              actions: [{ label: "Restart backend", title: "Restart the backend after installing or updating", disabled: !connected, run: () => (setOpen(false), onRestart()) }],
+              actions: [{ label: "Restart station", title: "Restart the station after installing or updating", disabled: !connected, run: () => (setOpen(false), onRestart()) }],
             }}
             registry={{
               title: "toolkits.toml",
@@ -185,7 +185,7 @@ export function ToolkitsButton({
                 description: t.description,
                 repo: t.repo,
                 versions: [...(t.versions ?? []), "dev"],
-                facts: t.required && !t.installed ? ["missing: required by this backend"] : undefined,
+                facts: t.required && !t.installed ? ["missing: required by this station"] : undefined,
               })),
               itemsLabel: `${items.length} toolkit${items.length === 1 ? "" : "s"}`,
               pickVersion: true,

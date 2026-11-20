@@ -21,16 +21,16 @@ Views
 -----
 
 ``[station] view`` says how the Station page shows the station. ``[station] visible = false``
-hides the page by default; each backend connection starts from its own default, and
-**View > Station page** shows or hides it for that backend alone (**View > Station page:
-follow backend** returns to the backend's default).
+hides the page by default; each station connection starts from its own default, and
+**View > Station page** shows or hides it for that station alone (**View > Station page:
+follow station** returns to the station's default).
 
 ``scene`` (default)
    The built-in 2D or 3D scene of **entities**: ``box``, ``sphere`` (``size[0]`` = radius), ``cylinder`` (``size[0]`` = radius, ``size[1]`` = length along y),
    ``line`` (``pos`` → ``to``) and ``image`` (a picture ``size[0]`` × ``size[1]``), with
    ``pos``, ``size``, ``rot`` (radians, x, y, z order), ``scale``, ``color``. Station objects,
    the domain state and blocks draw them; ``scene.patch`` updates them during a run. The
-   backend's ``view`` hint picks the camera (``{"mode": "2d", "center": [x, y], "height": h}``; in 3D,
+   station's ``view`` hint picks the camera (``{"mode": "2d", "center": [x, y], "height": h}``; in 3D,
    ``camera`` and ``floor``, the height of the floor grid). ``[station] orientation`` picks the
    3D corner widget: ``"cube"`` (default, the CAD view cube) or ``"axes"`` (the bottom-left
    axis triad).
@@ -41,14 +41,14 @@ follow backend** returns to the backend's default).
    parts, tested from the Flow (``paperboat-examples/chain-python``).
 
 ``web``
-   The backend's own page, for a station the built-in views can't show (a map, a
+   The station's own page, for a station the built-in views can't show (a map, a
    document, a game's own look). See below.
 
 Web stations
 ------------
 
-The page lives in the backend's folder (``page = "station/index.html"``). The engine serves
-that folder over HTTP on the backend's own port, and the bridge script at
+The page lives in the station's folder (``page = "station/index.html"``). The engine serves
+that folder over HTTP on the station's own port, and the bridge script at
 ``/paperboat/station.js``; nothing else. The UI shows the page in a sandboxed iframe
 (scripts only, no same-origin) and relays every protocol message to it. **The page renders;
 the engine decides**: it may send back only what the Station could (a station edit, a key).
@@ -80,7 +80,7 @@ the engine decides**: it may send back only what the Station could (a station ed
 .. js:function:: paperboat.setStation(station)
 
    Replace the station (``{ objects: [...] }``), as an edit on the Station panel does
-   (``station.set``). The backend checks it.
+   (``station.set``). The station checks it.
 
 .. js:function:: paperboat.input(key, down)
 

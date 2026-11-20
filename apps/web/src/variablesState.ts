@@ -1,12 +1,12 @@
-// Variables (#36) as the app holds them: the backend's defaults, then the user's own (kept in the
-// project, #34), the sheet's undo, keeping the backend told, and what renaming or removing one does
+// Variables (#36) as the app holds them: the station's defaults, then the user's own (kept in the
+// project, #34), the sheet's undo, keeping the station told, and what renaming or removing one does
 // to the Flow, the Station and the Board that use it.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { EngineState } from "./engine";
-import type { ClientMsg, DashboardLayout, ParamValue, ServerMsg, Station, Variable, Variables } from "./protocol";
+import type { ClientMsg, BoardLayout, ParamValue, ServerMsg, Station, Variable, Variables } from "./protocol";
 import { emptyOf, freeName, merged, refersTo, renameInFormula, renameRef, usesOf, type Use } from "./bindings";
-import { mapTexts, renameInText, textUsing } from "./dashboardLayout";
+import { mapTexts, renameInText, textUsing } from "./boardLayout";
 import type { VarsApi } from "./VarsContext";
 import { isBlock, type FlowNode } from "./flowModel";
 
@@ -14,10 +14,10 @@ import { isBlock, type FlowNode } from "./flowModel";
 const NO_REMOTE: Variables = [];
 
 export function useVariables(state: EngineState, send: (m: ClientMsg) => void, subscribe: (f: (m: ServerMsg) => void) => () => void) {
-  // Variables (#36): the backend's defaults, then the user's own (kept in the project, #34). The engine resolves them and says what they come to.
+  // Variables (#36): the station's defaults, then the user's own (kept in the project, #34). The engine resolves them and says what they come to.
   const [mine, setMine] = useState<Variables | undefined>(undefined);
   const engineKey = state.engine || "default";
-  useEffect(() => setMine(undefined), [engineKey]); // another backend: its defaults; a project (or the restored session) brings the user's own
+  useEffect(() => setMine(undefined), [engineKey]); // another station: its defaults; a project (or the restored session) brings the user's own
   const project = useMemo(() => merged(state.variables, mine), [state.variables, mine]);
   // MX's live variables are shown beside the project's own; the project is what we send back.
   // A state restored before this field existed (or a message without a list) has none.
@@ -47,16 +47,16 @@ export function useVariables(state: EngineState, send: (m: ClientMsg) => void, s
       }),
     [subscribe, state.variables],
   );
-  // The backend keeps the variables it was last told: tell it when they change.
-  const backendVars = useRef("[]");
+  // The station keeps the variables it was last told: tell it when they change.
+  const stationVars = useRef("[]");
   useEffect(() => {
-    backendVars.current = JSON.stringify(state.variables);
+    stationVars.current = JSON.stringify(state.variables);
   }, [state.variables, state.engine]);
   useEffect(() => {
     if (state.connection !== "open") return;
     const now = JSON.stringify(project);
-    if (now === backendVars.current) return;
-    backendVars.current = now;
+    if (now === stationVars.current) return;
+    stationVars.current = now;
     send({ type: "variables.set", variables: project });
   }, [project, state.connection, send]);
   const undoVars = (redo: boolean) => {
@@ -96,8 +96,8 @@ export function varsApiFor({
   setNodes: Dispatch<SetStateAction<FlowNode[]>>;
   station: Station | null;
   editStation: (next: Station) => void;
-  dashLayout: DashboardLayout | undefined;
-  saveDash: (next: DashboardLayout | undefined) => void;
+  dashLayout: BoardLayout | undefined;
+  saveDash: (next: BoardLayout | undefined) => void;
   setOpenVar: (name: string | null) => void;
   setVarsShown: (v: "open" | "closed") => void;
 }): VarsApi {
@@ -108,7 +108,7 @@ export function varsApiFor({
     if (station?.objects.some((o) => Object.values(o.props ?? {}).some(uses)))
       editStation({ objects: station.objects.map((o) => ({ ...o, props: mapParams(o.props ?? {}, f) })) });
   };
-  /** Labels and section titles: the same rewrite as in params. Rewriting the backend's default layout makes it the user's own. */
+  /** Labels and section titles: the same rewrite as in params. Rewriting the station's default layout makes it the user's own. */
   const rewriteLabels = (f: (text: string) => string) => {
     if (!dashLayout) return;
     const next = mapTexts(dashLayout, f);
@@ -140,7 +140,7 @@ export function varsApiFor({
     },
     uses: (name) => [
       ...usesOf(name, nodes.filter(isBlock).map((n) => ({ id: n.id, params: n.data.params })), station, variables),
-      ...textUsing(dashLayout, name).map((d): Use => ({ page: "dashboard", id: d.kind, field: d.text })),
+      ...textUsing(dashLayout, name).map((d): Use => ({ page: "board", id: d.kind, field: d.text })),
     ],
     reveal: (name) => {
       setVarsShown("open");

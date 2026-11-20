@@ -10,7 +10,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/core/graph.hpp"
 #include "rig.hpp"
 
@@ -23,7 +23,7 @@ using Catch::Matchers::WithinAbs;
 namespace {
 
 const tk::Catalog& catalog() {
-  static const tk::Catalog c = tk::load_descriptor("domain = \"v\"\nimport = [\"base\", \"math\", \"control\", \"signal\", \"string\", \"dashboard\"]\n", rig::registry());
+  static const tk::Catalog c = tk::load_descriptor("domain = \"v\"\nimport = [\"base\", \"math\", \"control\", \"signal\", \"string\", \"board\"]\n", rig::registry());
   return c;
 }
 
@@ -54,9 +54,9 @@ json wire(const std::string& a, const std::string& ap, const std::string& b, con
 
 std::string run(const json& graph, Out& out, core::RunSettings::Mode mode = core::RunSettings::Mode::Once, double duration = 1,
                 const tk::Catalog& cat = catalog(), const json& station = nullptr) {
-  const core::Backend backend{.engine = "test", .catalog = &cat,
-                              .run = {.mode = mode, .dt = 0.01, .duration = duration, .emit_every = 1, .real_time = false}};
-  return core::run("r", graph, station, backend, out.emit(), nullptr, {});
+  const core::Station spec{.engine = "test", .catalog = &cat,
+                           .run = {.mode = mode, .dt = 0.01, .duration = duration, .emit_every = 1, .real_time = false}};
+  return core::run("r", graph, station, spec, out.emit(), nullptr, {});
 }
 
 std::vector<double> numbers(const json& v) { return v.get<std::vector<double>>(); }
@@ -203,7 +203,7 @@ TEST_CASE("a linked block takes a vector as one wire, from a Mux or an elementwi
   registry.add(tk::define_object<Plant>("plant", {.type = "plant", .label = "Plant",
                                                   .block = tk::BlockDef{.type = "plant", .label = "Plant", .kind = tk::Kind::Source,
                                                                         .inputs = {tk::vector_port("u", 3)}, .outputs = {{"sum"}}}}));
-  static const tk::Catalog cat = tk::load_descriptor("domain = \"plant\"\nimport = [\"base\", \"math\", \"dashboard\"]\n", registry);
+  static const tk::Catalog cat = tk::load_descriptor("domain = \"plant\"\nimport = [\"base\", \"math\", \"board\"]\n", registry);
   const json station = {{"objects", {{{"id", "p"}, {"type", "plant"}}}}};
   const json g = {{"nodes", {node("m", "mux", {{"names", "a b c"}}), node("one", "constant", {{"value", 1}}), node("k", "gain", {{"k", 2}}),
                              node("p", "plant"), node("show", "display")}},
@@ -263,9 +263,9 @@ TEST_CASE("a Scope sends one sample per wired input, tagged with it; a vector st
     CHECK(by_port["c"]["v"].is_array());
     CHECK(by_port["c"]["components"][1]["id"] == "q");
   }
-  // A backend's default layout may carry an instrument's settings (a table; the toolkit's UI reads them).
-  CHECK_NOTHROW(tk::load_descriptor("import = [\"dashboard\"]\n[dashboard]\ninstruments = [{ block = \"sc\", settings = { mode = \"xy\", window = 2 } }]\n"));
-  CHECK_THROWS_WITH(tk::load_descriptor("import = [\"dashboard\"]\n[dashboard]\ninstruments = [{ block = \"sc\", settings = 3 }]\n"),
+  // A station's default layout may carry an instrument's settings (a table; the toolkit's UI reads them).
+  CHECK_NOTHROW(tk::load_descriptor("import = [\"board\"]\n[board]\ninstruments = [{ block = \"sc\", settings = { mode = \"xy\", window = 2 } }]\n"));
+  CHECK_THROWS_WITH(tk::load_descriptor("import = [\"board\"]\n[board]\ninstruments = [{ block = \"sc\", settings = 3 }]\n"),
                     ContainsSubstring("settings must be a table"));
 
   // Setting inputs to 1 gives a single input "a" (pb#189)

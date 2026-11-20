@@ -6,7 +6,7 @@ test("console starts ready before the first run and records non-run logs", () =>
   assert.equal(initial.run, null);
   assert.deepEqual(initial.logs, []);
 
-  // Backend connection before any run logs to the Console.
+  // Station connection before any run logs to the Console.
   const s1 = reduce(initial, { type: "hello", protocol: "paperboat/0", engine: "cart-pole" });
   assert.equal(s1.run, null);
   assert.deepEqual(s1.logs, [{ level: "info", text: "connected to cart-pole" }]);
@@ -24,13 +24,13 @@ test("console starts ready before the first run and records non-run logs", () =>
 
 test("console records connection failures before and after connecting without flooding retries", () => {
   const s1 = reduce(initial, { type: "connection", value: "closed" });
-  assert.deepEqual(s1.logs, [{ level: "warn", text: "waiting for backend, reconnecting…" }]);
+  assert.deepEqual(s1.logs, [{ level: "warn", text: "waiting for station, reconnecting…" }]);
 
   // Repeated retry cycles do not duplicate the waiting message.
   const s2 = reduce(reduce(s1, { type: "connection", value: "connecting" }), { type: "connection", value: "closed" });
   assert.equal(s2.logs.length, 1);
 
-  // Preserves logs across reset (e.g. switching or reconnecting backend).
+  // Preserves logs across reset (e.g. switching or reconnecting station).
   const s3 = reduce(s2, { type: "reset" });
   assert.equal(s3.logs.length, 1);
 });

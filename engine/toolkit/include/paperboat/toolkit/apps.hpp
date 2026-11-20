@@ -28,10 +28,10 @@ struct AppEntry {
   std::string description;
   std::vector<AppDep> deps;        // apps that must sit next to this one when it builds
   std::vector<std::string> build;  // commands run in the app's folder after the clone
-  std::string output;              // folder the build makes (a program serves it)
-  std::string kind = "program";    // "program" runs (start/stop it); "library" only builds
-  std::string launch;              // what runs a program: a paperboat command or a binary path
-  int port = 0;                    // where a running program listens (`stop` and `list` find it there)
+  std::string output;              // folder the build makes (a squero serves it)
+  std::string kind = "squero";     // "squero" runs (start/stop it); "library" only builds
+  std::string launch;              // what runs a squero: a paperboat command or a binary path
+  int port = 0;                    // where a running squero listens (`stop` and `list` find it there)
   // Tools it needs on PATH to build and run (apps.toml `requires`); "podman|docker|julia" is any one of them.
   std::vector<std::string> prerequisites;
   bool installed = false;

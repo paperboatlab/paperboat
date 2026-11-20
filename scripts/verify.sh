@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Check paperboat and ../paperboat-shared (and ../squero-studio-om when it is checked out) and print one table.
-#   scripts/verify.sh            everything: builds, engine tests, sdk-backend check, docs
+#   scripts/verify.sh            everything: builds, engine tests, sdk-station check, docs
 #   scripts/verify.sh --quick    typecheck + unit tests + generator checks only (seconds)
 # Exit 1 if any step fails; a failed step's log is in $LOG/<n>.log (default /tmp/paperboat-verify).
 cd "$(dirname "$0")/.." || exit 1
@@ -37,7 +37,7 @@ if [ $QUICK = 0 ]; then
   step "paperboat: web build"     "$ROOT"   npm run -s build
   step "engine: build"            "$ROOT"   cmake --build engine/build -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
   step "engine: unit tests"       "$ROOT"   engine/build/tests/paperboat_tests
-  step "engine: check sdk-backend" "$ROOT" "$PB" check engine/tests/sdk-backend
+  step "engine: check sdk-station" "$ROOT" "$PB" check engine/tests/sdk-station
   step "paperboat: install tree clean" "$ROOT" sh -c 'rm -rf engine/build/bundle-check && cmake --install engine/build --prefix engine/build/bundle-check >/dev/null && python3 scripts/check_bundle.py --prefix engine/build/bundle-check'
   step "docs: build (-W)"         "$ROOT"   ./scripts/build_docs.sh
 fi

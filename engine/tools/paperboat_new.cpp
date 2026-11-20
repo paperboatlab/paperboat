@@ -1,4 +1,4 @@
-// `paperboat new <name> [--cpp | --python] [--dir <path>]`: a minimal backend to start from,
+// `paperboat new <name> [--cpp | --python] [--dir <path>]`: a minimal station to start from,
 // written from the templates embedded in the binary (templates/, new_templates.cmake).
 
 #include "paperboat_new.hpp"
@@ -34,7 +34,7 @@ std::string shell_quote(std::string_view text) {
   return out;
 }
 
-// The program a C++ backend builds: paperboat-<name> (`paperboat build` and `run` look for paperboat-*).
+// The program a C++ station builds: paperboat-<name> (`paperboat build` and `run` look for paperboat-*).
 std::string program_name(const std::string& name) {
   return name.starts_with("paperboat-") ? name : "paperboat-" + name;
 }
@@ -45,7 +45,7 @@ std::string identifier(std::string name) {
   return name;
 }
 
-// The checkout's Paperboat.jl, the package a Julia backend's Project.toml points at.
+// The checkout's Paperboat.jl, the package a Julia station's Project.toml points at.
 std::string julia_package_path() {
   const std::filesystem::path root = paperboat::toolkit::find_repo_root();
   if (!root.empty()) return (root / "julia" / "Paperboat").generic_string();
@@ -58,20 +58,20 @@ std::string render(std::string_view content, const NewOptions& o) {
   replace_all(text, "@name@", o.name);
   replace_all(text, "@ident@", identifier(o.name));
   replace_all(text, "@target@", program_name(o.name));
-  replace_all(text, "@port@", std::to_string(kNewBackendPort));
+  replace_all(text, "@port@", std::to_string(kNewStationPort));
   return text;
 }
 
 fs::path output_path(std::string_view path) {
   fs::path p{std::string(path)};
-  if (p.filename() == "gitignore") p.replace_filename(".gitignore");  // a dotfile in the backend, not in the repo
+  if (p.filename() == "gitignore") p.replace_filename(".gitignore");  // a dotfile in the station, not in the repo
   return p;
 }
 
 }  // namespace
 
-std::string check_backend_name(std::string_view name) {
-  if (name.empty()) return "a backend needs a name";
+std::string check_station_name(std::string_view name) {
+  if (name.empty()) return "a station needs a name";
   if (name.size() > 64) return "the name is longer than 64 characters";
   const auto lower = [](char c) { return c >= 'a' && c <= 'z'; };
   const auto digit = [](char c) { return c >= '0' && c <= '9'; };
@@ -84,10 +84,10 @@ std::string check_backend_name(std::string_view name) {
   return {};
 }
 
-NewResult new_backend(const NewOptions& options) {
+NewResult new_station(const NewOptions& options) {
   NewResult res;
-  if (std::string why = check_backend_name(options.name); !why.empty()) {
-    res.error = "invalid backend name \"" + options.name + "\": " + why + " (e.g. my-backend)";
+  if (std::string why = check_station_name(options.name); !why.empty()) {
+    res.error = "invalid station name \"" + options.name + "\": " + why + " (e.g. my-station)";
     return res;
   }
   std::vector<const TemplateFile*> files;
@@ -169,7 +169,7 @@ int cmd_new(const std::vector<std::string_view>& args) {
     std::cerr << "error: a name is required: paperboat new <name> [--cpp | --python | --julia] [--dir <path>]\n";
     return 2;
   }
-  // `paperboat new backends/my-backend`: the folder, named after its last part.
+  // `paperboat new stations/my-station`: the folder, named after its last part.
   if (where.empty() && opts.name.find_first_of("/\\") != std::string::npos) {
     where = opts.name;
     opts.name = fs::path(opts.name).lexically_normal().filename().string();
@@ -179,7 +179,7 @@ int cmd_new(const std::vector<std::string_view>& args) {
   opts.language = julia ? "julia" : python ? "python" : "cpp";
   opts.dir = where;
 
-  const NewResult res = new_backend(opts);
+  const NewResult res = new_station(opts);
   if (!res.ok) {
     std::cerr << "error: " << res.error << '\n';
     return 1;
@@ -187,8 +187,8 @@ int cmd_new(const std::vector<std::string_view>& args) {
 
   const bool is_cpp = opts.language == "cpp";
   const bool is_julia = opts.language == "julia";
-  const std::string url = "ws://localhost:" + std::to_string(kNewBackendPort);
-  std::cout << "[ok] created " << (is_cpp ? "C++" : is_julia ? "Julia" : "Python") << " backend \"" << opts.name
+  const std::string url = "ws://localhost:" + std::to_string(kNewStationPort);
+  std::cout << "[ok] created " << (is_cpp ? "C++" : is_julia ? "Julia" : "Python") << " station \"" << opts.name
             << "\" in " << res.dir.string()
             << '\n';
   for (const auto& f : res.files) std::cout << "  " << f.generic_string() << '\n';
@@ -204,7 +204,7 @@ int cmd_new(const std::vector<std::string_view>& args) {
   std::cout << "  paperboat check     verify it: manifest, catalog, protocol smoke test, golden run\n"
                "  paperboat run       serve it on " << url << "\n"
                "  paperboat start     the web app (in another terminal), then open\n"
-               "                      http://localhost:3047/?backend=" << url << " and press Run\n"
+               "                      http://localhost:3047/?station=" << url << " and press Run\n"
                "Then make it yours: add blocks in domain/, use them in descriptor.toml's [graph], and update\n"
                "expected.json to what your starter graph should end with.\n";
   return 0;

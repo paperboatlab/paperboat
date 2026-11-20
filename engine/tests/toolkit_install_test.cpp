@@ -50,7 +50,7 @@ std::string read_file(const fs::path& path) {
 // with a register list, one folder per block, and its examples.
 struct Fixture {
   fs::path root;     // the repository the installer writes into
-  fs::path backend;  // the backend asking for the toolkit
+  fs::path station;  // the station asking for the toolkit
   fs::path source;   // the local toolkit folder the catalog points at
   fs::path target;   // root/engine/toolkit/<name>, where the install lands
 };
@@ -58,7 +58,7 @@ struct Fixture {
 Fixture make_fixture(const fs::path& tmp, const ToolkitEntry& entry) {
   Fixture f;
   f.root = tmp / ("repo-" + entry.name);
-  f.backend = tmp / ("backend-" + entry.name);
+  f.station = tmp / ("station-" + entry.name);
   f.source = tmp / ("source-" + entry.name);
   f.target = f.root / "engine" / "toolkit" / entry.name;
 
@@ -74,8 +74,8 @@ Fixture make_fixture(const fs::path& tmp, const ToolkitEntry& entry) {
   manifest << "]\n";
   write_file(f.root / "toolkits.toml", manifest.str());
 
-  // The backend requires the toolkit: list_toolkits reports `required` from this file.
-  write_file(f.backend / "toolkit_requirements.toml", "toolkits = [\"" + entry.name + "\"]\n");
+  // The station requires the toolkit: list_toolkits reports `required` from this file.
+  write_file(f.station / "toolkit_requirements.toml", "toolkits = [\"" + entry.name + "\"]\n");
 
   write_file(f.source / "toolkit.toml",
              "name = \"" + entry.name + "\"\noptional = true\nregister = [\"register_" + entry.name + "\"]\n");
@@ -161,7 +161,7 @@ TEST_CASE("every toolkit in toolkits.toml installs, lists and uninstalls") {
       CHECK(record["ref"] == "local");
       CHECK(record["commit"] == "local");
 
-      const auto list = list_toolkits(fixture.root, fixture.backend);
+      const auto list = list_toolkits(fixture.root, fixture.station);
       REQUIRE(list.size() == 2);
       CHECK(list[0].builtin);
       CHECK(list[0].installed);  // the built-in entry is always installed
@@ -182,7 +182,7 @@ TEST_CASE("every toolkit in toolkits.toml installs, lists and uninstalls") {
       CAPTURE(removed.message);
       CHECK(removed.ok);
       CHECK_FALSE(fs::exists(fixture.target));
-      CHECK_FALSE(list_toolkits(fixture.root, fixture.backend)[1].installed);
+      CHECK_FALSE(list_toolkits(fixture.root, fixture.station)[1].installed);
     }
   }
   fs::remove_all(tmp, ec);
@@ -244,7 +244,7 @@ TEST_CASE("the cmake a build was made with is taken from its cache, not from PAT
   write_file(tmp / "build" / "CMakeCache.txt", "# This is the CMakeCache file.\nCMAKE_COMMAND:INTERNAL=" + fake_cmake.generic_string() +
                                                    "\nCMAKE_GENERATOR:INTERNAL=Ninja\n");
   CHECK(paperboat::platform::cmake_command(tmp / "build") == fake_cmake.generic_string());
-  // The cache above it is found too: a backend's own build folder often has none of its own.
+  // The cache above it is found too: a station's own build folder often has none of its own.
   CHECK(paperboat::platform::cmake_command(tmp / "build" / "Release") == fake_cmake.generic_string());
   // Nothing recorded anywhere: whatever cmake the program itself was built with, or PATH's.
   CHECK_FALSE(paperboat::platform::cmake_command(tmp / "elsewhere").empty());

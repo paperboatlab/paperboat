@@ -56,7 +56,7 @@ namespace {
 
 const tk::Catalog& catalog() {
   static const tk::Catalog c = tk::load_descriptor(R"(domain = "c"
-import = ["base", "math", "dashboard"]
+import = ["base", "math", "board"]
 
 [[blocks]]
 use = "math/gain"
@@ -67,7 +67,7 @@ units = { u = "m", y = "N", k = "N/m" }
 }
 
 std::string graph_fails(const json& nodes, const json& edges) {
-  core::Station station;
+  core::StationObjects station;
   try {
     core::prepare_graph({{"nodes", nodes}, {"edges", edges}}, catalog(), station);
   } catch (const core::GraphError& err) {

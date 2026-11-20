@@ -136,12 +136,12 @@ function launcherDevApi(): Plugin {
 
       void (async () => {
         if (req.method === "GET" && url.pathname === "/__launcher/state") {
-          const [verLines, running, statusDoc, backends, appsAll, toolkits, commands] = await Promise.all([
+          const [verLines, running, statusDoc, stations, appsAll, toolkits, commands] = await Promise.all([
             runCliLines(["--version"]),
             runCliJson<unknown[]>(["list", "--json"], []),
-            runCliJson<{ backends?: unknown[] }>(["status", "--json"], { backends: [] }),
-            runCliJson<unknown[]>(["backends", "--json"], []),
-            runCliJson<Array<{ name: string }>>(["pkg", "list", "--json"], []),
+            runCliJson<{ stations?: unknown[] }>(["status", "--json"], { stations: [] }),
+            runCliJson<unknown[]>(["stations", "--json"], []),
+            runCliJson<Array<{ name: string }>>(["squero", "list", "--json"], []),
             runCliJson<unknown[]>(["toolkit", "list", "--json"], []),
             runCliJson<unknown[]>(["commands", "--json"], []),
           ]);
@@ -155,8 +155,8 @@ function launcherDevApi(): Plugin {
             installType: existsSync(join(repoRoot, ".git")) ? `git checkout (${repoRoot})` : `desktop app (${bin})`,
             homeDir: paperboatHome(),
             running: Array.isArray(running) ? running : [],
-            status: Array.isArray(statusDoc?.backends) ? statusDoc.backends : [],
-            backends: Array.isArray(backends) ? backends : [],
+            status: Array.isArray(statusDoc?.stations) ? statusDoc.stations : [],
+            stations: Array.isArray(stations) ? stations : [],
             apps: userApps,
             toolkits: Array.isArray(toolkits) ? toolkits : [],
             commands: Array.isArray(commands) ? commands : [],
@@ -174,7 +174,7 @@ function launcherDevApi(): Plugin {
         if (req.method === "GET" && url.pathname === "/__launcher/versions") {
           const kind = url.searchParams.get("kind");
           const name = url.searchParams.get("name") || "";
-          const versions = await runCliLines(kind === "toolkit" ? ["toolkit", "versions", name] : ["pkg", "versions", name]);
+          const versions = await runCliLines(kind === "toolkit" ? ["toolkit", "versions", name] : ["squero", "versions", name]);
           return sendJson(res, 200, { versions });
         }
 
@@ -264,16 +264,16 @@ function launcherDevApi(): Plugin {
           return sendJson(res, 200, { ok: true });
         }
 
-        if (req.method === "POST" && url.pathname === "/__launcher/remove-backend") {
+        if (req.method === "POST" && url.pathname === "/__launcher/remove-station") {
           const body = await readBody(req);
-          const base = realpathSync(join(paperboatHome(), "backends"));
+          const base = realpathSync(join(paperboatHome(), "stations"));
           const target = realpathSync(String(body.dir || ""));
           const rel = relative(base, target);
           if (!rel || rel.startsWith("..") || isAbsolute(rel)) {
-            return sendJson(res, 400, { error: `Can only uninstall backends inside ${base}` });
+            return sendJson(res, 400, { error: `Can only uninstall stations inside ${base}` });
           }
           rmSync(target, { recursive: true, force: true });
-          pushLog(0, "ok", `removed backend ${basename(target)}`);
+          pushLog(0, "ok", `removed station ${basename(target)}`);
           return sendJson(res, 200, { ok: true });
         }
 

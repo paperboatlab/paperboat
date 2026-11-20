@@ -17,7 +17,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/core/executor.hpp"
 #include "rig.hpp"
 #include "received.hpp"
@@ -107,8 +107,8 @@ edges = []
 
 TEST_CASE("the starter run matches the reference result") {
   Collected out;
-  const core::Backend backend{.engine = "test", .catalog = &rig::catalog(), .run = {.real_time = false}};
-  const auto status = core::run("run-1", starter_graph(), starter_station(), backend, out.emit(), nullptr, std::stop_token{});
+  const core::Station station{.engine = "test", .catalog = &rig::catalog(), .run = {.real_time = false}};
+  const auto status = core::run("run-1", starter_graph(), starter_station(), station, out.emit(), nullptr, std::stop_token{});
   CHECK(status == "done");
   CHECK(out.messages.front()["type"] == "run.started");
   CHECK(out.messages.back()["type"] == "run.finished");
@@ -120,19 +120,19 @@ TEST_CASE("the starter run matches the reference result") {
 
 TEST_CASE("a block sees the run's stop token") {
   Collected out;
-  const core::Backend backend{.engine = "test", .catalog = &stop_catalog(), .run = {.real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &stop_catalog(), .run = {.real_time = false}};
   std::stop_source stop;
   std::jthread cancel([&] {
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     stop.request_stop();
   });
-  const auto status = core::run("stop", json::parse(stop_catalog().graph), nullptr, backend, out.emit(), nullptr,
+  const auto status = core::run("stop", json::parse(stop_catalog().graph), nullptr, station, out.emit(), nullptr,
                                 stop.get_token(), json{{"duration", 0}});
   CHECK(status == "cancelled");
 }
 
 TEST_CASE("a vector output must match its declared dimension") {
-  const core::Backend backend{.engine = "test", .catalog = &vector_catalog(), .run = {.real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &vector_catalog(), .run = {.real_time = false}};
   const json catalog = json::parse(tk::catalog_message(vector_catalog()));
   const auto definition = std::ranges::find_if(catalog.at("blocks"), [](const json& block) {
     return block.at("type") == "wrong-vector";
@@ -143,7 +143,7 @@ TEST_CASE("a vector output must match its declared dimension") {
 
   Collected out;
   const auto graph = json::parse(vector_catalog().graph);
-  CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "failed");
+  CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "failed");
   CHECK(std::ranges::any_of(out.messages, [](const json& message) {
     return message.value("type", "") == "node.state" && message.value("node", "") == "bad" &&
            message.value("state", "") == "failed";
@@ -159,7 +159,7 @@ TEST_CASE("a wire into a linked block is not a cycle; a missing station object f
   const auto g = core::prepare_graph(starter_graph(), rig::catalog(), station);
   CHECK(g.order.front() == "slider-1");  // read before anything uses it
 
-  core::Station empty;
+  core::StationObjects empty;
   CHECK_THROWS_WITH(core::prepare_graph(starter_graph(), rig::catalog(), empty),
                     ContainsSubstring("isn't there"));
 
@@ -172,13 +172,13 @@ TEST_CASE("a wire into a linked block is not a cycle; a missing station object f
 }
 
 TEST_CASE("a session sends the handshake, checks station edits and runs") {
-  static const core::Backend backend{.engine = "test",
+  static const core::Station station{.engine = "test",
                                      .catalog = &rig::catalog(),
                                      .run = {.dt = 0.01, .duration = 0.5, .emit_every = 10, .real_time = false}};
   std::vector<json> sent;
   std::mutex mutex;
   {
-    core::Session session(backend, [&](const std::string& text) {
+    core::Session session(station, [&](const std::string& text) {
       std::lock_guard lock(mutex);
       receive(sent, text);
     });
@@ -224,10 +224,10 @@ TEST_CASE("hello says the Station is hidden when the descriptor says so") {
   const auto hidden = tk::load_descriptor("domain = \"rig\"\n[station]\nvisible = false\n", rig::registry());
   const auto axes = tk::load_descriptor("domain = \"rig\"\n[station]\norientation = \"axes\"\n", rig::registry());
   for (const auto* catalog : {&shown, &hidden, &axes}) {
-    const core::Backend backend{.engine = "test", .catalog = catalog};
+    const core::Station station{.engine = "test", .catalog = catalog};
     std::vector<json> sent;
     {
-      core::Session session(backend, [&](const std::string& text) { receive(sent, text); });
+      core::Session session(station, [&](const std::string& text) { receive(sent, text); });
     }
     REQUIRE(!sent.empty());
     CHECK(sent.front()["type"] == "hello");
@@ -237,7 +237,7 @@ TEST_CASE("hello says the Station is hidden when the descriptor says so") {
 }
 
 TEST_CASE("a descriptor with no starter graph, or an empty one, opens an empty canvas without an error") {
-  // A backend may ship no [graph] at all, or one with nodes = []: both open the same empty
+  // A station may ship no [graph] at all, or one with nodes = []: both open the same empty
   // canvas, and neither is an error (no station either, so no station.load).
   const std::vector<std::string> descriptors = {
       "domain = \"rig\"\n",
@@ -246,10 +246,10 @@ TEST_CASE("a descriptor with no starter graph, or an empty one, opens an empty c
   for (const auto& toml : descriptors) {
     INFO(toml);
     const auto catalog = tk::load_descriptor(toml, rig::registry());
-    const core::Backend backend{.engine = "test", .catalog = &catalog};
+    const core::Station station{.engine = "test", .catalog = &catalog};
     std::vector<json> sent;
     {
-      core::Session session(backend, [&](const std::string& text) { receive(sent, text); });
+      core::Session session(station, [&](const std::string& text) { receive(sent, text); });
     }
     std::vector<std::string> types;
     for (const auto& m : sent) types.push_back(m["type"]);
@@ -262,7 +262,7 @@ TEST_CASE("a descriptor with no starter graph, or an empty one, opens an empty c
 }
 
 TEST_CASE("variables (#36): the same run with its numbers given by variables, and errors on the block") {
-  const core::Backend backend{.engine = "test", .catalog = &rig::catalog(), .run = {.real_time = false}};
+  const core::Station spec{.engine = "test", .catalog = &rig::catalog(), .run = {.real_time = false}};
   json graph = starter_graph();
   json station = starter_station();
   for (auto& n : graph["nodes"])
@@ -272,13 +272,13 @@ TEST_CASE("variables (#36): the same run with its numbers given by variables, an
                                       {{"name", "start"}, {"type", "number"}, {"value", 1}, {"unit", "m"}}});
   SECTION("resolved, the run is the reference run") {
     Collected out;
-    CHECK(core::run("r", graph, station, backend, out.emit(), nullptr, {}, nullptr, variables) == "done");
+    CHECK(core::run("r", graph, station, spec, out.emit(), nullptr, {}, nullptr, variables) == "done");
     CHECK_THAT(out.last_signal("graph-x"), WithinAbs(3.597e-07, 1e-10));
   }
   SECTION("an unknown variable fails the run, on the block that names it") {
     graph["nodes"][1]["params"]["kp"] = {{"var", "kq"}};
     Collected out;
-    CHECK(core::run("r", graph, station, backend, out.emit(), nullptr, {}, nullptr, variables) == "failed");
+    CHECK(core::run("r", graph, station, spec, out.emit(), nullptr, {}, nullptr, variables) == "failed");
     bool marked = false;
     for (const auto& m : out.messages)
       if (m["type"] == "log" && m["level"] == "error") {
@@ -291,14 +291,14 @@ TEST_CASE("variables (#36): the same run with its numbers given by variables, an
   SECTION("a bad list fails the run, naming the variable") {
     Collected out;
     const json loop = json::array({{{"name", "kp"}, {"type", "number"}, {"expr", "kp + 1"}}, variables[1]});
-    CHECK(core::run("r", graph, station, backend, out.emit(), nullptr, {}, nullptr, loop) == "failed");
+    CHECK(core::run("r", graph, station, spec, out.emit(), nullptr, {}, nullptr, loop) == "failed");
     CHECK_THAT(out.messages.at(out.messages.size() - 2)["text"].get<std::string>(), ContainsSubstring("variables loop: kp → kp"));
   }
 }
 
 TEST_CASE("a headless run takes --var for a default variable") {
   static const auto catalog = tk::load_descriptor(R"(domain = "v"
-import = ["base", "dashboard"]
+import = ["base", "board"]
 [[variables]]
 name = "level"
 value = 2
@@ -312,14 +312,14 @@ edges = [{ from = ["c", "y"], to = ["show", "in"] }]
   CHECK(core::with_vars(catalog, {{"level", "5"}})[0]["value"] == 5.0);
   CHECK(core::with_vars(catalog, {{"double", "7"}})[1]["value"] == 7.0);  // a formula set by hand
   CHECK(!core::with_vars(catalog, {{"double", "7"}})[1].contains("expr"));
-  CHECK_THROWS_WITH(core::with_vars(catalog, {{"lvl", "5"}}), ContainsSubstring("no such variable (this backend has level, double)"));
+  CHECK_THROWS_WITH(core::with_vars(catalog, {{"lvl", "5"}}), ContainsSubstring("no such variable (this station has level, double)"));
   CHECK_THROWS_WITH(core::with_vars(catalog, {{"level", "high"}}), ContainsSubstring("a number, not \"high\""));
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.mode = core::RunSettings::Mode::Once, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.mode = core::RunSettings::Mode::Once, .real_time = false}};
   std::ostringstream out;
-  CHECK(core::run_starter(backend, out, {{"level", "5"}}) == "done");
+  CHECK(core::run_starter(station, out, {{"level", "5"}}) == "done");
   CHECK_THAT(out.str(), ContainsSubstring(R"("node":"show")"));
   CHECK_THAT(out.str(), ContainsSubstring(R"("v":10.0)"));
-  const char* argv[] = {"backend", "--run", "--var", "level=5"};
+  const char* argv[] = {"station", "--run", "--var", "level=5"};
   const auto o = core::parse_options(4, const_cast<char**>(argv), 8765);
   CHECK(o.vars == std::vector<std::pair<std::string, std::string>>{{"level", "5"}});
 }
@@ -348,7 +348,7 @@ std::vector<std::string> logs(const Collected& out) {
 TEST_CASE("a Step flow runs in the core: paths, a When on a key, Stop") {
   const auto& catalog = catalog_of(R"(
 domain = "steps"
-import = ["step", "base", "signal", "dashboard"]
+import = ["step", "base", "signal", "board"]
 [graph]
 nodes = [
   { id = "start", type = "start" }, { id = "wait", type = "wait", params = { seconds = 0.2 } },
@@ -362,12 +362,12 @@ edges = [
   { from = ["clock", "t"], to = ["graph", "in"] },
 ]
 )");
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 5, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 5, .real_time = false}};
   const json graph = json::parse(catalog.graph);
 
   SECTION("without the key, the path ends and the When listens until the limit") {
     Collected out;
-    CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+    CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "done");
     std::vector<std::string> states;
     for (const auto& m : out.messages)
       if (m["type"] == "node.state") states.push_back(m["node"].get<std::string>() + ":" + m["state"].get<std::string>());
@@ -378,7 +378,7 @@ edges = [
     Collected out;
     int calls = 0;
     core::KeysNow keys = [&] { return ++calls > 30 ? tk::KeySet{"Space"} : tk::KeySet{}; };
-    CHECK(core::run("r", graph, nullptr, backend, out.emit(), keys, {}) == "done");
+    CHECK(core::run("r", graph, nullptr, station, out.emit(), keys, {}) == "done");
     CHECK(logs(out).back() == "stopped by stop at t = 0.30 s");
   }
 }
@@ -391,11 +391,11 @@ import = ["step", "base", "signal"]
 nodes = [{ id = "start", type = "start" }, { id = "key", type = "key" }, { id = "when", type = "when" }]
 edges = [{ from = ["key", "pressed"], to = ["when", "cond"] }]
 )");
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 1, .real_time = true, .speed = 1000}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 1, .real_time = true, .speed = 1000}};
   const json graph = json::parse(catalog.graph);
   Collected out;
   core::KeysNow slow = [] { std::this_thread::sleep_for(std::chrono::milliseconds(4)); return tk::KeySet{}; };  // ~0.4 s of work for 1 ms of wall budget
-  core::run("r", graph, nullptr, backend, out.emit(), slow, {});
+  core::run("r", graph, nullptr, station, out.emit(), slow, {});
   bool warned = false;
   for (const auto& m : out.messages)
     if (m["type"] == "log" && m["level"] == "warn" && m["text"].get<std::string>().find("computation delay") != std::string::npos) warned = true;
@@ -407,10 +407,10 @@ TEST_CASE("a Step flow joins paths, says what it sees, loops while and restarts 
 domain = "steps2"
 import = ["step", "base", "signal"]
 )");
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 5, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 5, .real_time = false}};
   auto run = [&](const json& graph, core::KeysNow keys = nullptr) {
     Collected out;
-    CHECK(core::run("r", graph, nullptr, backend, out.emit(), keys, {}) == "done");
+    CHECK(core::run("r", graph, nullptr, station, out.emit(), keys, {}) == "done");
     return out;
   };
   auto node = [](const char* id, const char* type, json params = json::object()) {
@@ -539,7 +539,7 @@ nodes = [{ id = "l", type = "lengths" }, { id = "t", type = "total" }, { id = "g
 edges = [{ from = ["l", "y"], to = ["t", "u"] }, { from = ["l", "y"], to = ["g", "in"] }]
 )", words::registry());
 
-  const core::Backend backend{
+  const core::Station station{
       .engine = "test",
       .catalog = &catalog,
       .state = [] { return std::make_unique<words::Words>(); },
@@ -547,7 +547,7 @@ edges = [{ from = ["l", "y"], to = ["t", "u"] }, { from = ["l", "y"], to = ["g",
       .run = {.mode = core::RunSettings::Mode::Once, .real_time = false},
   };
   Collected out;
-  CHECK(core::run("r", json::parse(catalog.graph), nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", json::parse(catalog.graph), nullptr, station, out.emit(), nullptr, {}) == "done");
   std::vector<double> plotted;
   for (const auto& m : out.messages)
     if (m["type"] == "signal") plotted.push_back(m["v"]);
@@ -573,7 +573,7 @@ edges = [{ from = ["l", "y"], to = ["t", "u"] }, { from = ["l", "y"], to = ["g",
 
 TEST_CASE("a run names the block at fault: an unknown type, or one that throws") {
   static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\n", words::registry());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .state = [] { return std::make_unique<words::Words>(); },
+  const core::Station station{.engine = "test", .catalog = &catalog, .state = [] { return std::make_unique<words::Words>(); },
                               .view = nullptr, .run = {.mode = core::RunSettings::Mode::Once, .real_time = false}};
   auto failed_node = [](const Collected& out) {
     for (const auto& m : out.messages)
@@ -583,12 +583,12 @@ TEST_CASE("a run names the block at fault: an unknown type, or one that throws")
 
   Collected lost;
   const json old = {{"nodes", {{{"id", "w-1"}, {"type", "wordcount"}}}}, {"edges", json::array()}};
-  CHECK(core::run("r", old, nullptr, backend, lost.emit(), nullptr, {}) == "failed");
+  CHECK(core::run("r", old, nullptr, station, lost.emit(), nullptr, {}) == "failed");
   CHECK(failed_node(lost) == "w-1");
   CHECK_THAT(logs(lost).back(), ContainsSubstring("unknown type \"wordcount\""));
 
-  static const tk::Catalog signals = tk::load_descriptor("domain = \"f\"\nimport = [\"signal\", \"base\", \"dashboard\"]\n");
-  const core::Backend fb{.engine = "test", .catalog = &signals, .run = {.mode = core::RunSettings::Mode::Once, .real_time = false}};
+  static const tk::Catalog signals = tk::load_descriptor("domain = \"f\"\nimport = [\"signal\", \"base\", \"board\"]\n");
+  const core::Station fb{.engine = "test", .catalog = &signals, .run = {.mode = core::RunSettings::Mode::Once, .real_time = false}};
   Collected bad_f;
   const json typo = {{"nodes", {{{"id", "f-1"}, {"type", "function"}, {"params", {{"f", "sinn(t)"}}}}}}, {"edges", json::array()}};
   CHECK(core::run("r", typo, nullptr, fb, bad_f.emit(), nullptr, {}) == "failed");
@@ -617,7 +617,7 @@ TEST_CASE("a run names the block at fault: an unknown type, or one that throws")
 
   Collected boom;
   const json graph = {{"nodes", {{{"id", "l"}, {"type", "lengths"}}, {{"id", "b-1"}, {"type", "boom"}}}}, {"edges", json::array()}};
-  CHECK(core::run("r", graph, nullptr, backend, boom.emit(), nullptr, {}) == "failed");
+  CHECK(core::run("r", graph, nullptr, station, boom.emit(), nullptr, {}) == "failed");
   CHECK(failed_node(boom) == "b-1");
   CHECK(logs(boom).back() == "b-1: boom");
 }
@@ -625,9 +625,9 @@ TEST_CASE("a run names the block at fault: an unknown type, or one that throws")
 TEST_CASE("story groups run as steps, in sequence, handing on their results") {
   const auto& catalog = catalog_of(R"(
 domain = "stories"
-import = ["step", "base", "signal", "math", "dashboard"]
+import = ["step", "base", "signal", "math", "board"]
 )");
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 5, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 5, .emit_every = 1, .real_time = false}};
   // Start → [simulate: ramp → gain, for 1 s] → [report: gain's result + 10, once].
   const json graph = {
       {"nodes",
@@ -652,7 +652,7 @@ import = ["step", "base", "signal", "math", "dashboard"]
         {{"id", "tidy"}, {"kind", "visual"}, {"nodes", {"start"}}}}}};
 
   Collected out;
-  CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "done");
   CHECK_THAT(out.last_signal("during"), WithinAbs(1.98, 1e-9));  // the last pass, t = 0.99 s
   CHECK_THAT(out.last_signal("result"), WithinAbs(11.98, 1e-9));  // report read simulate's result
   double first_result = -1;
@@ -664,7 +664,7 @@ import = ["step", "base", "signal", "math", "dashboard"]
     if (m["type"] == "node.state") states.push_back(m["node"].get<std::string>() + ":" + m["state"].get<std::string>());
   CHECK(states == std::vector<std::string>{"simulate:running", "simulate:done", "report:running", "report:done"});
 
-  core::Station none;
+  core::StationObjects none;
   json bad = graph;
   bad["groups"][0]["nodes"].push_back("start");
   CHECK_THROWS_WITH(core::prepare_graph(bad, catalog, none), ContainsSubstring("can't be inside a story"));
@@ -674,9 +674,9 @@ import = ["step", "base", "signal", "math", "dashboard"]
 }
 
 TEST_CASE("a step's signal output feeds signal blocks, and back into it, a clock step later") {
-  static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\nimport = [\"step\", \"math\", \"dashboard\"]\n",
+  static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\nimport = [\"step\", \"math\", \"board\"]\n",
                                                          words::registry());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 5, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 5, .emit_every = 1, .real_time = false}};
   const json graph = {
       {"nodes", {{{"id", "start"}, {"type", "start"}}, {{"id", "s"}, {"type", "slide"}},
                  {{"id", "half"}, {"type", "gain"}, {"params", {{"k", 0.5}}}}, {{"id", "g"}, {"type", "display"}}}},
@@ -685,15 +685,15 @@ TEST_CASE("a step's signal output feeds signal blocks, and back into it, a clock
                  {{"from", {"half", "y"}}, {"to", {"s", "curve"}}},  // back into the step: not a cycle
                  {{"from", {"half", "y"}}, {"to", {"g", "in"}}}}}};
   Collected out;
-  CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "done");
   // The last pass saw the progress after the clock step before the last: 0.9, halved.
   CHECK_THAT(out.last_signal("g"), WithinAbs(0.45, 1e-9));
 }
 
 TEST_CASE("Step → Signal: a path sets a signal that signal blocks read, and it holds") {
-  static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\nimport = [\"step\", \"dashboard\"]\n",
+  static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\nimport = [\"step\", \"board\"]\n",
                                                          words::registry());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 1, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 1, .emit_every = 1, .real_time = false}};
   // Start → [on: 2] → Wait 0.3 s → [off: 0]; one display reads each.
   const json graph = {
       {"nodes", {{{"id", "start"}, {"type", "start"}}, {{"id", "on"}, {"type", "step_signal"}, {"params", {{"value", 2}}}},
@@ -706,15 +706,15 @@ TEST_CASE("Step → Signal: a path sets a signal that signal blocks read, and it
                  {{"from", {"on", "y"}}, {"to", {"shown_on", "in"}}},
                  {{"from", {"off", "y"}}, {"to", {"shown_off", "in"}}}}}};
   Collected out;
-  CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "done");
   CHECK(out.last_signal("shown_on") == 2.0);   // set once, held after the path moved on
   CHECK(out.last_signal("shown_off") == 0.0);
 }
 
 TEST_CASE("a story with reset starts its blocks afresh each time a path arrives") {
-  static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\nimport = [\"step\", \"dashboard\"]\n",
+  static const tk::Catalog catalog = tk::load_descriptor("domain = \"words\"\nimport = [\"step\", \"board\"]\n",
                                                          words::registry());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 5, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 5, .emit_every = 1, .real_time = false}};
   // Start → Repeat ×2 → [count, 0.3 s] → back to Repeat: the story runs twice, 3 passes each.
   auto graph = [](bool reset) {
     return json{
@@ -728,8 +728,8 @@ TEST_CASE("a story with reset starts its blocks afresh each time a path arrives"
                      {"params", {{"seconds", 0.3}, {"reset", reset}}}}}}};
   };
   Collected kept, fresh;
-  CHECK(core::run("r", graph(false), nullptr, backend, kept.emit(), nullptr, {}) == "done");
-  CHECK(core::run("r", graph(true), nullptr, backend, fresh.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph(false), nullptr, station, kept.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph(true), nullptr, station, fresh.emit(), nullptr, {}) == "done");
   CHECK(kept.last_signal("shown") == 6.0);   // the same block, counting on
   CHECK(fresh.last_signal("shown") == 3.0);  // a fresh block the second time
 }
@@ -737,9 +737,9 @@ TEST_CASE("a story with reset starts its blocks afresh each time a path arrives"
 TEST_CASE("a story ends when its until input says so, and drops what it releases") {
   const auto& catalog = catalog_of(R"(
 domain = "until"
-import = ["step", "base", "signal", "math", "dashboard"]
+import = ["step", "base", "signal", "math", "board"]
 )");
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 5, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 5, .emit_every = 1, .real_time = false}};
   // Start → [drive: ramp → push, estimate; until ramp > 0.45] → [after: 2 s].
   // push (released) drives something; estimate (held) is a result.
   auto graph = [](json until_from, double seconds) {
@@ -780,7 +780,7 @@ import = ["step", "base", "signal", "math", "dashboard"]
   };
 
   Collected out;
-  CHECK(core::run("r", graph({"over", "y"}, 0), nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph({"over", "y"}, 0), nullptr, station, out.emit(), nullptr, {}) == "done");
   // ramp passes 0.45 on the pass at t = 0.5; `until` reads it a clock step later.
   CHECK_THAT(left_at(out), WithinAbs(0.6, 1e-9));
   CHECK(out.last_signal("force") == 0.0);                  // released: unwired once drive is over
@@ -788,11 +788,11 @@ import = ["step", "base", "signal", "math", "dashboard"]
 
   // `seconds` is then a time limit: a condition that never comes still ends the story.
   Collected limited;
-  CHECK(core::run("r", graph({"wait", "y"}, 0.3), nullptr, backend, limited.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph({"wait", "y"}, 0.3), nullptr, station, limited.emit(), nullptr, {}) == "done");
   CHECK_THAT(left_at(limited), WithinAbs(0.2, 1e-9));
 
   // A release that isn't the story's output is refused, naming the story.
-  core::Station none;
+  core::StationObjects none;
   json bad = graph(nullptr, 1);
   bad["groups"][0]["release"] = json::array({json::array({"wait", "y"})});
   CHECK_THROWS_WITH(core::prepare_graph(bad, catalog, none), ContainsSubstring("isn't one of its blocks"));
@@ -803,9 +803,9 @@ import = ["step", "base", "signal", "math", "dashboard"]
 TEST_CASE("a magic block takes the ports of its form in a run") {
   const auto& catalog = catalog_of(R"(
 domain = "magic"
-import = ["step", "base", "dashboard"]
+import = ["step", "base", "board"]
 )");
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 2, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 2, .emit_every = 1, .real_time = false}};
   // Step form: Start → Compare(1 > 0) → yes → Stop. Signal form: If chooses 7 or 9.
   const json graph = {
       {"nodes", {{{"id", "start"}, {"type", "start"}},
@@ -822,7 +822,7 @@ import = ["step", "base", "dashboard"]
                  {{"from", {"seven", "y"}}, {"to", {"pick", "a"}}},
                  {{"from", {"pick", "y"}}, {"to", {"shown", "in"}}}}}};
   Collected out;
-  CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "done");
   CHECK_THAT(logs(out).back(), ContainsSubstring("stopped by stop"));
   CHECK(out.last_signal("shown") == 7.0);
 
@@ -830,11 +830,11 @@ import = ["step", "base", "dashboard"]
   json wrong = graph;
   wrong["nodes"][1]["params"]["form"] = "signal";
   Collected bad;
-  CHECK(core::run("r", wrong, nullptr, backend, bad.emit(), nullptr, {}) == "failed");
+  CHECK(core::run("r", wrong, nullptr, station, bad.emit(), nullptr, {}) == "failed");
   CHECK_THAT(logs(bad).back(), ContainsSubstring("check (compare) has no input \"in\""));
 }
 
-TEST_CASE("a backend can bring its own executor, driving the same run") {
+TEST_CASE("a station can bring its own executor, driving the same run") {
   // An executor that runs ten passes on a clock of its own, as an event-driven or
   // external-solver run style would, and reports nothing but its frames.
   class Ten final : public core::Executor {
@@ -850,27 +850,27 @@ TEST_CASE("a backend can bring its own executor, driving the same run") {
     }
   };
   int asked = 0;
-  core::Backend backend{.engine = "test", .catalog = &rig::catalog(), .run = {.real_time = false}};
-  backend.executor = [&asked](const core::Graph& g, const core::RunSettings&) -> std::unique_ptr<core::Executor> {
+  core::Station station{.engine = "test", .catalog = &rig::catalog(), .run = {.real_time = false}};
+  station.executor = [&asked](const core::Graph& g, const core::RunSettings&) -> std::unique_ptr<core::Executor> {
     ++asked;
     if (g.has_steps) return nullptr;  // not its kind of graph: the core's choice
     return std::make_unique<Ten>();
   };
   Collected out;
-  CHECK(core::run("r", starter_graph(), starter_station(), backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", starter_graph(), starter_station(), station, out.emit(), nullptr, {}) == "done");
   CHECK(asked == 1);
   const auto samples = std::ranges::count_if(out.messages, [](const json& m) { return m["type"] == "signal" && m["node"] == "graph-v"; });
   CHECK(samples == 10);
   CHECK(std::ranges::any_of(out.messages, [](const json& m) { return m["type"] == "log" && m["text"] == "ten passes"; }));
 }
 
-TEST_CASE("graph.run's settings override the backend's run settings") {
+TEST_CASE("graph.run's settings override the station's run settings") {
   const core::RunSettings base{.duration = 10, .real_time = false};
   const auto s = core::with_overrides(base, json{{"duration", 2.5}, {"dt", 0.05}, {"speed", 0}});
   CHECK(s.duration == 2.5);
   CHECK(s.dt == 0.05);
   CHECK(s.speed == 0);
-  CHECK(s.mode == base.mode);  // the backend's to say
+  CHECK(s.mode == base.mode);  // the station's to say
   CHECK(core::with_overrides(base, nullptr).duration == 10);
   CHECK(core::with_overrides(base, json{{"duration", 0}}).duration == 0);
   CHECK_THROWS_WITH(core::with_overrides(base, json{{"duration", -1}}), ContainsSubstring("duration"));
@@ -883,7 +883,7 @@ TEST_CASE("graph.run's settings override the backend's run settings") {
   CHECK(std::ranges::find(hello["solvers"], "rk4") != hello["solvers"].end());
   CHECK(std::ranges::find(hello["solvers"], "discrete") != hello["solvers"].end());
 
-  // The solver and its options (#196): given ones over the backend's, checked.
+  // The solver and its options (#196): given ones over the station's, checked.
   const auto o = core::with_overrides(base, json{{"solver", "rk45"}, {"solver_options", {{"rtol", 1e-8}, {"max_step", 0.001}}}});
   CHECK(o.solver == "rk45");
   CHECK(o.solver_options.rtol == 1e-8);
@@ -895,19 +895,19 @@ TEST_CASE("graph.run's settings override the backend's run settings") {
   CHECK_THROWS_WITH(core::with_overrides(base, json{{"solver_options", {{"sub_steps", 0}}}}), ContainsSubstring("sub_steps"));
 
   // A run takes them: a shorter clock run ends sooner, a bad one fails before it starts.
-  const core::Backend backend{.engine = "test", .catalog = &rig::catalog(), .run = base};
+  const core::Station station{.engine = "test", .catalog = &rig::catalog(), .run = base};
   Collected out;
-  CHECK(core::run("r", starter_graph(), starter_station(), backend, out.emit(), nullptr, {}, json{{"duration", 0.5}}) == "done");
+  CHECK(core::run("r", starter_graph(), starter_station(), station, out.emit(), nullptr, {}, json{{"duration", 0.5}}) == "done");
   double last_t = 0;
   for (const auto& m : out.messages)
     if (m["type"] == "signal") last_t = m["t"];
   CHECK_THAT(last_t, WithinAbs(0.5, 1e-9));
   Collected bad;
-  CHECK(core::run("r", starter_graph(), starter_station(), backend, bad.emit(), nullptr, {}, json{{"dt", -1}}) == "failed");
+  CHECK(core::run("r", starter_graph(), starter_station(), station, bad.emit(), nullptr, {}, json{{"dt", -1}}) == "failed");
   CHECK(bad.messages.back()["status"] == "failed");
   // A run's "auto" solvers are its own (set on the thread that runs it)
   Collected euler;
-  CHECK(core::run("r", starter_graph(), starter_station(), backend, euler.emit(), nullptr, {}, json{{"solver", "euler"}, {"duration", 0.1}}) == "done");
+  CHECK(core::run("r", starter_graph(), starter_station(), station, euler.emit(), nullptr, {}, json{{"solver", "euler"}, {"duration", 0.1}}) == "done");
   CHECK(paperboat::toolkit::solve::make()->name() == "euler");
   paperboat::toolkit::solve::set_defaults({});
 
@@ -919,7 +919,7 @@ TEST_CASE("graph.run's settings override the backend's run settings") {
       if (++steps_seen >= 5) stop.request_stop();
     }
   };
-  CHECK(core::run("inf", starter_graph(), starter_station(), backend, emit_fn, nullptr, stop.get_token(), json{{"duration", 0}}) == "cancelled");
+  CHECK(core::run("inf", starter_graph(), starter_station(), station, emit_fn, nullptr, stop.get_token(), json{{"duration", 0}}) == "cancelled");
   CHECK(steps_seen >= 5);
 }
 
@@ -935,16 +935,16 @@ TEST_CASE("a feedback loop through a block without feedthrough runs; an unsolvab
        {{{"from", {"int", "y"}}, {"to", {"k", "u"}}},
         {{"from", {"k", "y"}}, {"to", {"int", "u"}}},
         {{"from", {"int", "y"}}, {"to", {"plot", "in"}}}}}};
-  const core::Backend backend{.engine = "test", .catalog = &rig::catalog(), .run = {.dt = 0.01, .duration = 1, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &rig::catalog(), .run = {.dt = 0.01, .duration = 1, .emit_every = 1, .real_time = false}};
   Collected out;
-  REQUIRE(core::run("r", loop, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  REQUIRE(core::run("r", loop, nullptr, station, out.emit(), nullptr, {}) == "done");
   // Forward Euler of x' = -2x from 1: (1 - 0.02)^100 at t = 1; e^-2 ≈ 0.1353 in the limit.
   CHECK_THAT(out.last_signal("plot"), WithinAbs(std::pow(0.98, 100), 1e-12));
 
   const json algebraic = {{"nodes", {{{"id", "a"}, {"type", "gain"}}, {{"id", "b"}, {"type", "gain"}}}},
                           {"edges", {{{"from", {"a", "y"}}, {"to", {"b", "u"}}}, {{"from", {"b", "y"}}, {"to", {"a", "u"}}}}}};
   Collected bad;
-  CHECK(core::run("r", algebraic, nullptr, backend, bad.emit(), nullptr, {}) == "failed");
+  CHECK(core::run("r", algebraic, nullptr, station, bad.emit(), nullptr, {}) == "failed");
   CHECK(std::ranges::any_of(bad.messages, [](const json& m) {
     return m["type"] == "node.state" && m["state"] == "failed" && (m["node"] == "a" || m["node"] == "b");
   }));
@@ -955,8 +955,8 @@ TEST_CASE("a feedback loop through a block without feedthrough runs; an unsolvab
 
 TEST_CASE("an algebraic loop of stateless blocks is solved each pass; a block with state in one fails") {
   static const tk::Catalog catalog =
-      tk::load_descriptor("domain = \"test\"\nimport = [\"base\", \"math\", \"dashboard\"]\n", tk::builtins());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.05, .emit_every = 1, .real_time = false}};
+      tk::load_descriptor("domain = \"test\"\nimport = [\"base\", \"math\", \"board\"]\n", tk::builtins());
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.05, .emit_every = 1, .real_time = false}};
   // y = 2 (r - y), r = 1: y = 2/3. The monitor sits outside the loop, after it.
   const json loop = {
       {"nodes",
@@ -970,15 +970,15 @@ TEST_CASE("an algebraic loop of stateless blocks is solved each pass; a block wi
         {{"from", {"e", "y"}}, {"to", {"k", "u"}}},
         {{"from", {"k", "y"}}, {"to", {"plot", "in"}}}}}};
   Collected out;
-  REQUIRE(core::run("r", loop, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  REQUIRE(core::run("r", loop, nullptr, station, out.emit(), nullptr, {}) == "done");
   CHECK_THAT(out.last_signal("plot"), WithinAbs(2.0 / 3.0, 1e-9));
 
   // A PD controller keeps its last error: it can't be called again within a pass.
   const json stateful = {{"nodes", {{{"id", "c"}, {"type", "pd"}}, {{"id", "k"}, {"type", "gain"}, {"params", {{"k", 0.5}}}}}},
                          {"edges", {{{"from", {"c", "u"}}, {"to", {"k", "u"}}}, {{"from", {"k", "y"}}, {"to", {"c", "e"}}}}}};
   Collected bad;
-  const core::Backend rig_backend{.engine = "test", .catalog = &rig::catalog(), .run = backend.run};
-  CHECK(core::run("r", stateful, nullptr, rig_backend, bad.emit(), nullptr, {}) == "failed");
+  const core::Station rig_station{.engine = "test", .catalog = &rig::catalog(), .run = station.run};
+  CHECK(core::run("r", stateful, nullptr, rig_station, bad.emit(), nullptr, {}) == "failed");
   CHECK(std::ranges::any_of(bad.messages, [](const json& m) {
     return m["type"] == "log" && m["text"].get<std::string>().find("keeps state") != std::string::npos;
   }));
@@ -990,9 +990,9 @@ TEST_CASE("a delay gives its input from n clock steps ago, any value") {
                         {{"id", "d"}, {"type", "delay"}, {"params", {{"steps", 3.0}, {"initial", -1.0}}}},
                         {{"id", "plot"}, {"type", "graph"}}}},
                       {"edges", {{{"from", {"clock", "t"}}, {"to", {"d", "u"}}}, {{"from", {"d", "y"}}, {"to", {"plot", "in"}}}}}};
-  const core::Backend backend{.engine = "test", .catalog = &rig::catalog(), .run = {.dt = 0.1, .duration = 1, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &rig::catalog(), .run = {.dt = 0.1, .duration = 1, .emit_every = 1, .real_time = false}};
   Collected out;
-  REQUIRE(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  REQUIRE(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "done");
   std::vector<double> v;
   for (const auto& m : out.messages)
     if (m["type"] == "signal") v.push_back(m["v"]);
@@ -1003,14 +1003,14 @@ TEST_CASE("a delay gives its input from n clock steps ago, any value") {
   CHECK_THAT(v[10], WithinAbs(0.7, 1e-12));  // t = 1.0 shows t = 0.7
 }
 
-TEST_CASE("session reports toolkits in hello and triggers restart handler on backend.restart") {
-  const core::Backend backend{.engine = "test", .catalog = &rig::catalog(), .run = {.real_time = false}};
+TEST_CASE("session reports toolkits in hello and triggers restart handler on station.restart") {
+  const core::Station station{.engine = "test", .catalog = &rig::catalog(), .run = {.real_time = false}};
   std::vector<json> sent;
   std::mutex mutex;
   bool restarted = false;
   core::set_restart_handler([&] { restarted = true; });
   {
-    core::Session session(backend, [&](const std::string& text) {
+    core::Session session(station, [&](const std::string& text) {
       std::lock_guard lock(mutex);
       receive(sent, text);
     });
@@ -1019,7 +1019,7 @@ TEST_CASE("session reports toolkits in hello and triggers restart handler on bac
     if (sent.front().contains("toolkits")) {
       CHECK(sent.front()["toolkits"].is_array());
     }
-    session.on_message(R"({"type": "backend.restart"})");
+    session.on_message(R"({"type": "station.restart"})");
     for (int i = 0; i < 50 && !restarted; ++i) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -1027,7 +1027,7 @@ TEST_CASE("session reports toolkits in hello and triggers restart handler on bac
   core::set_restart_handler(nullptr);
   CHECK(restarted);
   CHECK(std::ranges::any_of(sent, [](const json& m) {
-    return m["type"] == "log" && m["text"] == "restarting backend…";
+    return m["type"] == "log" && m["text"] == "restarting station…";
   }));
 }
 
@@ -1037,7 +1037,7 @@ namespace {
 
 const tk::Catalog& tune_catalog() {
   static const tk::Catalog catalog = tk::load_descriptor(R"(domain = "tune"
-import = ["base", "math", "control", "dashboard"]
+import = ["base", "math", "control", "board"]
 [[variables]]
 name = "g"
 value = 2
@@ -1076,7 +1076,7 @@ json tuned_list(double g, double h) {
 
 TEST_CASE("a tunable variable reaches the Variable block and bound params during a run; the rest stay") {
   const auto& catalog = tune_catalog();
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 1, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 1, .emit_every = 1, .real_time = false}};
   const json graph = json::parse(catalog.graph);
   const json start = json::parse(catalog.variables);
   int calls = 0;
@@ -1091,7 +1091,7 @@ TEST_CASE("a tunable variable reaches the Variable block and bound params during
   };
   SECTION("without a change, a variable is constant for the run") {
     Collected out;
-    CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}, nullptr, start) == "done");
+    CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}, nullptr, start) == "done");
     CHECK(out.last_signal("see-live") == 2.0);
     CHECK(out.last_signal("see-held") == 3.0);
     CHECK(out.last_signal("see-gain") == 2.0);
@@ -1099,7 +1099,7 @@ TEST_CASE("a tunable variable reaches the Variable block and bound params during
   }
   SECTION("g is tunable: its Variable block, a stateless block (made again) and a PID (set_param) follow; h does not") {
     Collected out;
-    CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}, nullptr, start, change(tuned_list(5, 9))) == "done");
+    CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}, nullptr, start, change(tuned_list(5, 9))) == "done");
     CHECK(out.last_signal("see-live") == 5.0);
     CHECK(out.last_signal("see-held") == 3.0);
     CHECK(out.last_signal("see-gain") == 5.0);
@@ -1111,7 +1111,7 @@ TEST_CASE("a tunable variable reaches the Variable block and bound params during
   }
   SECTION("a value its range refuses is ignored, with a word") {
     Collected out;
-    CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}, nullptr, start, change(tuned_list(50, 3))) == "done");
+    CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}, nullptr, start, change(tuned_list(50, 3))) == "done");
     CHECK(out.last_signal("see-live") == 2.0);
     CHECK_THAT(warnings(out), ContainsSubstring("variable change ignored"));
   }
@@ -1119,7 +1119,7 @@ TEST_CASE("a tunable variable reaches the Variable block and bound params during
     json bad = graph;
     bad["nodes"][1]["params"]["name"] = "nope";
     Collected out;
-    CHECK(core::run("r", bad, nullptr, backend, out.emit(), nullptr, {}, nullptr, start) == "failed");
+    CHECK(core::run("r", bad, nullptr, station, out.emit(), nullptr, {}, nullptr, start) == "failed");
     CHECK(std::ranges::any_of(out.messages, [](const json& m) {
       return m["type"] == "log" && m["level"] == "error" && m.value("node", "") == "live" &&
              m["text"].get<std::string>().find("no variable called \"nope\"") != std::string::npos;
@@ -1129,10 +1129,10 @@ TEST_CASE("a tunable variable reaches the Variable block and bound params during
 
 TEST_CASE("variables.set during a run goes to the run, not to the scene") {
   const auto& catalog = tune_catalog();
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.6, .emit_every = 1, .real_time = true}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.6, .emit_every = 1, .real_time = true}};
   std::vector<json> sent;
   std::mutex mutex;
-  core::Session session(backend, [&](const std::string& text) {
+  core::Session session(station, [&](const std::string& text) {
     std::lock_guard lock(mutex);
     receive(sent, text);
   });
@@ -1162,9 +1162,9 @@ TEST_CASE("variables.set during a run goes to the run, not to the scene") {
   CHECK(scenes_after_start == 1);  // the run's own; the edit did not show the station again
 }
 
-TEST_CASE("a dashboard Switch runs from its descriptor params and is sampled as a signal") {
-  static const tk::Catalog catalog = tk::load_descriptor("domain = \"switches\"\nimport = [\"dashboard\"]\n", tk::builtins());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.5, .emit_every = 1, .real_time = false}};
+TEST_CASE("a board Switch runs from its descriptor params and is sampled as a signal") {
+  static const tk::Catalog catalog = tk::load_descriptor("domain = \"switches\"\nimport = [\"board\"]\n", tk::builtins());
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.5, .emit_every = 1, .real_time = false}};
   const auto graph = [](const std::string& mode) {
     return json{{"nodes", {{{"id", "sw"}, {"type", "switch"}, {"params", {{"mode", mode}, {"initial", false}}}},
                            {{"id", "d"}, {"type", "display"}}}},
@@ -1174,22 +1174,22 @@ TEST_CASE("a dashboard Switch runs from its descriptor params and is sampled as 
   SECTION("momentary: on while the control is held") {
     core::KeysNow keys = [&] { return ++calls > 10 ? tk::KeySet{"sw"} : tk::KeySet{}; };
     Collected out;
-    CHECK(core::run("r", graph("momentary"), nullptr, backend, out.emit(), keys, {}) == "done");
+    CHECK(core::run("r", graph("momentary"), nullptr, station, out.emit(), keys, {}) == "done");
     CHECK(out.last_signal("sw") == 1.0);  // the Switch itself is an instrument
     CHECK(out.last_signal("d") == 1.0);
   }
   SECTION("toggle: one tap seen for a single pass flips it once") {
     core::KeysNow keys = [&] { return ++calls == 10 ? tk::KeySet{"sw"} : tk::KeySet{}; };
     Collected out;
-    CHECK(core::run("r", graph("toggle"), nullptr, backend, out.emit(), keys, {}) == "done");
+    CHECK(core::run("r", graph("toggle"), nullptr, station, out.emit(), keys, {}) == "done");
     CHECK(out.last_signal("sw") == 1.0);
   }
 }
 
-TEST_CASE("a dashboard Lamp runs from its descriptor params, is sampled as a signal and can stop a run") {
+TEST_CASE("a board Lamp runs from its descriptor params, is sampled as a signal and can stop a run") {
   static const tk::Catalog catalog =
-      tk::load_descriptor("domain = \"lamps\"\nimport = [\"step\", \"signal\", \"dashboard\"]\n", tk::builtins());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.5, .emit_every = 1, .real_time = false}};
+      tk::load_descriptor("domain = \"lamps\"\nimport = [\"step\", \"signal\", \"board\"]\n", tk::builtins());
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.5, .emit_every = 1, .real_time = false}};
   // sin(2π t) over half a second: above 0.9 only around t = 0.25, back near 0 at the end.
   const auto graph = [](const json& params) {
     return json{{"nodes", {{{"id", "wave"}, {"type", "sine"}}, {{"id", "lamp"}, {"type", "lamp"}, {"params", params}}}},
@@ -1203,7 +1203,7 @@ TEST_CASE("a dashboard Lamp runs from its descriptor params, is sampled as a sig
   };
   SECTION("unlatched: on only while the wave is above the threshold") {
     Collected out;
-    CHECK(core::run("r", graph({{"threshold", 0.9}, {"op", ">"}}), nullptr, backend, out.emit(), nullptr, {}) == "done");
+    CHECK(core::run("r", graph({{"threshold", 0.9}, {"op", ">"}}), nullptr, station, out.emit(), nullptr, {}) == "done");
     const auto v = lamp_signals(out);
     REQUIRE(v.size() > 10);
     CHECK(v.front() == 0.0);
@@ -1212,13 +1212,13 @@ TEST_CASE("a dashboard Lamp runs from its descriptor params, is sampled as a sig
   }
   SECTION("latched: stays on to the end of the run") {
     Collected out;
-    CHECK(core::run("r", graph({{"threshold", 0.9}, {"op", ">"}, {"latch", true}}), nullptr, backend, out.emit(), nullptr, {}) == "done");
+    CHECK(core::run("r", graph({{"threshold", 0.9}, {"op", ">"}, {"latch", true}}), nullptr, station, out.emit(), nullptr, {}) == "done");
     CHECK(lamp_signals(out).front() == 0.0);
     CHECK(out.last_signal("lamp") == 1.0);
   }
   SECTION("below: the op chosen in the UI reaches the block") {
     Collected out;
-    CHECK(core::run("r", graph({{"threshold", 0.9}, {"op", "<"}}), nullptr, backend, out.emit(), nullptr, {}) == "done");
+    CHECK(core::run("r", graph({{"threshold", 0.9}, {"op", "<"}}), nullptr, station, out.emit(), nullptr, {}) == "done");
     CHECK(lamp_signals(out).front() == 1.0);
     CHECK(out.last_signal("lamp") == 1.0);
   }
@@ -1229,15 +1229,15 @@ TEST_CASE("a dashboard Lamp runs from its descriptor params, is sampled as a sig
     g["edges"].push_back({{"from", {"lamp", "y"}}, {"to", {"trip", "cond"}}});
     g["edges"].push_back({{"from", {"trip", "next"}}, {"to", {"end", "in"}}});
     Collected out;
-    CHECK(core::run("r", g, nullptr, backend, out.emit(), nullptr, {}) == "done");
+    CHECK(core::run("r", g, nullptr, station, out.emit(), nullptr, {}) == "done");
     CHECK_THAT(logs(out).back(), ContainsSubstring("stopped by end"));
     CHECK(out.last_signal("lamp") == 1.0);  // the run ended while the lamp was lit
   }
 }
 
 TEST_CASE("commented out blocks are excluded from simulation and do not create cycles") {
-  static const tk::Catalog catalog = tk::load_descriptor("domain = \"test\"\nimport = [\"math\", \"dashboard\"]\n", tk::builtins());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.1, .emit_every = 1, .real_time = false}};
+  static const tk::Catalog catalog = tk::load_descriptor("domain = \"test\"\nimport = [\"math\", \"board\"]\n", tk::builtins());
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.1, .emit_every = 1, .real_time = false}};
 
   // Loop a -> b -> a is an algebraic loop.
   const json loop_normal = {
@@ -1245,7 +1245,7 @@ TEST_CASE("commented out blocks are excluded from simulation and do not create c
                  {{"id", "b"}, {"type", "gain"}, {"params", {{"k", 3.0}}}}}},
       {"edges", {{{"from", {"a", "y"}}, {"to", {"b", "u"}}},
                  {{"from", {"b", "y"}}, {"to", {"a", "u"}}}}}};
-  core::Station empty;
+  core::StationObjects empty;
   CHECK(core::prepare_graph(loop_normal, catalog, empty).loops.size() == 1);
 
   // With block 'a' commented out (mode = "out"), no cycle error occurs and b receives default 0.0.
@@ -1261,13 +1261,13 @@ TEST_CASE("commented out blocks are excluded from simulation and do not create c
   CHECK(std::ranges::find(g.order, "b") != g.order.end());
 
   Collected out;
-  CHECK(core::run("r", loop_commented, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", loop_commented, nullptr, station, out.emit(), nullptr, {}) == "done");
   CHECK(out.last_signal("disp") == 0.0);
 }
 
 TEST_CASE("comment through passes signal values directly through to output ports") {
-  static const tk::Catalog catalog = tk::load_descriptor("domain = \"test\"\nimport = [\"base\", \"math\", \"dashboard\"]\n", tk::builtins());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.1, .emit_every = 1, .real_time = false}};
+  static const tk::Catalog catalog = tk::load_descriptor("domain = \"test\"\nimport = [\"base\", \"math\", \"board\"]\n", tk::builtins());
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.1, .emit_every = 1, .real_time = false}};
 
   // Number 42.0 -> Gain (k = 5, commented through) -> Display
   const json graph = {
@@ -1278,14 +1278,14 @@ TEST_CASE("comment through passes signal values directly through to output ports
                  {{"from", {"g", "y"}}, {"to", {"disp", "in"}}}}}};
 
   Collected out;
-  CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "done");
   // Gain is bypassed, so input 42.0 passes straight through instead of 42 * 5 = 210.
   CHECK(out.last_signal("disp") == 42.0);
 }
 
 TEST_CASE("step block comment through immediately bypasses to next step output") {
   static const tk::Catalog catalog = tk::load_descriptor("domain = \"test\"\nimport = [\"step\"]\n", tk::builtins());
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 2.0, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.1, .duration = 2.0, .emit_every = 1, .real_time = false}};
 
   // start -> wait (10s, bypassed) -> stop
   const json graph = {
@@ -1296,7 +1296,7 @@ TEST_CASE("step block comment through immediately bypasses to next step output")
                  {{"from", {"w", "next"}}, {"to", {"stop", "in"}}}}}};
 
   Collected out;
-  CHECK(core::run("r", graph, nullptr, backend, out.emit(), nullptr, {}) == "done");
+  CHECK(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}) == "done");
   bool stopped_by_stop = false;
   for (const auto& m : out.messages) {
     if (m.value("type", "") == "log" && m.value("text", "").find("stopped by stop") != std::string::npos) {
@@ -1342,7 +1342,7 @@ const tk::Catalog& writer_catalog() {
     return r;
   }();
   static const tk::Catalog catalog = tk::load_descriptor(R"(domain = "tune"
-import = ["base", "math", "dashboard"]
+import = ["base", "math", "board"]
 [[variables]]
 name = "g"
 value = 2
@@ -1374,9 +1374,9 @@ edges = [
 
 TEST_CASE("a block sets a tunable variable: applied at the end of the pass, formulas and bound params follow, the UI is told") {
   const auto& catalog = writer_catalog();
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 1, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 1, .emit_every = 1, .real_time = false}};
   Collected out;
-  CHECK(core::run("r", json::parse(catalog.graph), nullptr, backend, out.emit(), nullptr, {}, nullptr, json::parse(catalog.variables)) == "done");
+  CHECK(core::run("r", json::parse(catalog.graph), nullptr, station, out.emit(), nullptr, {}, nullptr, json::parse(catalog.variables)) == "done");
   CHECK(Tuner::reads_before_commit == 2.0);  // not yet: the pass finishes with the old value
   CHECK(out.last_signal("see-seen") == 4.0);  // the next pass reads the new one
   CHECK(out.last_signal("see-live") == 4.0);
@@ -1394,10 +1394,10 @@ TEST_CASE("a block sets a tunable variable: applied at the end of the pass, form
 
 TEST_CASE("a variable a block set during a run is what the session starts the next run from") {
   const auto& catalog = writer_catalog();
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.3, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.3, .emit_every = 1, .real_time = false}};
   std::vector<json> sent;
   std::mutex mutex;
-  core::Session session(backend, [&](const std::string& text) {
+  core::Session session(station, [&](const std::string& text) {
     std::lock_guard lock(mutex);
     receive(sent, text);
   });
@@ -1431,10 +1431,10 @@ TEST_CASE("a variable a block set during a run is what the session starts the ne
 
 TEST_CASE("a fast run's samples go out in signals batches, in order, none after the run ends") {
   const auto& catalog = writer_catalog();
-  const core::Backend backend{.engine = "test", .catalog = &catalog, .run = {.dt = 0.0001, .duration = 2.0, .emit_every = 1, .real_time = false}};
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.0001, .duration = 2.0, .emit_every = 1, .real_time = false}};
   std::vector<json> raw;
   std::mutex mutex;
-  core::Session session(backend, [&](const std::string& text) {
+  core::Session session(station, [&](const std::string& text) {
     std::lock_guard lock(mutex);
     raw.push_back(json::parse(text));
   });

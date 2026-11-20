@@ -8,9 +8,9 @@ const SPEEDS = [0.25, 0.5, 1, 2, 4, 0];
 const finite = (defaults: RunSettings) => (defaults.duration && defaults.duration > 0 ? defaults.duration : 10);
 
 /**
- * How long and how fast the next run goes, beside Run. Starts at the backend's defaults
+ * How long and how fast the next run goes, beside Run. Starts at the station's defaults
  * (hello.run); only what the user changed is sent with graph.run. The speed also changes a
- * run in progress (run.speed, #219), and shows the speed it runs at. Hidden for a backend
+ * run in progress (run.speed, #219), and shows the speed it runs at. Hidden for a station
  * that evaluates once, or doesn't say.
  */
 export function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; value: RunSettings; onChange: (v: RunSettings) => void }) {
@@ -21,7 +21,7 @@ export function RunOptions({ defaults, value, onChange }: { defaults: RunSetting
   const isInfinite = duration === 0;
 
   return (
-    <span className="run-options" title="The next run's length and speed (the backend's defaults until changed; 0 s runs forever)">
+    <span className="run-options" title="The next run's length and speed (the station's defaults until changed; 0 s runs forever)">
       for
       {/* One slot, one width: a well for the number, or the same well as a pressed key saying ∞. */}
       {isInfinite ? (

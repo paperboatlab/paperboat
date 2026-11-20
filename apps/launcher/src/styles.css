@@ -404,8 +404,8 @@
   gap: 6px;
 }
 
-/* ---- Split Workbench (Backends & Toolkits) ---- */
-.workbench {
+/* ---- Split Scratchpad (Stations & Toolkits) ---- */
+.scratchpad {
   flex: 1;
   min-height: 0;
   display: grid;
@@ -413,7 +413,7 @@
   gap: var(--space-4);
 }
 @media (max-width: 960px) {
-  .workbench { grid-template-columns: 1fr; }
+  .scratchpad { grid-template-columns: 1fr; }
 }
 
 .wb-sidebar {
@@ -549,7 +549,7 @@
   color: var(--text-muted);
 }
 
-/* Backend Run Dock Bar */
+/* Station Run Dock Bar */
 .be-run-bar {
   display: flex;
   align-items: center;
@@ -582,7 +582,7 @@
 }
 .flag-toggle:hover, .flag-toggle.on { color: var(--text); }
 
-/* Backend 2-column workflow grid (Build/Package + Check) */
+/* Station 2-column workflow grid (Build/Package + Check) */
 .be-workflow-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

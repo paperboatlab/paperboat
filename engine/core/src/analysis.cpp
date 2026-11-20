@@ -28,22 +28,22 @@ std::vector<toolkit::PortRef> port_list(const json& list, const char* what) {
 
 }  // namespace
 
-json analyse(const json& msg, const Backend& backend, const json& station, const json& variables) {
+json analyse(const json& msg, const Station& cfg, const json& station, const json& variables) {
   const std::string id = msg.value("id", "");
   const std::string name = msg.value("analysis", "");
   json out = {{"type", "analysis.result"}, {"id", id}, {"analysis", name}};
   try {
-    const auto& catalog = *backend.catalog;
+    const auto& catalog = *cfg.catalog;
     const auto it = std::ranges::find_if(catalog.analyses, [&](const toolkit::AnalysisTemplate* a) { return a->name == name; });
-    if (it == catalog.analyses.end()) throw std::invalid_argument("this backend has no analysis \"" + name + "\"");
+    if (it == catalog.analyses.end()) throw std::invalid_argument("this station has no analysis \"" + name + "\"");
 
     const toolkit::Variables vars(msg.contains("variables") ? msg.at("variables") : variables);
     const json graph_json = toolkit::resolve_graph(msg.value("graph", json::object()), catalog, vars);
-    Station objects = make_station(toolkit::resolve_station(station, catalog, vars), catalog);
+    StationObjects objects = make_station(toolkit::resolve_station(station, catalog, vars), catalog);
     Graph g = prepare_graph(graph_json, catalog, objects);  // algebraic loops are the analysis's to solve
 
     toolkit::AnalysisRequest request;
-    request.dt = backend.run.dt;
+    request.dt = cfg.run.dt;
     request.options = msg.value("options", json::object());
     for (const auto& node_id : g.order) {
       Node& node = g.nodes.at(node_id);

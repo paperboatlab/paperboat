@@ -284,15 +284,15 @@ TEST_CASE("[station] says how the Station page shows the station") {
                     ContainsSubstring("needs a page"));
   CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[station]\nview = \"web\"\npage = \"../x.html\"\n",
                                         test_registry()),
-                    ContainsSubstring("inside the backend's folder"));
+                    ContainsSubstring("inside the station's folder"));
   CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[station]\nview = \"vr\"\n", test_registry()),
                     ContainsSubstring("scene, graph or web"));
 }
 
-TEST_CASE("[dashboard] is the default layout of the Dashboard's grid") {
-  CHECK(tk::load_descriptor("domain = \"test\"\n", test_registry()).dashboard.empty());
+TEST_CASE("[board] is the default layout of the Board's grid") {
+  CHECK(tk::load_descriptor("domain = \"test\"\n", test_registry()).board.empty());
   const auto catalog = tk::load_descriptor(R"(domain = "test"
-[dashboard]
+[board]
 columns = 6
 instruments = [
   { block = "graph-theta", size = "large", at = [0, 0] },
@@ -301,16 +301,16 @@ instruments = [
 ]
 )", test_registry());
   const auto msg = nlohmann::json::parse(tk::catalog_message(catalog));
-  CHECK(msg["dashboard"]["columns"] == 6);
-  CHECK(msg["dashboard"]["instruments"][0] == nlohmann::json{{"block", "graph-theta"}, {"size", "large"}, {"at", {0, 0}}});
-  CHECK(msg["dashboard"]["instruments"][2]["size"] == "xlarge");
-  CHECK(msg["dashboard"]["instruments"][1] == nlohmann::json{{"block", "speed"}});
+  CHECK(msg["board"]["columns"] == 6);
+  CHECK(msg["board"]["instruments"][0] == nlohmann::json{{"block", "graph-theta"}, {"size", "large"}, {"at", {0, 0}}});
+  CHECK(msg["board"]["instruments"][2]["size"] == "xlarge");
+  CHECK(msg["board"]["instruments"][1] == nlohmann::json{{"block", "speed"}});
   CHECK_FALSE(nlohmann::json::parse(tk::catalog_message(tk::load_descriptor("domain = \"test\"\n", test_registry())))
-                  .contains("dashboard"));
+                  .contains("board"));
 
-  auto fails_with = [](const std::string& dashboard, const std::string& text) {
-    INFO(dashboard);
-    CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[dashboard]\n" + dashboard, test_registry()),
+  auto fails_with = [](const std::string& board, const std::string& text) {
+    INFO(board);
+    CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[board]\n" + board, test_registry()),
                       ContainsSubstring(text));
   };
   fails_with("columns = 0", "from 1 to 12");
@@ -322,9 +322,9 @@ instruments = [
   fails_with("instruments = [{ block = \"a\" }, { block = \"a\" }]", "placed twice");
 }
 
-TEST_CASE("[dashboard] decorations and tabs: sections, separators, labels, pages") {
+TEST_CASE("[board] decorations and tabs: sections, separators, labels, pages") {
   const auto catalog = tk::load_descriptor(R"(domain = "test"
-[dashboard]
+[board]
 columns = 6
 tabs = ["Run", "Tuning"]
 instruments = [{ block = "theta", size = "large", at = [0, 1], tab = "Run" }, { block = "gains", tab = "Tuning" }]
@@ -338,7 +338,7 @@ decorations = [
   { kind = "controls", at = [0, 8], span = [4, 3] },
 ]
 )", test_registry());
-  const auto d = nlohmann::json::parse(tk::catalog_message(catalog))["dashboard"];
+  const auto d = nlohmann::json::parse(tk::catalog_message(catalog))["board"];
   CHECK(d["tabs"] == nlohmann::json::array({"Run", "Tuning"}));
   CHECK(d["instruments"][0]["tab"] == "Run");
   CHECK(d["decorations"].size() == 7);
@@ -348,13 +348,13 @@ decorations = [
   CHECK(d["decorations"][2] == nlohmann::json{{"kind", "hline"}, {"at", {0, 3}}, {"span", 6}});
   CHECK(d["decorations"][3]["tab"] == "Tuning");
   // A layout without them is as before: no tabs, no decorations.
-  const auto plain = nlohmann::json::parse(tk::catalog_message(tk::load_descriptor("domain = \"test\"\n[dashboard]\ncolumns = 4\n", test_registry())))["dashboard"];
+  const auto plain = nlohmann::json::parse(tk::catalog_message(tk::load_descriptor("domain = \"test\"\n[board]\ncolumns = 4\n", test_registry())))["board"];
   CHECK_FALSE(plain.contains("tabs"));
   CHECK_FALSE(plain.contains("decorations"));
 
-  auto fails_with = [](const std::string& dashboard, const std::string& text) {
-    INFO(dashboard);
-    CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[dashboard]\ncolumns = 6\ntabs = [\"Run\"]\n" + dashboard, test_registry()),
+  auto fails_with = [](const std::string& board, const std::string& text) {
+    INFO(board);
+    CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[board]\ncolumns = 6\ntabs = [\"Run\"]\n" + board, test_registry()),
                       ContainsSubstring(text));
   };
   fails_with("decorations = [{ kind = \"frame\", at = [0, 0] }]", "kind must be section, hline, vline, label, console, station or controls");
@@ -374,11 +374,11 @@ decorations = [
   fails_with("decorations = [{ kind = \"station\", at = [0, 0], text = \"x\" }]", "the station has no text");
   fails_with("decorations = [{ kind = \"station\", at = [0, 0], span = 3 }]", "[columns, rows]");
   fails_with("decorations = [{ kind = \"label\", text = \"x\", at = [0, 0], style = \"big\" }]", "heading or note");
-  fails_with("decorations = [{ kind = \"label\", text = \"x\", at = [0, 0], tab = \"Other\" }]", "tab must be one of dashboard.tabs");
-  fails_with("instruments = [{ block = \"a\", tab = \"Other\" }]", "tab must be one of dashboard.tabs");
+  fails_with("decorations = [{ kind = \"label\", text = \"x\", at = [0, 0], tab = \"Other\" }]", "tab must be one of board.tabs");
+  fails_with("instruments = [{ block = \"a\", tab = \"Other\" }]", "tab must be one of board.tabs");
   fails_with("decorations = [{ kind = \"label\", text = \"x\", at = [0, 0], colour = \"red\" }]", "unknown field \"colour\"");
-  CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[dashboard]\ntabs = [\"a\", \"a\"]\n", test_registry()), ContainsSubstring("is twice"));
-  CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[dashboard]\ninstruments = [{ block = \"a\", tab = \"x\" }]\n", test_registry()),
+  CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[board]\ntabs = [\"a\", \"a\"]\n", test_registry()), ContainsSubstring("is twice"));
+  CHECK_THROWS_WITH(tk::load_descriptor("domain = \"test\"\n[board]\ninstruments = [{ block = \"a\", tab = \"x\" }]\n", test_registry()),
                     ContainsSubstring("(there are none)"));
 }
 
@@ -575,10 +575,10 @@ description = "Quadratic and linear programs."
   std::error_code ec;
   fs::remove_all(tmp, ec);
   const fs::path root = tmp / "repo";
-  const fs::path backend_dir = tmp / "backend";
+  const fs::path station_dir = tmp / "station";
   const fs::path remote = tmp / "remote-opencv";
   fs::create_directories(root / "engine" / "toolkit");
-  fs::create_directories(backend_dir);
+  fs::create_directories(station_dir);
   fs::create_directories(remote);
 
   {
@@ -587,7 +587,7 @@ description = "Quadratic and linear programs."
         << "\"\ndescription = \"OpenCV toolkit\"\noptional = true\nengine = \">=0.1\"\n";
   }
   {
-    std::ofstream out(backend_dir / "toolkit_requirements.toml");
+    std::ofstream out(station_dir / "toolkit_requirements.toml");
     out << "toolkits = [\"opencv\"]\n";
   }
   {
@@ -601,7 +601,7 @@ description = "Quadratic and linear programs."
                        "' add toolkit.toml && git -C '" + remote.string() + "' commit -qm init")
                           .c_str()) == 0);
 
-  auto list = tk::list_toolkits(root, backend_dir);
+  auto list = tk::list_toolkits(root, station_dir);
   REQUIRE(list.size() == 2);
   CHECK(list[0].name == "builtin");
   CHECK(list[0].builtin);
@@ -620,12 +620,12 @@ description = "Quadratic and linear programs."
   INFO(installed.message << "\n" << logged);
   CHECK(installed.ok);
   CHECK(fs::is_regular_file(root / "engine" / "toolkit" / "opencv" / "toolkit.toml"));
-  CHECK(tk::list_toolkits(root, backend_dir)[1].installed);
+  CHECK(tk::list_toolkits(root, station_dir)[1].installed);
 
   const auto removed = tk::uninstall_toolkit("opencv", root, {.source_dir = {}, .build_dir = {}, .skip_rebuild = true}, logger);
   CHECK(removed.ok);
   CHECK_FALSE(fs::exists(root / "engine" / "toolkit" / "opencv"));
-  CHECK_FALSE(tk::list_toolkits(root, backend_dir)[1].installed);
+  CHECK_FALSE(tk::list_toolkits(root, station_dir)[1].installed);
   CHECK_FALSE(logs.empty());
 
   // An explicit local folder installs without git or the manifest's suggested repo.

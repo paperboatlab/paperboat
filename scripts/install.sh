@@ -16,7 +16,7 @@
 #
 # Running it again updates along the same channel; a flag switches channel. `paperboat update` runs it.
 # Layout: $PAPERBOAT_HOME (default ~/.local/share/paperboat) holds self/<version>/ (prebuilt),
-# src/paperboat (source) and apps/ (`paperboat pkg`); ~/.local/bin/paperboat links to the one in use.
+# src/paperboat (source) and apps/ (`paperboat squero`); ~/.local/bin/paperboat links to the one in use.
 set -eu
 
 REPO=paperboatlab/paperboat

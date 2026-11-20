@@ -17,7 +17,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/core/cache.hpp"
 #include "paperboat/core/executor.hpp"
 #include "rig.hpp"
@@ -101,13 +101,13 @@ const tk::Catalog& catalog() {
     return r;
   }();
   static const tk::Catalog c = tk::load_descriptor(R"(domain = "rig"
-import = ["base", "math", "string", "dashboard"]
+import = ["base", "math", "string", "board"]
 )", registry);
   return c;
 }
 
-const core::Backend& once_backend() {
-  static const core::Backend b{.engine = "test", .catalog = &catalog(), .run = {.mode = core::RunSettings::Mode::Once, .real_time = false}};
+const core::Station& once_station() {
+  static const core::Station b{.engine = "test", .catalog = &catalog(), .run = {.mode = core::RunSettings::Mode::Once, .real_time = false}};
   return b;
 }
 
@@ -148,7 +148,7 @@ struct Result {
 };
 
 Result run(const json& graph, core::RunCache* cache, const json& variables = nullptr, const json& station = nullptr,
-           const std::stop_token& stop = {}, const core::Backend& backend = once_backend()) {
+           const std::stop_token& stop = {}, const core::Station& spec = once_station()) {
   Result r;
   const core::Emit emit = [&](const json& m) {
     r.messages.push_back(m);
@@ -157,7 +157,7 @@ Result run(const json& graph, core::RunCache* cache, const json& variables = nul
     if (m["type"] == "signal" && m["v"].is_number()) r.shown[m["node"]] = m["v"];
     if (m["type"] == "log") r.logs.push_back(m["text"]);
   };
-  r.status = core::run("r", graph, station, backend, emit, nullptr, stop, nullptr, variables, nullptr, nullptr, cache);
+  r.status = core::run("r", graph, station, spec, emit, nullptr, stop, nullptr, variables, nullptr, nullptr, cache);
   return r;
 }
 
@@ -431,7 +431,7 @@ TEST_CASE("cache: runs on a clock, and runs given no cache, call every block") {
   calls().clear();
   SECTION("on a clock") {
     core::RunCache cache;
-    const core::Backend clock{.engine = "test", .catalog = &catalog(), .run = {.dt = 0.01, .duration = 0.02, .real_time = false}};
+    const core::Station clock{.engine = "test", .catalog = &catalog(), .run = {.dt = 0.01, .duration = 0.02, .real_time = false}};
     for (int i = 0; i < 2; ++i) {
       const auto r = run(chain(), &cache, nullptr, nullptr, {}, clock);
       REQUIRE(r.status == "done");
@@ -450,7 +450,7 @@ TEST_CASE("cache: a session's run-once reuses its previous run (node.state cache
   calls().clear();
   std::vector<json> sent;
   std::mutex mutex;
-  core::Session session(once_backend(), [&](const std::string& text) {
+  core::Session session(once_station(), [&](const std::string& text) {
     std::lock_guard lock(mutex);
     receive(sent, text);
   });

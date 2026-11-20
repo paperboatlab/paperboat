@@ -2,26 +2,26 @@ Tutorials
 =========
 
 This guide walks you through building applications on the Paperboat framework from the ground
-up. Starting with a simple backend, you will learn how to define custom blocks, create 3D
+up. Starting with a simple station, you will learn how to define custom blocks, create 3D
 station objects, configure starter flows, and lay out live instruments on the Board.
 
-Tutorial 1: Creating Your First Backend
+Tutorial 1: Creating Your First Station
 ---------------------------------------
 
-In this tutorial, we will construct a **Reservoir Tank** backend. The system models a liquid
+In this tutorial, we will construct a **Reservoir Tank** station. The system models a liquid
 tank where liquid flows in at the top, accumulates according to the tank's cross-sectional
 area, and drains through an outlet valve at the base.
 
 Project Layout
 ~~~~~~~~~~~~~~
 
-Every backend is self-contained in its own directory:
+Every station is self-contained in its own directory:
 
 .. code-block:: text
 
    reservoir/
    ├── descriptor.toml      # App configuration, palette imports, and starters
-   └── server.py            # Python backend (or main.cpp for C++)
+   └── server.py            # Python station (or main.cpp for C++)
 
 Writing the Descriptor
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -37,7 +37,7 @@ Create :file:`reservoir/descriptor.toml`:
 
    # Built-in packages, plus the optional control toolkit that provides the PID
    # (`paperboat toolkit install control --repo https://github.com/paperboatlab/paperboat-toolkit-control.git`)
-   import = ["base", "control", "dashboard", "math", "signal", "step", "string"]
+   import = ["base", "control", "board", "math", "signal", "step", "string"]
 
    # Default run settings (10 seconds duration, 100 Hz step rate)
    [run]
@@ -48,10 +48,10 @@ Create :file:`reservoir/descriptor.toml`:
    [station]
    view = { mode = "3d", center = [0.0, 1.0, 0.0], distance = 4.5 }
 
-Starting the Backend
+Starting the Station
 ~~~~~~~~~~~~~~~~~~~~
 
-We can write the backend in either Python or C++.
+We can write the station in either Python or C++.
 
 **In Python (`server.py`)**:
 
@@ -308,7 +308,7 @@ Add the starter station object to :file:`reservoir/descriptor.toml`:
      { id = "tank-1", type = "tank_station", props = { height = 2.5 } }
    ]
 
-Tutorial 4: Building a Closed-Loop Flow & Dashboard
+Tutorial 4: Building a Closed-Loop Flow & Board
 ---------------------------------------------------
 
 Now we will connect a feedback control loop:
@@ -352,14 +352,14 @@ You can declare this entire flow as the starter graph in :file:`descriptor.toml`
      { from = ["pid", "u"], to = ["disp-flow", "in"] }
    ]
 
-Laying Out the Dashboard
+Laying Out the Board
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Configure default instruments in the :file:`descriptor.toml`:
 
 .. code-block:: toml
 
-   [dashboard]
+   [board]
    instruments = [
      { block = "plot-level", size = "large", at = [0, 0] },
      { block = "disp-flow", size = "compact", at = [2, 0] }
@@ -372,7 +372,7 @@ Configure default instruments in the :file:`descriptor.toml`:
 Tutorial 5: Running the System
 ------------------------------
 
-1. Launch your backend:
+1. Launch your station:
 
    .. code-block:: bash
 
@@ -441,10 +441,10 @@ In descriptor TOML:
      { from = ["split", "theta"], to = ["angle", "in"] },
    ]
 
-Tutorial 7: From Modelica to a Paperboat backend
+Tutorial 7: From Modelica to a Paperboat station
 ------------------------------------------------
 
-A Modelica model can become a backend without writing its equations again. Using
+A Modelica model can become a station without writing its equations again. Using
 Squero Studio OM's CLI (`squero-om`, in ``squero-studio-om/``):
 
 .. code-block:: bash
@@ -461,7 +461,7 @@ JSON: inherited connectors resolved through ``extends``, ``iconTransformation`` 
 snapped onto 5-unit edge slots, and ``Icon(graphics)`` primitives quantised onto Paperboat's
 design tokens.
 
-``generate`` asks omc for the model's backend DAE (``dumpXMLDAE``) and picks a path, printing
+``generate`` asks omc for the model's station DAE (``dumpXMLDAE``) and picks a path, printing
 which and why (``--path ode|fmu|auto``, default ``auto``):
 
 - **ode**: the solved equations become plain C++ in a ``paperboat::Model``, advanced by the
@@ -482,11 +482,11 @@ What becomes what:
 - everything else stays inside the compiled model.
 
 ``CMakeLists.txt``, ``main.cpp`` and ``domain/`` are rewritten on every generate;
-``descriptor.toml`` (a step on each input, a graph on each output), ``backend.toml`` and
-``README.md`` are written once and then yours. The studio ships one such backend,
+``descriptor.toml`` (a step on each input, a graph on each output), ``station.toml`` and
+``README.md`` are written once and then yours. The studio ships one such station,
 ``examples/dc-drive-cpp``, its descriptor edited into a PID speed loop.
 
-The same backend, drawn instead of typed
+The same station, drawn instead of typed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``dc-drive-cpp`` was authored in Squero Studio OM, with no ``.mo`` written by hand
@@ -512,7 +512,7 @@ except where noted. Start the server from the studio's ``examples/`` so the dock
    ``+ line`` (shaft), ``+ ellipse`` (load), ``+ text`` (``M``), each dragged on the 5-unit
    grid. Port placement puts ``v`` on the left and ``w``, ``phi`` on the right. *Save* writes
    the model's ``Icon`` and each port's ``iconTransformation``.
-5. **Export.** The dock's *Export backend* writes ``dc-drive-cpp/``. Paperboat shows the
+5. **Export.** The dock's *Export station* writes ``dc-drive-cpp/``. Paperboat shows the
    drawn plate on the Flow page with its ``v``, ``w`` and ``phi`` ports.
 
 Today the popover lists only parameters a part already modifies, and Studio cannot probe a
@@ -549,7 +549,7 @@ The numbered example tutorials (01–10)
 =======================================
 
 The ten folders in `paperboat-examples <https://github.com/paperboatlab/paperboat-examples>`_
-are a complete curriculum. Each level is a self-contained backend with a ``backend.toml``,
+are a complete curriculum. Each level is a self-contained station with a ``station.toml``,
 a starter descriptor, domain code, a README and a golden result. Run any of them with
 ``./bin/paperboat run <number>`` (for example ``run 04``), or check all of them with
 ``./bin/paperboat check <folder>``.
@@ -614,7 +614,7 @@ a starter descriptor, domain code, a README and a golden result. Run any of them
      - C++/Modelica
      - Active pantograph regulator, compliant catenary, bypass and arcing
 
-Every tutorial also opens the backend's README next to its code. The Station mockups below
+Every tutorial also opens the station's README next to its code. The Station mockups below
 are SVGs in ``paperboat-examples/assets/mockups``.
 
 Tutorial 01: Smart Thermostat
@@ -678,7 +678,7 @@ Tutorial 05: Lunar Rover Lander
 
 The Station is a custom HTML5/Canvas CRT cockpit (``[station] view = "web"``), not the
 built-in scene. The Flow page is the GNC autopilot: a descent-speed profile, terminal
-deceleration and horizontal steering to LZ-1. Turn the dashboard switch off (or press
+deceleration and horizontal steering to LZ-1. Turn the board switch off (or press
 **P**) and fly it with **W/A/D**; the cockpit forwards keys through the web-station bridge.
 The cockpit fills the viewport, its controls sit above Paperboat's floating run dock, and the
 **⛶** button opens it fullscreen. Drag the dock's **landing_x** slider to move LZ-1 laterally

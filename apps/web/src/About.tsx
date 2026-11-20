@@ -39,7 +39,7 @@ export function AboutWindow({ state, onClose }: { state: EngineState; onClose: (
           <dl className="about-facts">
             <dt>Version</dt>
             <dd className="mono">{version}</dd>
-            <dt>Backend</dt>
+            <dt>Station</dt>
             <dd className="mono">{state.engine || "Not connected"}</dd>
             <dt>Protocol</dt>
             <dd className="mono">paperboat/0</dd>

@@ -8,7 +8,7 @@ export const runBlocker = (running: boolean, connection: EngineState["connection
   running
     ? "A run is in progress"
     : connection !== "open"
-      ? "Not connected to a backend"
+      ? "Not connected to a station"
       : hasMissingToolkits
         ? "Required toolkits are not installed"
         : hasMissingBlocks
@@ -46,7 +46,7 @@ export const dockSettings = (run: EngineState["run"], runSettings: RunSettings):
   run?.status === "running" && run.speed !== undefined ? { ...runSettings, speed: run.speed } : runSettings;
 
 /**
- * What to tell the backend when the dock's settings go from `before` to `after`: during a run, a
+ * What to tell the station when the dock's settings go from `before` to `after`: during a run, a
  * new speed (#219), which it takes at once; nothing otherwise (the next graph.run brings them).
  */
 export function speedChange(running: boolean, before: RunSettings, after: RunSettings, defaults: RunSettings): ClientMsg | null {

@@ -44,9 +44,9 @@ test("isArrangeLocked reports arrange restriction correctly", () => {
 test("isPageAllowed restricts pages when locked", () => {
   assert.equal(isPageAllowed("flow", undefined, false), true);
   assert.equal(isPageAllowed("flow", { pages: [] }, false), true);
-  assert.equal(isPageAllowed("flow", { pages: ["station", "dashboard"] }, false), false);
-  assert.equal(isPageAllowed("station", { pages: ["station", "dashboard"] }, false), true);
-  assert.equal(isPageAllowed("flow", { pages: ["station", "dashboard"] }, true), true); // unlocked session
+  assert.equal(isPageAllowed("flow", { pages: ["station", "board"] }, false), false);
+  assert.equal(isPageAllowed("station", { pages: ["station", "board"] }, false), true);
+  assert.equal(isPageAllowed("flow", { pages: ["station", "board"] }, true), true); // unlocked session
 });
 
 test("isModeAllowed restricts view modes when locked", () => {

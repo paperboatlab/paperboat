@@ -115,12 +115,12 @@ function Fact({label, value}: {label: string; value: string}) {
 function installedFacts(): {label: string; value: string}[] {
   const toolkits = S.toolkits.filter(t => t.installed).length;
   // A sibling checkout runs like an installed app (`paperboat start <name>`); count it too.
-  const apps = S.programs.filter(p => p.kind === 'program' && (p.installed || p.checkout)).length;
+  const apps = S.squeros.filter(p => p.kind === 'squero' && (p.installed || p.checkout)).length;
   return [
     {label: 'Paperboat CLI version', value: CLI_VERSION},
     {label: 'paperboat version', value: S.version || 'unknown'},
     {label: 'installed toolkits', value: `${toolkits} ${toolkits === 1 ? 'toolkit' : 'toolkits'}`},
-    {label: 'apps', value: `${apps} ${apps === 1 ? 'app' : 'apps'}`},
+    {label: 'squero apps', value: `${apps} ${apps === 1 ? 'squero' : 'squeros'}`},
   ];
 }
 
@@ -133,7 +133,7 @@ function Banner({working, pulse, columns}: {working: boolean; pulse: number; col
         <Mark phase={phase} />
         {columns >= 52 && (
           <Box flexDirection="column" justifyContent="center" flexShrink={1} minWidth={0}>
-            <Text bold wrap="truncate">Paperboat console</Text>
+            <Text bold wrap="truncate">Paperboat CLI</Text>
             <Text dimColor wrap="truncate">C++20 core · protocol paperboat/0</Text>
             {installedFacts().map(f => <Fact key={f.label} {...f} />)}
             <Text dimColor wrap="truncate">{cwd}</Text>
@@ -319,15 +319,15 @@ function TaskView({task, frame, now}: {task: Task; frame: number; now: number}) 
 function Picker() {
   const list = pickList(S.picker.query);
   return (
-    <Panel title={<Text><Text bold>Run a backend</Text><Text dimColor>{` · ${list.length} of ${S.backends.length}`}</Text></Text>}>
+    <Panel title={<Text><Text bold>Run a station</Text><Text dimColor>{` · ${list.length} of ${S.stations.length}`}</Text></Text>}>
       <Text>
         <Text color={SIGNAL}>› </Text>
         {S.picker.query}
         <Text inverse> </Text>
         {S.picker.query ? '' : <Text color="gray">type to filter</Text>}
       </Text>
-      {list.map(({backend: x, match}, i, all) => {
-        const width = Math.max(...all.map(r => r.backend.name.length)) + 2;
+      {list.map(({station: x, match}, i, all) => {
+        const width = Math.max(...all.map(r => r.station.name.length)) + 2;
         const on = i === S.picker.i;
         const running = S.jobs.some(j => isInstance(j.name, x.name) && alive(j) && j.kind !== 'build') || S.external.some(e => e.port === x.port);
         return (
@@ -340,12 +340,12 @@ function Picker() {
           </Text>
         );
       })}
-      {!list.length && <Text dimColor>{S.backends.length ? 'nothing matches · backspace to widen' : 'no backends found · set PAPERBOAT_EXAMPLES_DIR'}</Text>}
+      {!list.length && <Text dimColor>{S.stations.length ? 'nothing matches · backspace to widen' : 'no stations found · set PAPERBOAT_EXAMPLES_DIR'}</Text>}
     </Panel>
   );
 }
 
-function Dashboard({frame, now}: {frame: number; now: number}) {
+function Board({frame, now}: {frame: number; now: number}) {
   const rows = dashRows();
   const live = rows.filter(r => r.ext || alive(r.job!)).length;
   return (
@@ -370,11 +370,11 @@ function Dashboard({frame, now}: {frame: number; now: number}) {
             {on ? <Text color={SIGNAL}>▸ </Text> : '  '}
             {state}
             {`${name.padEnd(20)}${String(port).padEnd(7)}${String(pid).padEnd(9)}`}
-            <Text dimColor>{`${up.padEnd(9)}${j ? 'console' : 'outside'}`}</Text>
+            <Text dimColor>{`${up.padEnd(9)}${j ? 'cli' : 'outside'}`}</Text>
           </Text>
         );
       })}
-      {!rows.length && <Text dimColor>nothing running · run &lt;backend&gt; starts one</Text>}
+      {!rows.length && <Text dimColor>nothing running · run &lt;station&gt; starts one</Text>}
     </Panel>
   );
 }
@@ -591,7 +591,7 @@ export function App({start}: {start?: string}) {
   const menuRows = Math.max(1, Math.min(7, rows - bannerRows - 9));
   const body =
     S.mode === 'picker' ? <Picker /> :
-    S.mode === 'dash' ? <Dashboard frame={frame} now={now} /> :
+    S.mode === 'dash' ? <Board frame={frame} now={now} /> :
     S.mode === 'toolkit' ? <Toolkits /> :
     S.mode === 'logs' && S.jobs.some(j => j.id === S.logs.job) ? <LogView /> :
     S.mode === 'about' ? <About /> :
@@ -608,7 +608,7 @@ export function App({start}: {start?: string}) {
           </Box>
         )}
         {S.confirm && (() => {
-          const names = [...S.jobs.filter(alive).map(j => j.name), ...S.external.filter(e => e.kind === 'backend').map(e => e.name)];
+          const names = [...S.jobs.filter(alive).map(j => j.name), ...S.external.filter(e => e.kind === 'station').map(e => e.name)];
           const label = names.length > 4 ? `${names.slice(0, 4).join(', ')} +${names.length - 4} more` : names.join(', ');
           return (
             <Box flexShrink={0}>

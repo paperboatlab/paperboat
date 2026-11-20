@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import type { EngineState } from "./engine";
 import type { ClientMsg, InstrumentSettings, ParamValue } from "./protocol";
-import type { Size } from "./dashboardLayout";
+import type { Size } from "./boardLayout";
 import { registerAnalysis } from "./analyses";
 
 /** An output a monitor can be wired to ("+ tap"): an id the host understands, and what to show. */
@@ -10,7 +10,7 @@ export type TapPort = { id: string; label: string; unit?: string };
 export type Sources = Record<string, { label: string; unit?: string }>;
 
 /**
- * What every Dashboard instrument gets: its monitor, the latest value and the live engine state
+ * What every Board instrument gets: its monitor, the latest value and the live engine state
  * (`state.traces` holds the history of every monitor's signals), and the host's services for it:
  * its cell's size, what feeds its inputs, its own saved settings, and wiring a tap in.
  */

@@ -1,10 +1,10 @@
 #pragma once
 
 // The C ABI a non-C++ host (Julia, and anything else with a C FFI) uses to serve a Paperboat
-// backend. The engine stays in C++: the host describes its block and station object types as
+// station. The engine stays in C++: the host describes its block and station object types as
 // JSON, then answers the events the engine raises while a run executes.
 //
-//   config  backend JSON: descriptor, port, run settings, block/object definitions
+//   config  station JSON: descriptor, port, run settings, block/object definitions
 //   next    the next event to answer: {"seq", "id", "event", "payload"}
 //   reply   the event's result JSON, by seq
 //

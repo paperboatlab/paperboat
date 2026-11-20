@@ -1,6 +1,6 @@
 // Paperboat web station bridge, served by the engine at /paperboat/station.js.
 //
-// A web station is a backend's own page shown on the Station page (in a sandboxed iframe)
+// A web station is a station's own page shown on the Station page (in a sandboxed iframe)
 // instead of the built-in scene. The page only renders and reports what the user does; the
 // engine stays authoritative. Load this script, then:
 //

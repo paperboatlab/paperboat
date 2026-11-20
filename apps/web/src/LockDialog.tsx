@@ -28,7 +28,7 @@ export function LockDialog({
 
   // Configure mode state
   const [lockArrange, setLockArrange] = useState(lock?.arrange ?? true);
-  const [pages, setPages] = useState<string[]>(lock?.pages ?? ["station", "flow", "dashboard"]);
+  const [pages, setPages] = useState<string[]>(lock?.pages ?? ["station", "flow", "board"]);
   const [modes, setModes] = useState<string[]>(lock?.modes ?? ["navigator", "commander", "lookout"]);
   const [newPasscode, setNewPasscode] = useState("");
   const [confirmPasscode, setConfirmPasscode] = useState("");
@@ -95,13 +95,13 @@ export function LockDialog({
     <section
       className="console-window notice lock-dialog"
       role="dialog"
-      aria-label={isLocked ? "Unlock Project UI" : "Project UI Lock"}
+      aria-label={isLocked ? "Unlock Flow UI" : "Flow UI Lock"}
       data-own-keys
       ref={root}
       style={{ maxWidth: 440 }}
     >
       <header className="console-head">
-        <h2>{isLocked ? "Unlock Project UI" : "Project UI Lock Settings"}</h2>
+        <h2>{isLocked ? "Unlock Flow UI" : "Flow UI Lock Settings"}</h2>
         <span className="spacer" />
         <button className="key small" onClick={onClose} aria-label="Close">✕</button>
       </header>
@@ -110,7 +110,7 @@ export function LockDialog({
         {isLocked ? (
           <form onSubmit={handleUnlock}>
             <p style={{ margin: "0 0 12px", color: "var(--text-muted)" }}>
-              Parts of the interface are locked by this project. Enter the passcode to unlock them for this session.
+              Parts of the interface are locked by this station flow. Enter the passcode to unlock them for this session.
             </p>
             {lock?.passcode ? (
               <div style={{ marginBottom: 12 }}>
@@ -127,7 +127,7 @@ export function LockDialog({
               </div>
             ) : (
               <p style={{ margin: "0 0 12px", fontStyle: "italic", color: "var(--text-muted)" }}>
-                This project has no passcode set. Click Unlock to restore full controls.
+                This station flow has no passcode set. Click Unlock to restore full controls.
               </p>
             )}
             {unlockError && (
@@ -170,7 +170,7 @@ export function LockDialog({
                 {[
                   { id: "station", label: "Station" },
                   { id: "flow", label: "Flow" },
-                  { id: "dashboard", label: "Board" },
+                  { id: "board", label: "Board" },
                 ].map((p) => (
                   <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                     <input

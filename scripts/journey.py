@@ -4,8 +4,8 @@
     python3 scripts/journey.py --examples ../paperboat-examples [--toolkit-repo URL|DIR] [--keep]
 
 1. launcher   bin/paperboat (bin\\paperboat.cmd on Windows) runs and prints its version
-2. workbench  `paperboat start --daemon` serves the web app and starts the workbench, which passes the smoke test
-3. example    an example backend passes `paperboat check`, then `paperboat start`s and passes the smoke test
+2. scratchpad  `paperboat start --daemon` serves the web app and starts the scratchpad, which passes the smoke test
+3. example    an example station passes `paperboat check`, then `paperboat start`s and passes the smoke test
 4. toolkit    `paperboat toolkit install optimization` installs and builds an optional toolkit
 5. toolkit example  one of its examples passes `paperboat check`
 
@@ -104,8 +104,8 @@ def check_launcher() -> str:
     return ""
 
 
-@step("2 workbench: `paperboat start` serves the app and starts the workbench")
-def check_workbench() -> str:
+@step("2 scratchpad: `paperboat start` serves the app and starts the scratchpad")
+def check_scratchpad() -> str:
     bin_ = cli()
     try:
         r = run([bin_, "start", "--daemon", "--port", "3047"], timeout=900)
@@ -117,9 +117,9 @@ def check_workbench() -> str:
         if 'id="root"' not in page:
             return "3047 answered without the web app's page"
         if not wait_port(8765):
-            return "the workbench never listened on 8765"
+            return "the scratchpad never listened on 8765"
         s = smoke(8765)
-        return "" if s.returncode == 0 else f"workbench smoke test failed:\n{tail(s)}"
+        return "" if s.returncode == 0 else f"scratchpad smoke test failed:\n{tail(s)}"
     finally:
         run([bin_, "stop"], timeout=60)
         run([bin_, "stop", "8765"], timeout=60)
@@ -127,11 +127,11 @@ def check_workbench() -> str:
         wait_port(8765, up=False, seconds=20)
 
 
-def start_and_smoke(backend: Path, port: int) -> str:
-    """`paperboat start <backend>` (foreground), the smoke test against it, then `paperboat stop <port>`."""
+def start_and_smoke(station: Path, port: int) -> str:
+    """`paperboat start <station>` (foreground), the smoke test against it, then `paperboat stop <port>`."""
     bin_ = cli()
-    print(f"  $ {bin_} start {backend} --port {port}  (in the background)", flush=True)
-    proc = subprocess.Popen([bin_, "start", str(backend), "--port", str(port)], stdin=subprocess.DEVNULL,
+    print(f"  $ {bin_} start {station} --port {port}  (in the background)", flush=True)
+    proc = subprocess.Popen([bin_, "start", str(station), "--port", str(port)], stdin=subprocess.DEVNULL,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
         if not wait_port(port, seconds=900):
@@ -150,13 +150,13 @@ def start_and_smoke(backend: Path, port: int) -> str:
 
 @step(f"3 example: {EXAMPLE} checks, starts and passes the smoke test")
 def check_example(examples: Path) -> str:
-    backend = examples / EXAMPLE
-    if not backend.is_dir():
-        return f"no {backend} (pass --examples)"
-    r = run([cli(), "check", str(backend)])
+    station = examples / EXAMPLE
+    if not station.is_dir():
+        return f"no {station} (pass --examples)"
+    r = run([cli(), "check", str(station)])
     if r.returncode != 0:
         return f"check exit {r.returncode}:\n{tail(r)}"
-    return start_and_smoke(backend, 8781)
+    return start_and_smoke(station, 8781)
 
 
 @step(f"4 toolkit: `paperboat toolkit install {TOOLKIT}`")
@@ -173,10 +173,10 @@ def install_toolkit(source: str) -> str:
 
 @step(f"5 toolkit example: {TOOLKIT_EXAMPLE} passes `paperboat check`")
 def check_toolkit_example() -> str:
-    backend = ROOT / "engine" / "toolkit" / TOOLKIT / "examples" / TOOLKIT_EXAMPLE
-    if not backend.is_dir():
-        return f"the install brought no {backend}"
-    r = run([cli(), "check", str(backend)], timeout=3600)
+    station = ROOT / "engine" / "toolkit" / TOOLKIT / "examples" / TOOLKIT_EXAMPLE
+    if not station.is_dir():
+        return f"the install brought no {station}"
+    r = run([cli(), "check", str(station)], timeout=3600)
     return "" if r.returncode == 0 else f"check exit {r.returncode}:\n{tail(r, 25)}"
 
 
@@ -193,7 +193,7 @@ def main() -> int:
     if "1" not in skip:
         check_launcher()
     if "2" not in skip:
-        check_workbench()
+        check_scratchpad()
     if "3" not in skip:
         check_example(args.examples.resolve())
     installed_here = False

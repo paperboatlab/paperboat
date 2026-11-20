@@ -110,38 +110,38 @@ end
 # the engine checks the shapes it knows.
 entity_json(entity) = plain(entity)
 
-function config_json(backend::Backend)
+function config_json(station::Station)
   config = Dict{String, Any}(
-    "engine" => backend.name,
-    "descriptor" => abspath(backend.descriptor),
-    "port" => backend.port,
-    "mode" => backend.mode,
-    "dt" => backend.dt,
-    "duration" => backend.duration,
-    "emit_every" => backend.emit_every,
-    "solver" => backend.solver,
-    "state" => backend.state,
-    "blocks" => [Paperboat.definition(type) for type in backend.blocks],
-    "objects" => [Paperboat.definition(type) for type in backend.objects],
+    "engine" => station.name,
+    "descriptor" => abspath(station.descriptor),
+    "port" => station.port,
+    "mode" => station.mode,
+    "dt" => station.dt,
+    "duration" => station.duration,
+    "emit_every" => station.emit_every,
+    "solver" => station.solver,
+    "state" => station.state,
+    "blocks" => [Paperboat.definition(type) for type in station.blocks],
+    "objects" => [Paperboat.definition(type) for type in station.objects],
   )
-  backend.view === nothing || (config["view"] = backend.view)
+  station.view === nothing || (config["view"] = station.view)
   config
 end
 
-function register_types(backend::Backend)
+function register_types(station::Station)
   empty!(TYPES)
   empty!(INSTANCES)
   empty!(LOGS)
-  for type in backend.blocks
+  for type in station.blocks
     TYPES[string(Paperboat.definition(type)["type"])] = type
   end
-  for type in backend.objects
+  for type in station.objects
     TYPES[string(Paperboat.definition(type)["type"])] = type
   end
 end
 
-function with_host(backend::Backend, run_only::Bool; lib = host_library())
-  register_types(backend)
+function with_host(station::Station, run_only::Bool; lib = host_library())
+  register_types(station)
   LIBRARY[] = Libdl.dlopen(lib, Libdl.RTLD_LAZY | Libdl.RTLD_GLOBAL)
   create = Libdl.dlsym(LIBRARY[], :pb_host_new)
   next_event = Libdl.dlsym(LIBRARY[], :pb_host_next)
@@ -149,7 +149,7 @@ function with_host(backend::Backend, run_only::Bool; lib = host_library())
   free = Libdl.dlsym(LIBRARY[], :pb_host_free)
   last_error = Libdl.dlsym(LIBRARY[], :pb_host_last_error)
 
-  text = JSON3.write(config_json(backend))
+  text = JSON3.write(config_json(station))
   handle_ptr = ccall(create, Ptr{Cvoid}, (Cstring, Cint), text, run_only ? 1 : 0)
   if handle_ptr == C_NULL
     message = unsafe_string(ccall(last_error, Cstring, ()))
@@ -173,22 +173,22 @@ function with_host(backend::Backend, run_only::Bool; lib = host_library())
   end
 end
 
-"""Serve a backend on `backend.port` until the process stops (Ctrl+C, or `paperboat stop`)."""
-serve(backend::Backend; lib = host_library()) = with_host(backend, false; lib = lib)
+"""Serve a station on `station.port` until the process stops (Ctrl+C, or `paperboat stop`)."""
+serve(station::Station; lib = host_library()) = with_host(station, false; lib = lib)
 
 """Run the starter graph once, headless: JSON lines, as `paperboat check` reads them."""
-run_starter(backend::Backend; lib = host_library()) = with_host(backend, true; lib = lib)
+run_starter(station::Station; lib = host_library()) = with_host(station, true; lib = lib)
 
-"""The backend's command line: `--port N` serves (the default), `--run` runs the starter once."""
-function main(backend::Backend; lib = host_library())
-  port = backend.port
+"""The station's command line: `--port N` serves (the default), `--run` runs the starter once."""
+function main(station::Station; lib = host_library())
+  port = station.port
   index = findfirst(==("--port"), ARGS)
   if index !== nothing && index < length(ARGS)
     port = parse(Int, ARGS[index + 1])
   end
-  served = Backend(; name = backend.name, descriptor = backend.descriptor, blocks = backend.blocks,
-                   objects = backend.objects, port = port, mode = backend.mode, dt = backend.dt,
-                   duration = backend.duration, emit_every = backend.emit_every, solver = backend.solver,
-                   state = backend.state, view = backend.view)
+  served = Station(; name = station.name, descriptor = station.descriptor, blocks = station.blocks,
+                   objects = station.objects, port = port, mode = station.mode, dt = station.dt,
+                   duration = station.duration, emit_every = station.emit_every, solver = station.solver,
+                   state = station.state, view = station.view)
   "--run" in ARGS ? run_starter(served; lib = lib) : serve(served; lib = lib)
 end

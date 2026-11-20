@@ -1,6 +1,6 @@
 // The replay controls (#284), on the run dock: step back, play or pause, step forward, a timeline
 // scrubber, the playback speed and the way back to live. It only appears when there is a run to
-// scrub through (or while one is open), so a backend that never samples keeps the dock as it was.
+// scrub through (or while one is open), so a station that never samples keeps the dock as it was.
 
 import type { EngineState } from "./engine";
 import { REPLAY_SPEEDS } from "./replay";

@@ -1,4 +1,4 @@
-// Keys, by what has the screen: a quit question, a picker, the dashboard, the toolkit
+// Keys, by what has the screen: a quit question, a picker, the board, the toolkit
 // manager, a followed log, history search, or the prompt.
 
 import type {Key} from 'ink';
@@ -67,7 +67,7 @@ function picker(input: string, key: Key, ctrlC: boolean): void {
   } else if (key.return) {
     const pick = list[S.picker.i];
     S.mode = 'prompt';
-    if (pick) exec(`run ${pick.backend.name}`);
+    if (pick) exec(`run ${pick.station.name}`);
   } else if (key.backspace || key.delete) {
     S.picker.query = S.picker.query.slice(0, -1);
     S.picker.i = 0;
@@ -93,7 +93,7 @@ function dash(input: string, key: Key, ctrlC: boolean): void {
     else stopTarget(String(row.ext!.port));
   } else if (row && key.return) {
     if (row.job) openLogs(row.job, 'dash');
-    else S.hint = `${row.ext!.name} was started outside this console · no log here`;
+    else S.hint = `${row.ext!.name} was started outside Paperboat CLI · no log here`;
   }
   changed();
 }

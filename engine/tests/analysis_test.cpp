@@ -8,7 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/toolkit/analysis.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
 #include "paperboat/toolkit/registry.hpp"
@@ -60,10 +60,10 @@ TEST_CASE("the catalog lists the analyses of the packages it imports") {
 }
 
 TEST_CASE("a session answers analysis.request with the part of the graph, variables resolved") {
-  static const core::Backend backend{.engine = "test", .catalog = &catalog(), .run = {.dt = 0.02, .real_time = false}};
+  static const core::Station station{.engine = "test", .catalog = &catalog(), .run = {.dt = 0.02, .real_time = false}};
   std::vector<json> sent;
   std::mutex mutex;
-  core::Session session(backend, [&](const std::string& text) {
+  core::Session session(station, [&](const std::string& text) {
     std::lock_guard lock(mutex);
     receive(sent, text);
   });

@@ -55,10 +55,10 @@ class StationObject {
 };
 
 // The state a domain's own blocks share during a run: a game, a document, an inbox, a
-// physical system, whatever the backend is about. The core makes a fresh one per run,
+// physical system, whatever the station is about. The core makes a fresh one per run,
 // hands it to every block in Context::state, steps it after each pass of a clocked run,
 // and draws it in the scene. Station objects are per-thing state the user sets up; this
-// is the domain-wide state the backend owns. A domain doesn't need one.
+// is the domain-wide state the station owns. A domain doesn't need one.
 class DomainState {
  public:
   virtual ~DomainState() = default;

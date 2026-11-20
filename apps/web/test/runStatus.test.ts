@@ -4,7 +4,7 @@ import { dockSettings, runBlocker, runClock, speedChange } from "../src/runStatu
 
 test("why Run is off, first reason first", () => {
   assert.equal(runBlocker(true, "closed", true, true), "A run is in progress");
-  assert.equal(runBlocker(false, "connecting", true, true), "Not connected to a backend");
+  assert.equal(runBlocker(false, "connecting", true, true), "Not connected to a station");
   assert.equal(runBlocker(false, "open", true, true), "Required toolkits are not installed");
   assert.equal(runBlocker(false, "open", false, true), "Flow contains blocks with missing types");
   assert.equal(runBlocker(false, "open", false, false), "");

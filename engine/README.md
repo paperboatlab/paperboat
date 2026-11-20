@@ -1,6 +1,6 @@
 # engine
 
-The C++20 engine and CLI of [Paperboat](../README.md): built-in toolkits, the generic backend host,
+The C++20 engine and CLI of [Paperboat](../README.md): built-in toolkits, the generic station host,
 the `paperboat/0` WebSocket session server and the `paperboat` command-line tool.
 
 **Docs:** <https://paperboatlab.github.io/paperboat/cpp.html> (sources in [`../docs/api/`](../docs/api/))
@@ -10,8 +10,8 @@ the `paperboat/0` WebSocket session server and the `paperboat` command-line tool
 ```text
 toolkit/   paperboat::toolkit: built-in block and station packages, plugin loader and descriptor parser
 core/      paperboat::core: Station, Flow graph scheduler, solvers and WebSocket server
-tools/     paperboat CLI, paperboat-workbench and paperboat-catalog binaries
-tests/     Catch2 test suite and SDK test backends
+tools/     paperboat CLI, paperboat-scratchpad and paperboat-catalog binaries
+tests/     Catch2 test suite and SDK test stations
 ```
 
 ## Build

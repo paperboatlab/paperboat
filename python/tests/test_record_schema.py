@@ -22,7 +22,7 @@ def record() -> dict:
     return {
         "paperboat": 0,
         "run": {"id": "run-1", "status": "done", "started": "2026-11-10T14:48:54Z", "finished": "2026-11-10T14:49:04Z"},
-        "backend": {"name": "rig", "version": "0.2.0"},
+        "station": {"name": "rig", "version": "0.2.0"},
         "tool_versions": {"paperboat": "0.1.0-alpha.3"},
         "command": "paperboat run --record out",
         "flow": {"nodes": [], "edges": []},

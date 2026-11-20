@@ -91,7 +91,7 @@ function Field({
         className="nodrag text-param"
         disabled={disabled}
         value={String(value)}
-        title={def.type === "file" ? "A file, relative to the backend's descriptor" : undefined}
+        title={def.type === "file" ? "A file, relative to the station's descriptor" : undefined}
         onText={set}
       />
     );

@@ -1,7 +1,7 @@
 # Test fixture (rig.hpp): a slider brought back to x = 0 by a PD loop. Frozen with the
 # reference run in core_test.cpp.
 domain = "rig"
-import = ["signal", "math", "control", "dashboard"]
+import = ["signal", "math", "control", "board"]
 
 [[blocks]]
 use = "math/gain"

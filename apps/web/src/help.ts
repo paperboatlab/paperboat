@@ -1,4 +1,4 @@
-// Paperboat's side of the shared Help window: a reference page for every block the backend offers,
+// Paperboat's side of the shared Help window: a reference page for every block the station offers,
 // written from its template (what it does, ports, params) with its toolkit's prose under it, and
 // the docs of the engine and every toolkit (paperboatlab.github.io), searched with them.
 import { docsHelp, DOCS_URL, loadDocs, matches, type BlockDef, type HelpItem, type HelpPage, type HelpProvider, type ParamDef, type PortDef } from "@paperboat/shared";

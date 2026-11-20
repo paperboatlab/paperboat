@@ -23,7 +23,7 @@ export function useFlowGroups(
   // holds signal blocks only: it is itself the step. A frame holds blocks only.
   const choosable = (ns: FlowNode[], shownIds: Set<string>) => ns.filter((n) => n.selected && shownIds.has(n.id));
   const runStates = useContext(RunStates);
-  // In and Out, from the engine's group package (absent on a backend older than it).
+  // In and Out, from the engine's group package (absent on a station older than it).
   const portDefs = useMemo(() => {
     const [portIn, portOut] = [PORT_IN, PORT_OUT].map((t) => blocks.find((b) => b.type === t));
     return portIn && portOut ? { in: portIn, out: portOut } : undefined;

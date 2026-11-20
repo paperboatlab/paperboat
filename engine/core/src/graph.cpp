@@ -159,7 +159,7 @@ toolkit::BlockDef story_def() {
 
 }  // namespace
 
-Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station& station) {
+Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, StationObjects& station) {
   Graph out;
   std::vector<std::string> ids;  // in graph order, so ties sort the same way every run
 
@@ -198,7 +198,7 @@ Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station&
     node.entry = catalog.find(type);
     if (!node.entry)
       throw GraphError(node.id, "block " + node.id + " has the unknown type \"" + type +
-                                    "\": this backend doesn't offer it (anymore); replace or remove it");
+                                    "\": this station doesn't offer it (anymore); replace or remove it");
     toolkit::Values params;
     toolkit::Config text;
     const json given = n.value("params", json::object());

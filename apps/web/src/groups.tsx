@@ -17,7 +17,7 @@ import { NumberField } from "./NumberField";
  *   what the story computed stays on its outputs for the next story to read.
  * - **visual** (a frame): a dashed box that tidies the canvas; its blocks run as if ungrouped.
  *   Collapsed, it shows as one block, as a subsystem does from outside.
- * Subsystems nest (a group's `parentId` is the group it is in). Backends see a flat graph.
+ * Subsystems nest (a group's `parentId` is the group it is in). Stations see a flat graph.
  */
 export type GroupData = {
   kind: "visual" | "subsystem" | "story";
