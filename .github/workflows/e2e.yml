@@ -26,7 +26,7 @@ defaults:
 
 jobs:
   # Connect, run the starter graph, see the results (apps/web/e2e).
-  # Only the console (the paperboat target) is built from the engine here; engine.yml builds and tests the rest.
+  # Only the CLI (the paperboat target) is built from the engine here; engine.yml builds and tests the rest.
   e2e:
     name: Web app end to end (Chromium, Linux)
     runs-on: ubuntu-24.04
@@ -67,7 +67,7 @@ jobs:
       - run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Build the console
+      - name: Build the CLI
         run: cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Debug -DPAPERBOAT_BUILD_TESTS=OFF && cmake --build engine/build --target paperboat
       - name: Build the sdk-station
         run: ./bin/paperboat build engine/tests/sdk-station
@@ -109,7 +109,7 @@ jobs:
       - run: npm ci
       - name: Install Chromium
         run: npx playwright install chromium
-      - name: Build the console
+      - name: Build the CLI
         run: cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Debug -DPAPERBOAT_BUILD_TESTS=OFF && cmake --build engine/build --target paperboat
       - name: Build the sdk-station
         run: ./bin/paperboat build engine/tests/sdk-station

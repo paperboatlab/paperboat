@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   web:
-    name: Web app, launcher, and console (built once, for every package)
+    name: Web app, launcher, and CLI (built once, for every package)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -89,7 +89,7 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "v$v" ]; then
             echo "::error::tag ${GITHUB_REF_NAME} does not match the CMake version $v"; exit 1
           fi
-      # The web app and the console, built once (job web): plain JavaScript, the same on every OS.
+      # The web app and the CLI, built once (job web): plain JavaScript, the same on every OS.
       - uses: actions/download-artifact@v4
         with:
           name: web-console
@@ -148,7 +148,7 @@ jobs:
             apt-get update -qq && apt-get install -y -qq cmake g++ make curl python3-pip >/dev/null
             pip install -q --break-system-packages websockets jsonschema
             mkdir /opt/pb && tar xzf /dist/paperboat-*.tar.gz -C /opt/pb --strip-components=1 && export PATH=/opt/pb/bin:$PATH
-            paperboat --version && paperboat pkg list && paperboat commands | grep -q pkg
+            paperboat --version && paperboat squero list && paperboat commands | grep -q squero
             test -f /opt/pb/share/paperboat/cli/main.js
             (paperboat start --port 3047 >/tmp/web.log 2>&1 &) && sleep 2
             curl -sf http://localhost:3047/ | grep -q "<div id=\"root\"" && echo "web app served"
@@ -175,14 +175,14 @@ jobs:
             cp /dist/paperboat-*-Linux-x86_64 /tmp/paperboat && chmod +x /tmp/paperboat && cd /tmp
             # PAPERBOAT_ARCHIVE: this build'"'"'s .tar.gz, as the release does not exist yet (a user downloads it)
             PAPERBOAT_ARCHIVE=$(ls /dist/paperboat-*-Linux-x86_64.tar.gz) /tmp/paperboat --version
-            PAPERBOAT_ARCHIVE=$(ls /dist/paperboat-*-Linux-x86_64.tar.gz) /tmp/paperboat pkg list
+            PAPERBOAT_ARCHIVE=$(ls /dist/paperboat-*-Linux-x86_64.tar.gz) /tmp/paperboat squero list
             export PATH="$HOME/.local/bin:$PATH"
             paperboat --version
             paperboat toolkit install optimization
             paperboat toolkit list optimization | grep -q "optimization/qp"
             paperboat check opt-01
-            paperboat pkg install paperboat-shared
-            paperboat pkg list | grep paperboat-shared | grep -vq "not installed"
+            paperboat squero install paperboat-shared
+            paperboat squero list | grep paperboat-shared | grep -vq "not installed"
             paperboat update --check'
       - name: "The wheel installs with pip and runs a Python station"
         run: |
@@ -223,7 +223,7 @@ jobs:
           pre=$(sed -nE 's/^set\(PAPERBOAT_PRERELEASE "([^"]*)".*/\1/p' engine/CMakeLists.txt)
           v=$v${pre:+-$pre}
           echo "version=$v" >> "$GITHUB_OUTPUT"
-      # The web app and the console, built once (job web): plain JavaScript, the same on every OS.
+      # The web app and the CLI, built once (job web): plain JavaScript, the same on every OS.
       - uses: actions/download-artifact@v4
         with:
           name: web-console
@@ -263,7 +263,7 @@ jobs:
           export PAPERBOAT_HOME="$RUNNER_TEMP/one/home" PAPERBOAT_BIN="$RUNNER_TEMP/one/bin"
           # As a download: outside the checkout, which the binary would otherwise find and act as its binary.
           cp "$GITHUB_WORKSPACE"/dist/paperboat-*-Darwin-arm64 "$RUNNER_TEMP/paperboat"
-          PAPERBOAT_ARCHIVE=$(ls "$GITHUB_WORKSPACE"/dist/paperboat-*-Darwin-arm64.tar.gz) "$RUNNER_TEMP/paperboat" pkg list
+          PAPERBOAT_ARCHIVE=$(ls "$GITHUB_WORKSPACE"/dist/paperboat-*-Darwin-arm64.tar.gz) "$RUNNER_TEMP/paperboat" squero list
           "$PAPERBOAT_BIN/paperboat" --version
       - name: No optional toolkit is bundled
         run: |
@@ -274,7 +274,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/pb" && tar xzf dist/paperboat-*.tar.gz -C "$RUNNER_TEMP/pb" --strip-components=1
           "$RUNNER_TEMP/pb/bin/paperboat" --version
-          "$RUNNER_TEMP/pb/bin/paperboat" pkg list
+          "$RUNNER_TEMP/pb/bin/paperboat" squero list
           pip install -q websockets jsonschema
           cp -r engine/tests/sdk-station "$RUNNER_TEMP/sdk-station" && cd "$RUNNER_TEMP"   # outside the checkout: the SDK, not the sources
           "$RUNNER_TEMP/pb/bin/paperboat" build "$RUNNER_TEMP/sdk-station"
@@ -326,7 +326,7 @@ jobs:
           pre=$(sed -nE 's/^set\(PAPERBOAT_PRERELEASE "([^"]*)".*/\1/p' engine/CMakeLists.txt)
           v=$v${pre:+-$pre}
           echo "version=$v" >> "$GITHUB_OUTPUT"
-      # The web app and the console, built once (job web): plain JavaScript, the same on every OS.
+      # The web app and the CLI, built once (job web): plain JavaScript, the same on every OS.
       - uses: actions/download-artifact@v4
         with:
           name: web-console
@@ -352,8 +352,8 @@ jobs:
         run: |
           exe=engine/build/tools/Release/paperboat.exe
           "$exe" --version
-          "$exe" commands | grep -q pkg
-          "$exe" pkg versions squero-studio-om || true   # git over the pipe layer
+          "$exe" commands | grep -q squero
+          "$exe" squero versions squero-studio-om || true   # git over the pipe layer
           "$exe" < /dev/null                              # the prompt: its banner runs git through the process layer
       - name: Package (.zip, Electron .msi, and the one-file paperboat.exe)
         run: |
@@ -372,7 +372,7 @@ jobs:
           export PAPERBOAT_HOME=$(cygpath -w "$one/home") PAPERBOAT_BIN=$(cygpath -w "$one/bin")
           # As a download: outside the checkout, which the exe would otherwise find and act as its binary.
           cp "$GITHUB_WORKSPACE"/dist/paperboat-*-Windows-AMD64.exe "$RUNNER_TEMP/paperboat.exe"
-          PAPERBOAT_ARCHIVE=$(cygpath -w "$(ls "$GITHUB_WORKSPACE"/dist/paperboat-*.zip)") "$RUNNER_TEMP/paperboat.exe" pkg list
+          PAPERBOAT_ARCHIVE=$(cygpath -w "$(ls "$GITHUB_WORKSPACE"/dist/paperboat-*.zip)") "$RUNNER_TEMP/paperboat.exe" squero list
           exe=$(ls "$one"/home/self/*/bin/paperboat.exe)
           "$exe" --version
           "$exe" update --check
