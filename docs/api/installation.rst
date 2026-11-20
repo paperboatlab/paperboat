@@ -136,10 +136,10 @@ Example output (the version and paths vary):
 .. code-block:: text
 
    $ curl -fsSL https://raw.githubusercontent.com/paperboatlab/paperboat/HEAD/scripts/install.sh | sh
-   installing paperboat-0.1.5-Linux-x86_64.tar.gz…
-   paperboat → /home/you/.local/share/paperboat/self/0.1.5/bin/paperboat
+   installing paperboat-0.2.0-Linux-x86_64.tar.gz…
+   paperboat → /home/you/.local/share/paperboat/self/0.2.0/bin/paperboat
    add /home/you/.local/bin to PATH: export PATH="$HOME/.local/bin:$PATH"
-   installed paperboat 0.1.5
+   installed paperboat 0.2.0
 
 If ``paperboat`` is not found afterwards, add the printed directory to your shell's
 ``PATH``.
@@ -200,8 +200,8 @@ prereleases. To build the ``dev`` branch on Windows, use a source checkout
    curl -fsSL "$INSTALL" | sh -s -- --dev
 
    # a specific release, or an archive you already downloaded
-   curl -fsSL "$INSTALL" | sh -s -- --version 0.1.5
-   curl -fsSL "$INSTALL" | sh -s -- --archive paperboat-0.1.5-Linux-x86_64.tar.gz
+   curl -fsSL "$INSTALL" | sh -s -- --version 0.2.0
+   curl -fsSL "$INSTALL" | sh -s -- --archive paperboat-0.2.0-Linux-x86_64.tar.gz
 
    # report what is installed and what is available; change nothing
    curl -fsSL "$INSTALL" | sh -s -- --check
@@ -224,8 +224,8 @@ installs its own runtime on first run:
    # or: sudo dnf install ./paperboat-<version>-1.x86_64.rpm
 
    # one-file Linux binary
-   chmod +x paperboat-0.1.5-Linux-x86_64
-   ./paperboat-0.1.5-Linux-x86_64 --version
+   chmod +x paperboat-0.2.0-Linux-x86_64
+   ./paperboat-0.2.0-Linux-x86_64 --version
 
 The release page is https://github.com/paperboatlab/paperboat/releases.
 
@@ -264,7 +264,7 @@ Verify the install
 .. code-block:: text
 
    $ paperboat --version
-   paperboat 0.1.5
+   paperboat 0.2.0
    $ paperboat commands
    start     Start the web app, or a station or program (start [station|program])
    stop      Stop the web app, or a station or program (stop [station|program])
@@ -325,7 +325,7 @@ Updating and switching versions
    paperboat update --channel dev           # switch to dev (builds from source)
    paperboat update --no-build              # update files without rebuilding
    paperboat use --list                     # list side-by-side runtime versions
-   paperboat use 0.1.5                      # switch active runtime under $PAPERBOAT_HOME/self/
+   paperboat use 0.2.0                      # switch active runtime under $PAPERBOAT_HOME/self/
 
 ``paperboat update`` manages releases directly in C++ without invoking ``install.sh`` or
 ``install.ps1``. Each managed runtime is installed side-by-side under

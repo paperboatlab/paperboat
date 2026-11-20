@@ -14,13 +14,13 @@ namespace paperboat::toolkit {
 
 struct SelfStatus {
   std::string channel;            // release | beta | dev | source (empty if unknown)
-  std::string installed_version;  // "0.1.5", "dev@abc1234", or empty
+  std::string installed_version;  // "0.2.0", "dev@abc1234", or empty
   std::filesystem::path active_target;
   bool managed = false;           // active install or running exe lives under paperboat_home()
 };
 
 struct InstalledSelfVersion {
-  std::string version;            // e.g. "0.1.5" or "dev"
+  std::string version;            // e.g. "0.2.0" or "dev"
   std::filesystem::path root;     // <home>/self/<version> or <home>/src/paperboat
   std::filesystem::path binary;   // <root>/bin/paperboat(.exe)
   bool active = false;
@@ -69,7 +69,7 @@ std::vector<InstalledSelfVersion> list_installed_versions();
 // Normalize "main" -> "dev"; returns empty for unknown channel names.
 std::string normalize_channel(std::string_view channel);
 
-// Platform release asset filename (e.g. "paperboat-0.1.5-Linux-x86_64.tar.gz").
+// Platform release asset filename (e.g. "paperboat-0.2.0-Linux-x86_64.tar.gz").
 std::string self_asset_name(std::string_view version);
 
 // Extract "<version>" from "paperboat-<version>-<OS>-<arch>.(tar.gz|zip)", or empty if malformed.

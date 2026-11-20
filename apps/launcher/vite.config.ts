@@ -145,7 +145,7 @@ function launcherDevApi(): Plugin {
             runCliJson<unknown[]>(["toolkit", "list", "--json"], []),
             runCliJson<unknown[]>(["commands", "--json"], []),
           ]);
-          const version = (verLines[0] || "0.1.4").replace(/^paperboat\s+/, "");
+          const version = (verLines[0] || "0.2.0").replace(/^paperboat\s+/, "");
           const userApps = (Array.isArray(appsAll) ? appsAll : []).filter(
             (a) => a.name === "squero-studio-om" || a.name === "squero-studio-mx",
           );

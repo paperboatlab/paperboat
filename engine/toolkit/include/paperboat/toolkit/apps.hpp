@@ -14,7 +14,7 @@
 
 namespace paperboat::toolkit {
 
-// A dep in apps.toml: "paperboat-shared" (any version) or "paperboat-shared@0.1" (a range: any 0.1.x).
+// A dep in apps.toml: "paperboat-shared" (any version) or "paperboat-shared@0.2" (a range: any 0.2.x).
 struct AppDep {
   std::string name;
   std::string range;  // empty: any version

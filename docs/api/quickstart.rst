@@ -61,7 +61,7 @@ C++
    if(PAPERBOAT_ENGINE_DIR)  # a Paperboat checkout: build the engine from its sources
      add_subdirectory(${PAPERBOAT_ENGINE_DIR} paperboat EXCLUDE_FROM_ALL)
    else()                    # an installed package: the SDK
-     find_package(Paperboat 0.1 CONFIG REQUIRED)
+     find_package(Paperboat 0.2 CONFIG REQUIRED)
    endif()
    add_executable(counter main.cpp)
    target_link_libraries(counter PRIVATE paperboat::core)

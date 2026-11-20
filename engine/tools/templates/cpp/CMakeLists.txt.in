@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(PAPERBOAT_ENGINE_DIR)
   add_subdirectory(${PAPERBOAT_ENGINE_DIR} paperboat EXCLUDE_FROM_ALL)
 else()
-  find_package(Paperboat 0.1 CONFIG REQUIRED)
+  find_package(Paperboat 0.2 CONFIG REQUIRED)
 endif()
 # The program lands in build/ under every generator (station.toml's run), also multi-config ones.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}")

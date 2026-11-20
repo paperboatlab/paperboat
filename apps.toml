@@ -3,7 +3,7 @@
 # Julia's path deps), so an app's name is also its folder name.
 # kind: squero (start/stop it; `launch` is the command that runs it, `port` where it listens) or library.
 #
-# A dep is "name" or "name@range"; the range is the leading numbers of a version ("0.1": any 0.1.x).
+# A dep is "name" or "name@range"; the range is the leading numbers of a version ("0.2": any 0.2.x).
 # paperboat and paperboat-shared share a MAJOR.MINOR line, so the apps here pin paperboat-shared to this
 # repository's line. A dep resolves to its newest tag in range, prereleases included when the app's own
 # version is a prerelease or dev (a dev app with no tag in range takes the dep's main). An installed dep
@@ -64,7 +64,7 @@ description = "Squero Studio: OpenModelica. The Modelica editor that exports Pap
 kind = "squero"
 launch = "bin/squero-om"  # `paperboat start squero-studio-om` runs its native launcher
 port = 59201  # squero-om's first free port (59201..59299)
-deps = ["paperboat-shared@0.1"]
+deps = ["paperboat-shared@0.2"]
 requires = ["git", "npm", "cmake", "ninja", "c++|g++|clang++|cl", "omc|podman|docker"]
 # the web app, the native server bin/squero-om runs, then omc: the pinned image in container mode
 # (a native omc is left to its package manager)
@@ -78,7 +78,7 @@ description = "Squero Studio: MX. The MATLAB-like Julia workbench with Paperboat
 kind = "squero"
 launch = "bin/squero-mx"  # `paperboat start squero-studio-mx` runs its native launcher
 port = 59202  # squero-mx's first free port (59202 up; the Squero Studios share 592xx)
-deps = ["paperboat-shared@0.1", "squero-julia-kernel@1.11"]
+deps = ["paperboat-shared@0.2", "squero-julia-kernel@1.11"]
 requires = ["git", "npm"]
 build = ["npm ci", "npm run build"]
 output = "dist"

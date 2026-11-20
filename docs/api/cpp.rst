@@ -13,15 +13,15 @@ The SDK
 A station builds against the engine in one of two ways:
 
 * **From a checkout**: ``add_subdirectory(<paperboat>/engine paperboat EXCLUDE_FROM_ALL)``.
-* **From an installed package**: ``find_package(Paperboat 0.1 CONFIG REQUIRED)``. The SDK is the
+* **From an installed package**: ``find_package(Paperboat 0.2 CONFIG REQUIRED)``. The SDK is the
   ``lib/``, ``include/`` and ``lib/cmake/Paperboat`` parts of the ``.tar.gz`` and the ``.zip``. Its libraries
   are Release builds (shared on Linux and macOS, static on Windows), so nothing is rebuilt and nothing
   is downloaded at configure time. Toolkits installed with ``paperboat toolkit install`` come with it as
   ``paperboat::toolkit_<name>``.
 
 Either way the targets are ``paperboat::core`` (links ``paperboat::toolkit``) and ``paperboat::warnings``
-(the engine's warning flags). The version check is ``SameMinorVersion``: a station that asks for 0.1
-needs a 0.1.x SDK. On Windows the SDK uses the static runtime (``/MT``); its config sets
+(the engine's warning flags). The version check is ``SameMinorVersion``: a station that asks for 0.2
+needs a 0.2.x SDK. On Windows the SDK uses the static runtime (``/MT``); its config sets
 ``CMAKE_MSVC_RUNTIME_LIBRARY`` to match unless you set it.
 
 Optional toolkits (``control``, ``opencv``, ``optimization``) stay source-only: ``paperboat toolkit install <name> --repo <url>``
