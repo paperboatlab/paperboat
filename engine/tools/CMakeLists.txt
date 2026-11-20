@@ -36,13 +36,7 @@ add_library(paperboat_new STATIC paperboat_new.cpp ${CMAKE_CURRENT_BINARY_DIR}/n
 target_include_directories(paperboat_new PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(paperboat_new PRIVATE paperboat::toolkit paperboat_warnings)
 
-# scripts/install.sh, embedded: a standalone paperboat (the one-file download) installs its runtime with it.
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/install.sh PAPERBOAT_INSTALL_SH)
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/install.ps1 PAPERBOAT_INSTALL_PS1)
-configure_file(install_sh.cpp.in ${CMAKE_CURRENT_BINARY_DIR}/install_sh.cpp @ONLY)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/install.sh
-             ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/install.ps1)
-add_executable(paperboat paperboat_cli.cpp ${CMAKE_CURRENT_BINARY_DIR}/install_sh.cpp)
+add_executable(paperboat paperboat_cli.cpp)
 target_compile_definitions(paperboat PRIVATE PAPERBOAT_VERSION="${PAPERBOAT_VERSION}")
 if(PAPERBOAT_STATIC_RUNTIME AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   target_link_options(paperboat PRIVATE -static-libstdc++ -static-libgcc)
@@ -75,9 +69,9 @@ if(PROJECT_IS_TOP_LEVEL)
           DESTINATION share/paperboat/protocol COMPONENT runtime)
   install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../protocol/schema/paperboat-0.schema.json
           DESTINATION share/paperboat/protocol/schema COMPONENT runtime)
-  # paperboat pack and unpack run package_backend.py, and paperboat update runs install.sh, from <root>/scripts.
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/package_backend.py ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/install.sh
-          ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/install.ps1 DESTINATION share/paperboat/scripts COMPONENT runtime)
+  # paperboat pack and unpack run package_backend.py from <root>/scripts.
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/package_backend.py
+          DESTINATION share/paperboat/scripts COMPONENT runtime)
   # The web app and the console, when built first (npm run build:release; scripts/build_release.sh
   # does): `paperboat start` serves share/paperboat/web, and the prompt is share/paperboat/cli/main.js.
   set(web_dist ${CMAKE_CURRENT_SOURCE_DIR}/../../apps/web/dist)

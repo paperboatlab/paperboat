@@ -48,6 +48,7 @@ add_executable(paperboat_tests
   flow_type_test.cpp
   cli_test.cpp
   apps_test.cpp
+  self_test.cpp
   process_test.cpp
 )
 target_link_libraries(paperboat_tests
@@ -90,6 +91,9 @@ endif()
 if(TARGET paperboat_new)
   target_sources(paperboat_tests PRIVATE new_test.cpp)
   target_link_libraries(paperboat_tests PRIVATE paperboat_new)
+endif()
+if(TARGET paperboat)
+  target_compile_definitions(paperboat_tests PRIVATE PAPERBOAT_TEST_CLI="$<TARGET_FILE:paperboat>")
 endif()
 
 include(Catch)
