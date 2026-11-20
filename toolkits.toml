@@ -2,7 +2,7 @@
 # `repo` is a suggested source only: it is never required and never used at launch. Install from
 # any repository or local folder with `paperboat toolkit install <name> --repo <url>` (or `--path`).
 # `prefix` names the toolkit's example folders (`opt-01-…`, `ocv-01-…`); an installed toolkit's
-# examples live in engine/toolkit/<name>/examples and are listed by `paperboat backends`.
+# examples live in engine/toolkit/<name>/examples and are listed by `paperboat stations`.
 [[toolkits]]
 name = "optimization"
 repo = "https://github.com/paperboatlab/paperboat-toolkit-optimization.git"

@@ -8,7 +8,7 @@ export interface CommandSpec {
   aliases: string[];
   subcommands: string[];
   flags: string[];
-  /** What the free argument names: backend | toolkit | target | job | ppk | "". */
+  /** What the free argument names: station | toolkit | target | job | pst | "". */
   arg: string;
 }
 
@@ -32,7 +32,7 @@ export interface Sources {
   listDir?: (dir: string) => Choice[];
 }
 
-/** A word that names a path rather than a backend: has a `/`, or starts with `.` or `~`. */
+/** A word that names a path rather than a station: has a `/`, or starts with `.` or `~`. */
 export const isPath = (word: string) => /\/|^[.~]/.test(word);
 
 export const FLAG_HELP: Record<string, string> = {
@@ -48,8 +48,8 @@ export const FLAG_HELP: Record<string, string> = {
   '--fast': 'manifest and catalog only',
   '--out': 'package path',
   '--dir': 'folder',
-  '--cpp': 'a C++ backend (the default)',
-  '--python': 'a Python backend',
+  '--cpp': 'a C++ station (the default)',
+  '--python': 'a Python station',
   '--host': 'listen host',
   '--daemon': 'run in the background',
   '--version': 'toolkit version',
@@ -124,7 +124,7 @@ export function complete(line: string, sources: Sources): {candidates: Candidate
     if (!cmd) return {candidates: [], from, word};
     if (word.startsWith('-')) pool = cmd.flags.map(f => ({value: f, detail: FLAG_HELP[f] ?? ''}));
     else if (cmd.subcommands.length && index === 1) pool = cmd.subcommands.map(s => ({value: s, detail: ''}));
-    else if ((cmd.arg === 'backend' || cmd.arg === 'ppk' || cmd.arg === 'file') && isPath(word) && sources.listDir) {
+    else if ((cmd.arg === 'station' || cmd.arg === 'pst' || cmd.arg === 'file') && isPath(word) && sources.listDir) {
       // Complete the last segment; the candidate is the whole path so far.
       const cut = word.lastIndexOf('/') + 1;
       const dir = word.slice(0, cut);
@@ -234,20 +234,20 @@ export function edit(line: Line, key: EditKey): Line | null {
   return null;
 }
 
-/** A job's name for a target: a known backend's name, else the folder or package it names
- * (`../x/cart-pole-cpp/` → `cart-pole`, `parts-0.1.0.ppk` → `parts-0.1.0`). */
+/** A job's name for a target: a known station's name, else the folder or package it names
+ * (`../x/cart-pole-cpp/` → `cart-pole`, `parts-0.1.0.pst` → `parts-0.1.0`). */
 export function targetName(target: string): string {
   const base = target.replace(/\/+$/, '').split('/').pop() || target;
-  if (base === '.' || base === '') return 'backend';
-  return base.replace(/\.ppk$/, '').replace(/-(cpp|python)$/, '');
+  if (base === '.' || base === '') return 'station';
+  return base.replace(/\.pst$/, '').replace(/-(cpp|python)$/, '');
 }
 
-/** Format a numbered backend instance name (`cart-pole`, 1 → `cart-pole_1`). */
+/** Format a numbered station instance name (`cart-pole`, 1 → `cart-pole_1`). */
 export function instanceName(base: string, id: number): string {
   return `${base}_${id}`;
 }
 
-/** Parse `<base>_<id>` into its base backend name and numeric instance id. */
+/** Parse `<base>_<id>` into its base station name and numeric instance id. */
 export function parseInstanceName(name: string): {base: string; id: number | null} {
   const m = /^(.+)_(\d+)$/.exec(name);
   return m ? {base: m[1], id: Number(m[2])} : {base: name, id: null};

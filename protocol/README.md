@@ -1,28 +1,28 @@
 # Paperboat protocol v0
 
-One WebSocket between the UI and a backend (the C++ engine, or any example backend).
+One WebSocket between the UI and a station (the C++ engine, or any example station).
 Every message is a JSON object with a `type` field. The UI holds no domain knowledge:
-the palette, node forms and 3D view are built only from what the backend sends. Message
+the palette, node forms and 3D view are built only from what the station sends. Message
 shapes are defined by the JSON Schema in [schema/paperboat-0.schema.json](schema/paperboat-0.schema.json)
-(`$defs/toUI`, `$defs/toBackend`); this page explains them.
+(`$defs/toUI`, `$defs/toStation`); this page explains them.
 
 A run's results are not a protocol message: `paperboat run --record <dir>` writes a
 [run record](schema/record-0.schema.json) with the messages the run sent (#277).
 
 Default address: `ws://localhost:8765`.
 
-## Backend → UI
+## Station → UI
 
 | `type`         | Fields                                      | Sent                         |
 | -------------- | ------------------------------------------- | ---------------------------- |
-| `hello`        | `protocol: "paperboat/0"`, `engine: string`, `station?: { view: "scene" \| "graph" \| "web", page?: string, visible?: boolean, orientation?: "cube" \| "axes" }`, `run?: RunSettings` (its defaults), `toolkits?: ToolkitStatus[]`, `flows?: FlowType[]` (the flow types a sheet may be, #9) | on connect. `station.page` (web view only) is a path on the backend's own port, over HTTP |
-| `catalog`      | `blocks: BlockDef[]`, `connectors?: Connectors` (see below), `objects?`, `dashboard?` | on connect                   |
+| `hello`        | `protocol: "paperboat/0"`, `engine: string`, `station?: { view: "scene" \| "graph" \| "web", page?: string, visible?: boolean, orientation?: "cube" \| "axes" }`, `run?: RunSettings` (its defaults), `toolkits?: ToolkitStatus[]`, `flows?: FlowType[]` (the flow types a sheet may be, #9) | on connect. `station.page` (web view only) is a path on the station's own port, over HTTP |
+| `catalog`      | `blocks: BlockDef[]`, `connectors?: Connectors` (see below), `objects?`, `board?` | on connect                   |
 | `scene`        | `entities: Entity[]`, `view?: View`         | on connect, and on reset     |
 | `graph.load`   | `graph: { flow?, nodes, edges }`            | on connect (starter graph)   |
 | `station.load` | `station: Station`                          | on connect, after `graph.load`, if the catalog has `objects` |
-| `variables.load` | `variables: Variable[]`                   | on connect, before `graph.load`, if the backend has default variables (its descriptor's `[[variables]]`) |
+| `variables.load` | `variables: Variable[]`                   | on connect, before `graph.load`, if the station has default variables (its descriptor's `[[variables]]`) |
 | `variables.values` | `values: { name: value }`, `error?: string`, `at?: string` | on connect and after each `variables.set`: what every variable comes to (a formula's result), or why they don't hold (`at`: the variable or block at fault) |
-| `variables.patch` | `values: { name: value }` | during a run, when a block set tunable variables (`Context::set_variable`, #166): what changed, formulas that follow included. The UI keeps the non-formula ones in the project; the backend already keeps them for the next run |
+| `variables.patch` | `values: { name: value }` | during a run, when a block set tunable variables (`Context::set_variable`, #166): what changed, formulas that follow included. The UI keeps the non-formula ones in the project; the station already keeps them for the next run |
 | `scene.patch`  | `entities: ({id} & Partial<Entity>)[]`      | during a run                 |
 | `run.started`  | `run: string`                               | when a run starts            |
 | `run.progress` | `run: string`, `fraction: number` (0–1)     | during a run                 |
@@ -38,17 +38,17 @@ Default address: `ws://localhost:8765`.
 | `run.finished` | `run: string`, `status: "done" \| "failed" \| "cancelled"` | when a run ends |
 | `analysis.result` | `id: string`, `analysis: string`, `result?: unknown`, `error?: string` | the answer to `analysis.request` (pb#370): the analysis's own result (its toolkit's panel reads it), or why there is none |
 
-## UI → Backend
+## UI → Station
 
 | `type`       | Fields                     |
 | ------------ | -------------------------- |
-| `graph.run`  | `graph: { nodes, edges }`, `station?: Station` (the backend's current one if absent), `settings?: RunSettings` (overrides the backend's defaults for this run), `variables?: Variable[]` (the backend's current ones if absent) |
-| `station.set` | `station: Station`: an edit on the Station page; the backend checks it and answers with a `scene` (or a `log` error) |
-| `variables.set` | `variables: Variable[]`: the user's variables changed; the backend checks them, keeps them for the next run and answers with a `scene` (the station they shape), or a `log` error. During a run it answers with `variables.values` only, and the run takes the `tunable` ones (below) |
+| `graph.run`  | `graph: { nodes, edges }`, `station?: Station` (the station's current one if absent), `settings?: RunSettings` (overrides the station's defaults for this run), `variables?: Variable[]` (the station's current ones if absent) |
+| `station.set` | `station: Station`: an edit on the Station page; the station checks it and answers with a `scene` (or a `log` error) |
+| `variables.set` | `variables: Variable[]`: the user's variables changed; the station checks them, keeps them for the next run and answers with a `scene` (the station they shape), or a `log` error. During a run it answers with `variables.values` only, and the run takes the `tunable` ones (below) |
 | `run.cancel` | —                          |
 | `run.speed`  | `speed: number` (as `RunSettings.speed`: times real time, 0 as fast as it can): the speed changed during a run (#219). The run goes on from where it is at the new speed, neither jumping ahead nor stalling, and answers with a `run.speed`. One out of range is refused with a `log` error; between runs (the run ended on the way) it is ignored, as the next `graph.run` brings its own speed |
 | `input`      | `key: string` (a `KeyboardEvent.code`, e.g. `"Space"`), `down: boolean` |
-| `backend.restart` | — (restarts the backend process with its startup arguments) |
+| `station.restart` | — (restarts the station process with its startup arguments) |
 | `toolkit.install` | `name: string`, `version?: string` (installs the named toolkit from `toolkits.toml` and rebuilds the engine; version is tag like `0.1.0` or `dev`) |
 | `toolkit.versions` | `name: string` (requests available release tags for the named toolkit) |
 | `toolkit.update`  | `name: string` (updates the named toolkit from its repository and rebuilds the engine) |
@@ -100,9 +100,9 @@ Default address: `ws://localhost:8765`.
   // ports_from "names" the same goes for the inputs (Mux). Bad names fail the run on the block.
   "outputs_from": "names",
   // optional: the block works element by element (Gain, Sum, Integrator, PID…). Its signal
-  // ports carry "broadcast": true and also join a vector port. With a vector in, the backend
+  // ports carry "broadcast": true and also join a vector port. With a vector in, the station
   // runs it once per element and its outputs are vectors of that length; with numbers, as
-  // before. Lengths are the backend's to check; the UI never refuses a wire for one it can't know.
+  // before. Lengths are the station's to check; the UI never refuses a wire for one it can't know.
   "elementwise": true,
   "forms": [
     { "name": "signal", "inputs": [{ "id": "cond" }, { "id": "a" }, { "id": "b" }], "outputs": [{ "id": "y" }] },
@@ -125,22 +125,22 @@ Default address: `ws://localhost:8765`.
                                                    // where the camera opens and Home returns (default eye [2, 4, 8] at [0, 0, 0], fov 50)
 { "mode": "2d", "center": [6, 5], "height": 11 }   // orthographic, looking down −z
 
-// RunSettings: hello.run (the backend's defaults) and graph.run.settings (this run's
-// changes; any but mode). A value out of range fails the run with a log, not the backend.
+// RunSettings: hello.run (the station's defaults) and graph.run.settings (this run's
+// changes; any but mode). A value out of range fails the run with a log, not the station.
 // duration: 0 means run indefinitely until cancelled, a Stop block, or every path ending.
 { "mode": "clock", "duration": 10, "dt": 0.01, "speed": 1 }   // mode: clock | once; speed: times real time, 0 as fast as it can
 { "solver": "rk45", "solvers": ["rk4", "rk45", "rk2", "euler", "discrete"] }
 // solver: hello.run's default and graph.run.settings' override; solvers: what this engine has,
 // the default first (hello.run only), so the UI offers no solver it can't run
 
-// Graph: sent by the UI with graph.run, and by the backend with graph.load
+// Graph: sent by the UI with graph.run, and by the station with graph.load
 {
   "nodes": [{ "id": "sine-1", "type": "sine", "params": { "amplitude": 5, "frequency": 0.3 }, "pos": [0, 0] }],
   "edges": [{ "from": ["sine-1", "y"], "to": ["F1-1", "force"] }]
 }
 ```
 
-`pos` is the node's place on the flow canvas; it is optional and backends ignore it.
+`pos` is the node's place on the flow canvas; it is optional and stations ignore it.
 An optional `"flow": "step"` is the sheet's flow type (#9): each block must work in it (a
 story's blocks in a Signal flow), or the run fails naming the block. Absent: not chosen, and
 nothing is checked (graphs from before sheets had a type).
@@ -148,7 +148,7 @@ Missing `params` take their defaults. A param's value is a number, or for a `key
 `KeyboardEvent.code` string (`"ArrowDown"`), which the UI sets by the user pressing it.
 A param (or a station object's prop) may instead **refer to a variable**:
 `{ "var": "pole_length" }`, or for a number or boolean param hold a formula over
-variables: `{ "expr": "2 * sqrt(kp_theta * pole_length)" }`. The backend resolves
+variables: `{ "expr": "2 * sqrt(kp_theta * pole_length)" }`. The station resolves
 references before it makes blocks and objects (a block only ever sees numbers and text)
 and fails the run on the block at fault: an unknown variable (with the nearest name), a
 type that doesn't fit, an enum value not among the param's options, a bad formula. Port `type` is `signal` (a value), `step` (control,
@@ -160,7 +160,7 @@ A port, and a number param, may have a `unit` (`"N"`, `"m"`, `"rad"`). On a vect
 applies to every component unless that component has its own unit. A wire joins
 ports of one type (`any` joins anything but a step), in one unit per component when both
 ends declare one, and with matching dimensions when both are fixed: the UI enforces it while
-dragging, and a backend fails a run whose wires break it. A signal
+dragging, and a station fails a run whose wires break it. A signal
 input takes one wire; a step output leads to one block. A run may step a clock (simulation: `scene.patch` per frame) or evaluate
 once (parametric: one `scene` at the end); the UI handles both.
 
@@ -290,7 +290,7 @@ Each request is an object with an `id` and `op`; replies return `{ id, ok: true,
 - **`set_icon`**: Converts an `IconDef` into a Modelica `Icon(graphics)` annotation (the inverse of the importer; updates `g` and plate size):
   - Request: `{ "id": 5, "op": "set_icon", "model": "Untitled", "icon": { ... } }`
   - Reply: `{ "id": 5, "ok": true, "result": {} }`
-- **`generate`**: Generates a Paperboat C++ backend (`<model>-cpp/`) via ODE compilation or FMU export. When `dry` is true, writes nothing to disk and returns virtual files in `result.files`. Emits streaming progress notifications (`{ "op": "progress", "id": 6, "stage": "check"|"flatten"|"generate"|"build", "fraction": 0.0..1.0 }`) before the final reply:
+- **`generate`**: Generates a Paperboat C++ station (`<model>-cpp/`) via ODE compilation or FMU export. When `dry` is true, writes nothing to disk and returns virtual files in `result.files`. Emits streaming progress notifications (`{ "op": "progress", "id": 6, "stage": "check"|"flatten"|"generate"|"build", "fraction": 0.0..1.0 }`) before the final reply:
   - Request: `{ "id": 6, "op": "generate", "source": "Untitled.mo", "model": "Untitled", "out": "untitled-cpp", "dry": true }`
   - Reply: `{ "id": 6, "ok": true, "result": { "model": "Untitled", "path": "ode", "reason": "ODE: no events, no torn systems, no external functions", "out": "untitled-cpp", "notices": [], "files": { ... } } }`
 - **`simulate`**: Runs a quick check simulation with omc (500 intervals) and returns time and variable series:
@@ -317,7 +317,7 @@ pushes on the object through the block's inputs and reads it through its outputs
                 "links": [], "block": "cart-pole" }]          // links: slots naming other objects
 }
 
-// The catalog may also carry the Dashboard's default layout (see below)
+// The catalog may also carry the Board's default layout (see below)
 
 // Station: station.load, station.set, graph.run
 { "objects": [{ "id": "cart-pole-1", "type": "cart-pole", "props": { "theta0": 0.15 } }] }
@@ -333,19 +333,19 @@ pushes on the object through the block's inputs and reads it through its outputs
  { "name": "kp_theta", "type": "number", "value": 40, "unit": "N/rad" },
  { "name": "kd_theta", "type": "number", "expr": "2 * sqrt(kp_theta * pole_length)" },  // a formula
  { "name": "controller", "type": "enum", "value": "pid", "options": ["pid", "lqr"] },
- { "name": "trail", "type": "boolean", "value": false, "exposed": true, "dock": true }]          // also a Dashboard and a dock control
+ { "name": "trail", "type": "boolean", "value": false, "exposed": true, "dock": true }]          // also a Board and a dock control
 ```
 
 `type` is `number`, `boolean`, `enum`, `text`, `file` or `matrix` (as params). Each has a `value`
 of its type or, for a number or boolean, an `expr` over other variables (evaluated in
 dependency order; a loop is an error). `min`, `max` and `whole` constrain a number;
-`note`, `group`, `step`, `exposed` (a control in the Dashboard's `controls` tile), `dock` (a control in the run dock) and `tunable` (meant to change during a run) are for the UI. A name is letters, digits and `_`,
-not `t`, `pi`, `e` or a function's name. A backend's defaults come from its descriptor's
+`note`, `group`, `step`, `exposed` (a control in the Board's `controls` tile), `dock` (a control in the run dock) and `tunable` (meant to change during a run) are for the UI. A name is letters, digits and `_`,
+not `t`, `pi`, `e` or a function's name. A station's defaults come from its descriptor's
 `[[variables]]`; the user's own live with the project (#34). Headless, `--var name=value`
 sets one for a `--run`.
 
 A run keeps the variables it started with, except a `tunable` number or boolean variable
-(not a formula; #75): when the UI sends `variables.set` during a run, the backend keeps the list for
+(not a formula; #75): when the UI sends `variables.set` during a run, the station keeps the list for
 the next run, answers with `variables.values` (no `scene`: the run owns it), and the run
 gives each tunable variable its new value between two steps. It reaches the `variable` block
 (`name` param, a variable's value on a wire) and every number param bound to it, directly or
@@ -358,25 +358,25 @@ A block may set a tunable variable too (#166; an autotuner or a calibration): `C
 (C++) and `ctx.set_variable` (Python) check it as the UI's change is checked (a `tunable`, non-formula
 variable, of the value's type, within its range; a refusal warns once in the Console and returns false)
 and apply it at the end of the pass, so every block in a pass sees the same variables. Formulas and
-bound params follow as above, and the backend sends `variables.patch` so the UI keeps the values in the
+bound params follow as above, and the station sends `variables.patch` so the UI keeps the values in the
 project. A `variable` param (a block setting that names a project variable, a picker in the UI) is how a
 block is told which one to set.
 
-**Project file** (#82). Everything a user made, as one JSON file (`name.ppj`), written
-and read by the UI; it is not a message, and a backend needs no code for it. It reuses the shapes
-above: `flow` (a `Graph`, every node with its `pos`), `station`, `variables`, `dashboard` and
-`run` (only what differs from the backend's defaults), plus `paperboat` (the format version, `0`;
-a newer file is refused) and `backend` (the `engine` it was made on; opening it elsewhere warns,
-and blocks the other backend lacks stay as lost blocks). The shape is `Project` in the schema.
+**Project file** (#82). Everything a user made, as one JSON file (`name.psf`), written
+and read by the UI; it is not a message, and a station needs no code for it. It reuses the shapes
+above: `flow` (a `Graph`, every node with its `pos`), `station`, `variables`, `board` and
+`run` (only what differs from the station's defaults), plus `paperboat` (the format version, `0`;
+a newer file is refused) and `station` (the `engine` it was made on; opening it elsewhere warns,
+and blocks the other station lacks stay as lost blocks). The shape is `Project` in the schema.
 See `docs/api/project.rst`.
 
-**Dashboard layout.** The Dashboard is a grid of equal cells with one instrument per monitor
+**Board layout.** The Board is a grid of equal cells with one instrument per monitor
 block on the Flow canvas (the canvas decides which exist). A catalog may carry a default
-layout, `dashboard`, which the UI uses until the user arranges their own (kept in the
-browser per backend, and in the project file). All fields are optional:
+layout, `board`, which the UI uses until the user arranges their own (kept in the
+browser per station, and in the project file). All fields are optional:
 
 ```jsonc
-"dashboard": {
+"board": {
   "columns": 6,                                       // 1 to 12; the UI fits fewer on a narrow screen
   "instruments": [
     { "block": "graph-theta", "size": "large", "at": [0, 0] },   // at: top-left cell [column, row]
@@ -396,7 +396,7 @@ instruments, and pages. They belong to the layout, not the flow: the Flow canvas
 decides which instruments exist.
 
 ```jsonc
-"dashboard": {
+"board": {
   "columns": 6,
   "tabs": ["Run", "Tuning"],                          // two or more show a tab strip; instruments name theirs with "tab"
   "decorations": [
@@ -420,7 +420,7 @@ value ("–" before a run), `{block:.2f}` with that many decimals, `{{` and `}}`
   inputs push the object after the flow's pass.
 - A run fails if a linked block's object isn't in the station.
 - **Links** join station objects (a spring's `a` and `b`): each slot the object's type
-  declares holds one other object's id. The backend checks them (the slot exists, the
+  declares holds one other object's id. The station checks them (the slot exists, the
   target is on the station) and hands each object what it links to before a run. When
   `hello.station.view` is `"graph"`, the Station page draws objects as nodes and links as
   wires; removing an object removes the links to it.
@@ -432,7 +432,7 @@ A graph whose blocks have `step` ports is a Step flow (see `paperboat-examples/a
 - **Hats** are blocks with step outputs and no step input. They start **paths**: Start
   once at the beginning, When each time its signal `cond` rises (a key press). Several
   paths can run at once; a When doesn't restart its own path while it still runs.
-- A path is at one block at a time. Each clock step the backend first runs the signal
+- A path is at one block at a time. Each clock step the station first runs the signal
   blocks (probes, math, monitors) in dependency order, then ticks the hats, then lets
   each path's block decide: leave by one of its step outputs now (instant: If, Repeat)
   or stay and work (Wait, Move). A path may pass several instant blocks in one clock
@@ -444,7 +444,7 @@ A graph whose blocks have `step` ports is a Step flow (see `paperboat-examples/a
 
 ## Caching
 
-A backend that evaluates once (`hello.run.mode == "once"`) may keep each block's outputs
+A station that evaluates once (`hello.run.mode == "once"`) may keep each block's outputs
 between the runs of one connection and reuse them: a block is called again only when
 something it depends on changed since the run that computed it: its type, params and text
 (variables included, once resolved), the values on its wires (so a station object changed
@@ -490,13 +490,13 @@ A graph may carry `groups`: `{ id, kind: "visual" | "subsystem" | "story", label
 collapsed?, pos?, params?: { seconds, reset }, release?: [[node, port], ...],
 expose?: [{ side: "in" | "out", to: [node, port] }, ...] }`. A block is in at most one group.
 Groups nest (`parent`). `expose` lists ports a subsystem or story shows as a block even where no wire
-crosses its edge yet (an input or output of a block inside it); the UI sets it, backends ignore it.
+crosses its edge yet (an input or output of a block inside it); the UI sets it, stations ignore it.
 A subsystem's or story's ports are mostly its `inport` and `outport` blocks (In and Out, the
 toolkit's `group` package, in every catalog): ordinary blocks that pass their value through, so
-backends run them like any other. The UI draws each as a port of the group's block, named by its
+stations run them like any other. The UI draws each as a port of the group's block, named by its
 `name` param.
 
-- **visual** tidies the canvas: the backend runs its blocks as if ungrouped. Collapsed,
+- **visual** tidies the canvas: the station runs its blocks as if ungrouped. Collapsed,
   the UI draws it as one block whose ports are the wires crossing its edge; the wires
   themselves still join the blocks inside.
 - **story** is one step of a Step flow. Its id is a node with step ports `in` and `next`
@@ -510,19 +510,19 @@ backends run them like any other. The UI draws each as a port of the group's blo
 
 ## Web station
 
-With `hello.station.view == "web"`, the Station page shows the backend's own page
-(`http://<backend host>:<port><page>`) in a sandboxed iframe. The page loads the bridge
-`/paperboat/station.js` from the same backend. The UI relays every backend message to it
+With `hello.station.view == "web"`, the Station page shows the station's own page
+(`http://<station host>:<port><page>`) in a sandboxed iframe. The page loads the bridge
+`/paperboat/station.js` from the same station. The UI relays every station message to it
 (`window.postMessage({paperboat: 0, message})`) and replays `catalog`, the latest `scene`
 and `station.load` when the page posts `station.ready`. The page may post back only
 `station.set` and `input`, which the UI forwards like its own. See GUIDELINES §6.4.
 
 ## Conformance
 
-`protocol/smoke_test.py --port <port>` checks any backend against this spec without
+`protocol/smoke_test.py --port <port>` checks any station against this spec without
 knowing its domain, every message against the schema included. `protocol/golden.py`
 runs each example's starter headless (`--run`) and compares the results with its
-`expected.json`. Every backend in `paperboat-examples/` passes both.
+`expected.json`. Every station in `paperboat-examples/` passes both.
 
 ## Why JSON, and what comes next
 

@@ -48,7 +48,7 @@ std::optional<RecordMeta> record_meta_from_env() {
   meta.dir = dir;
   meta.tool_version = env("PAPERBOAT_VERSION");
   meta.command = env("PAPERBOAT_COMMAND");
-  meta.backend_version = env("PAPERBOAT_BACKEND_VERSION");
+  meta.station_version = env("PAPERBOAT_STATION_VERSION");
   return meta;
 }
 
@@ -96,16 +96,16 @@ json RunRecord::document() const {
   if (!started_at_.empty()) run["started"] = started_at_;
   if (!finished_at_.empty()) run["finished"] = finished_at_;
 
-  json backend = {{"name", engine_}};
-  if (!meta_.backend_version.empty()) backend["version"] = meta_.backend_version;
+  json station = {{"name", engine_}};
+  if (!meta_.station_version.empty()) station["version"] = meta_.station_version;
 
   json tool_versions = {{"paperboat", meta_.tool_version.empty() ? std::string(PAPERBOAT_VERSION) : meta_.tool_version}};
-  if (!meta_.backend_version.empty()) tool_versions["backend"] = meta_.backend_version;
+  if (!meta_.station_version.empty()) tool_versions["station"] = meta_.station_version;
 
   json doc = {
       {"paperboat", 0},
       {"run", std::move(run)},
-      {"backend", std::move(backend)},
+      {"station", std::move(station)},
       {"tool_versions", std::move(tool_versions)},
       {"flow", request_part(request_, "graph", json::object())},
       {"variables", request_part(request_, "variables", json::array())},
@@ -113,7 +113,7 @@ json RunRecord::document() const {
       {"signals", signals_},
   };
   if (!meta_.command.empty()) doc["command"] = meta_.command;
-  if (request_.contains("station")) doc["station"] = request_.at("station");
+  if (request_.contains("station")) doc["station_objects"] = request_.at("station");
   if (toolkits_.is_array() && !toolkits_.empty()) doc["toolkits"] = toolkits_;
   if (have_scene_) doc["scene"] = {{"base", scene_base_}, {"frames", scene_frames_}};
   return doc;

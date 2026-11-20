@@ -9,7 +9,7 @@ if (process.platform === "linux") {
   app.commandLine.appendSwitch("ozone-platform-hint", "auto");
 }
 let mainWin = null;
-let pendingPpkPath = "";
+let pendingPstPath = "";
 
 const tasks = [];
 const activeChildren = new Map();
@@ -139,9 +139,9 @@ function createWindow() {
   }
 
   win.webContents.on("did-finish-load", () => {
-    if (pendingPpkPath) {
-      win.webContents.send("launcher:open-ppk", pendingPpkPath);
-      pendingPpkPath = "";
+    if (pendingPstPath) {
+      win.webContents.send("launcher:open-pst", pendingPstPath);
+      pendingPstPath = "";
     }
   });
 
@@ -150,9 +150,9 @@ function createWindow() {
   });
 }
 
-function checkArgForPpk(argv) {
+function checkArgForPst(argv) {
   for (const a of argv) {
-    if (typeof a === "string" && a.toLowerCase().endsWith(".ppk") && fs.existsSync(a)) {
+    if (typeof a === "string" && a.toLowerCase().endsWith(".pst") && fs.existsSync(a)) {
       return a;
     }
   }
@@ -163,22 +163,22 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  pendingPpkPath = checkArgForPpk(process.argv.slice(1));
+  pendingPstPath = checkArgForPst(process.argv.slice(1));
 
   app.on("second-instance", (_event, argv) => {
-    const ppk = checkArgForPpk(argv);
+    const pst = checkArgForPst(argv);
     if (mainWin) {
       if (mainWin.isMinimized()) mainWin.restore();
       mainWin.focus();
-      if (ppk) mainWin.webContents.send("launcher:open-ppk", ppk);
+      if (pst) mainWin.webContents.send("launcher:open-pst", pst);
     }
   });
 
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
-    if (filePath.toLowerCase().endsWith(".ppk")) {
-      if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("launcher:open-ppk", filePath);
-      else pendingPpkPath = filePath;
+    if (filePath.toLowerCase().endsWith(".pst")) {
+      if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("launcher:open-pst", filePath);
+      else pendingPstPath = filePath;
     }
   });
 
@@ -197,12 +197,12 @@ if (!gotLock) {
 
 /* ---- IPC Handlers -------------------------------------------------------- */
 ipcMain.handle("launcher:state", async () => {
-  const [version, running, statusDoc, backends, appsAll, toolkits, commands] = await Promise.all([
+  const [version, running, statusDoc, stations, appsAll, toolkits, commands] = await Promise.all([
     readVersion(),
     runCliJson(["list", "--json"], []),
-    runCliJson(["status", "--json"], { backends: [] }),
-    runCliJson(["backends", "--json"], []),
-    runCliJson(["pkg", "list", "--json"], []),
+    runCliJson(["status", "--json"], { stations: [] }),
+    runCliJson(["stations", "--json"], []),
+    runCliJson(["squero", "list", "--json"], []),
     runCliJson(["toolkit", "list", "--json"], []),
     runCliJson(["commands", "--json"], []),
   ]);
@@ -217,8 +217,8 @@ ipcMain.handle("launcher:state", async () => {
     installType: detectInstallType(),
     homeDir: paperboatHome(),
     running: Array.isArray(running) ? running : [],
-    status: Array.isArray(statusDoc?.backends) ? statusDoc.backends : [],
-    backends: Array.isArray(backends) ? backends : [],
+    status: Array.isArray(statusDoc?.stations) ? statusDoc.stations : [],
+    stations: Array.isArray(stations) ? stations : [],
     apps: userApps,
     toolkits: Array.isArray(toolkits) ? toolkits : [],
     commands: Array.isArray(commands) ? commands : [],
@@ -314,7 +314,7 @@ ipcMain.handle("launcher:stopTask", (_event, taskId) => {
 });
 
 ipcMain.handle("launcher:versions", (_event, kind, name) =>
-  runCliLines(kind === "toolkit" ? ["toolkit", "versions", String(name)] : ["pkg", "versions", String(name)]).then((versions) => ({ versions })),
+  runCliLines(kind === "toolkit" ? ["toolkit", "versions", String(name)] : ["squero", "versions", String(name)]).then((versions) => ({ versions })),
 );
 
 ipcMain.handle("launcher:inspect", (_event, name) =>
@@ -330,26 +330,26 @@ ipcMain.handle("launcher:channel", (_event, ch) => {
   return { ok: true, channel: ch };
 });
 
-ipcMain.handle("launcher:removeBackend", async (_event, dir) => {
-  const base = fs.realpathSync(path.join(paperboatHome(), "backends"));
+ipcMain.handle("launcher:removeStation", async (_event, dir) => {
+  const base = fs.realpathSync(path.join(paperboatHome(), "stations"));
   const target = fs.realpathSync(String(dir));
   const rel = path.relative(base, target);
   if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new Error(`Can only uninstall backends inside ${base}`);
+    throw new Error(`Can only uninstall stations inside ${base}`);
   }
   await new Promise((resolve) => execFile(PAPERBOAT_BIN, ["stop", target], { env: CHILD_ENV }, () => resolve()));
   fs.rmSync(target, { recursive: true, force: true });
-  pushLog(0, "ok", `removed backend ${path.basename(target)}`);
+  pushLog(0, "ok", `removed station ${path.basename(target)}`);
   return { ok: true };
 });
 
 ipcMain.handle("launcher:pickFile", async (_event, kind) => {
   const opts =
     kind === "dir"
-      ? { title: "Select Backend Folder", properties: ["openDirectory"] }
-      : kind === "ppk"
-        ? { title: "Open Paperboat Backend (.ppk)", properties: ["openFile"], filters: [{ name: "Paperboat Package", extensions: ["ppk"] }] }
-        : { title: "Open Paperboat Project (.ppj)", properties: ["openFile"], filters: [{ name: "Paperboat Project", extensions: ["ppj", "json"] }] };
+      ? { title: "Select Station Folder", properties: ["openDirectory"] }
+      : kind === "pst"
+        ? { title: "Open Paperboat Station (.pst)", properties: ["openFile"], filters: [{ name: "Paperboat Package", extensions: ["pst"] }] }
+        : { title: "Open Paperboat Project (.psf)", properties: ["openFile"], filters: [{ name: "Paperboat Project", extensions: ["psf", "json"] }] };
   const res = mainWin ? await dialog.showOpenDialog(mainWin, opts) : await dialog.showOpenDialog(opts);
   const picked = res.canceled ? "" : (res.filePaths[0] || "");
   return { ok: true, path: picked, cancelled: !picked };

@@ -28,7 +28,7 @@ New worktree, branch `epic160/lane-b-w4` from `dev` HEAD. Set `[lanes.B]` `state
   builds equipment, Paperboat runs procedure; Simulate is a local check), and the Studio surfaces
   in the guide's own words: library, acausal canvas (undirected wires, word errors, `/` splice),
   split view, popover (`=`, `+ Input`, `+ Probe`), interface sheet (`Alt+V`) and Look tab, dock
-  (balance, `[ Fix: Ground ]`, Export backend with the 2px signal line).
+  (balance, `[ Fix: Ground ]`, Export station with the 2px signal line).
 - **Custom block look**: check the existing row against contracts §3/§4 (plate sizes, token
   table, port shapes and sizes, wire weights, junction dot, `if` → dashed red, hit area) and fix
   any drift. Do not restate the token table twice.

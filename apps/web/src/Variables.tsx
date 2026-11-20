@@ -477,7 +477,7 @@ export function VariablesSheet({
       </div>
       <footer className="vars-foot">
         <span>{vars.locked ? "Locked while running (tunable variables still change)" : "Changes apply to the next run"}</span>
-        <button className="link" onClick={copy} disabled={vars.list.length === 0} title="Copy them as a descriptor's [[variables]]: paste there to make them the backend's defaults">
+        <button className="link" onClick={copy} disabled={vars.list.length === 0} title="Copy them as a descriptor's [[variables]]: paste there to make them the station's defaults">
           {copied ? "Copied" : "Copy as TOML"}
         </button>
       </footer>
@@ -546,7 +546,7 @@ function Row({
           e.dataTransfer.setData(VAR_DRAG, v.name);
           e.dataTransfer.setData("text/plain", v.name);
           e.dataTransfer.effectAllowed = "link";
-          document.body.classList.add("dragging-var"); // what takes a variable listens for it (Dashboard labels)
+          document.body.classList.add("dragging-var"); // what takes a variable listens for it (Board labels)
         }}
         onDragEnd={() => {
           dragged.current = null;
@@ -611,7 +611,7 @@ function Detail({ v, uses, onChange, onShow }: { v: Variable; uses: Use[]; onCha
     <div className="var-detail" onClick={(e) => e.stopPropagation()}>
       <span className="lbl">Name</span>
       <span className="wells">
-        <input className="well wide mono" aria-label="Name" value={name} disabled={vars.locked || !!def} title={def ? "The backend's default: its name is fixed" : "Renames every use"} onChange={(e) => setName(e.target.value)} onBlur={rename} onKeyDown={(e) => e.key === "Enter" && rename()} />
+        <input className="well wide mono" aria-label="Name" value={name} disabled={vars.locked || !!def} title={def ? "The station's default: its name is fixed" : "Renames every use"} onChange={(e) => setName(e.target.value)} onBlur={rename} onKeyDown={(e) => e.key === "Enter" && rename()} />
       </span>
       {why && name !== v.name && <span className="bad-text small span2">{why}</span>}
       <span className="lbl">Type</span>
@@ -687,8 +687,8 @@ function Detail({ v, uses, onChange, onShow }: { v: Variable; uses: Use[]; onCha
       )}
       <span className="lbl">Controls</span>
       <span className="wells">
-        <label className="check" title="A control on the Dashboard's Controls tile">
-          <input type="checkbox" checked={!!v.exposed} onChange={(e) => onChange({ ...v, exposed: e.target.checked || undefined })} /> Dashboard
+        <label className="check" title="A control on the Board's Controls tile">
+          <input type="checkbox" checked={!!v.exposed} onChange={(e) => onChange({ ...v, exposed: e.target.checked || undefined })} /> Board
         </label>
         <label className="check" title="A control in the run dock">
           <input type="checkbox" checked={!!v.dock} onChange={(e) => onChange({ ...v, dock: e.target.checked || undefined })} /> Dock
@@ -714,7 +714,7 @@ function Detail({ v, uses, onChange, onShow }: { v: Variable; uses: Use[]; onCha
           {uses.map((u) => (
             <div key={`${u.page}:${u.id}:${u.field}`} className="var-use">
               <code>{u.field ? `${u.id} · ${u.field}` : u.id}</code>
-              <span className="where">{u.page === "variables" ? "in its formula" : u.formula ? "a formula" : u.page === "flow" ? "Flow" : u.page === "dashboard" ? "Board" : "Station"}</span>
+              <span className="where">{u.page === "variables" ? "in its formula" : u.formula ? "a formula" : u.page === "flow" ? "Flow" : u.page === "board" ? "Board" : "Station"}</span>
               <button className="key small" onClick={() => onShow(u)}>
                 Show
               </button>
@@ -736,7 +736,7 @@ function Detail({ v, uses, onChange, onShow }: { v: Variable; uses: Use[]; onCha
             </button>
           </>
         ) : def ? (
-          <button className="key small" disabled={!changed || vars.locked} title="The backend's default: it can be reset, not deleted" onClick={() => onChange(def)}>
+          <button className="key small" disabled={!changed || vars.locked} title="The station's default: it can be reset, not deleted" onClick={() => onChange(def)}>
             Reset to default
           </button>
         ) : (

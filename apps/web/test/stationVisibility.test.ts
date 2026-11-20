@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  backendVisibilityKey,
+  stationVisibilityKey,
   readStationChoices,
   resolveStationVisible,
   STATION_STORAGE_KEY,
@@ -26,27 +26,27 @@ test("resolveStationVisible follows hello.station.visible in auto mode and honor
   assert.equal(resolveStationVisible("hidden", true), false);
 });
 
-test("choices are scoped per backend and do not leak between workbench and domain backends", () => {
+test("choices are scoped per station and do not leak between scratchpad and domain stations", () => {
   mockStorage();
-  const workbench = backendVisibilityKey("ws://localhost:8765", "workbench");
-  const cartPole = backendVisibilityKey("ws://localhost:8766", "cart-pole");
+  const scratchpad = stationVisibilityKey("ws://localhost:8765", "scratchpad");
+  const cartPole = stationVisibilityKey("ws://localhost:8766", "cart-pole");
 
-  // User shows Station on cart-pole (or hides it); workbench stays on auto (hidden)
+  // User shows Station on cart-pole (or hides it); scratchpad stays on auto (hidden)
   writeStationChoice(cartPole, "hidden");
   let choices = readStationChoices();
-  assert.equal(resolveStationVisible(choices[workbench] ?? "auto", false), false);
+  assert.equal(resolveStationVisible(choices[scratchpad] ?? "auto", false), false);
   assert.equal(resolveStationVisible(choices[cartPole] ?? "auto", true), false);
 
-  // User shows Station on workbench once; cart-pole stays independent, and switching back to auto clears override
-  writeStationChoice(workbench, "shown");
+  // User shows Station on scratchpad once; cart-pole stays independent, and switching back to auto clears override
+  writeStationChoice(scratchpad, "shown");
   writeStationChoice(cartPole, "auto");
   choices = readStationChoices();
-  assert.equal(resolveStationVisible(choices[workbench] ?? "auto", false), true);
+  assert.equal(resolveStationVisible(choices[scratchpad] ?? "auto", false), true);
   assert.equal(resolveStationVisible(choices[cartPole] ?? "auto", true), true);
 
-  writeStationChoice(workbench, "auto");
+  writeStationChoice(scratchpad, "auto");
   choices = readStationChoices();
-  assert.equal(resolveStationVisible(choices[workbench] ?? "auto", false), false);
+  assert.equal(resolveStationVisible(choices[scratchpad] ?? "auto", false), false);
 });
 
 test("legacy global paperboat.station values migrate cleanly to auto", () => {

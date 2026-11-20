@@ -69,8 +69,8 @@ if(PROJECT_IS_TOP_LEVEL)
           DESTINATION share/paperboat/protocol COMPONENT runtime)
   install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../protocol/schema/paperboat-0.schema.json
           DESTINATION share/paperboat/protocol/schema COMPONENT runtime)
-  # paperboat pack and unpack run package_backend.py from <root>/scripts.
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/package_backend.py
+  # paperboat pack and unpack run package_station.py from <root>/scripts.
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/package_station.py
           DESTINATION share/paperboat/scripts COMPONENT runtime)
   # The web app and the console, when built first (npm run build:release; scripts/build_release.sh
   # does): `paperboat start` serves share/paperboat/web, and the prompt is share/paperboat/cli/main.js.
@@ -82,7 +82,7 @@ if(PROJECT_IS_TOP_LEVEL)
   if(EXISTS ${cli_bundle})
     install(FILES ${cli_bundle} DESTINATION share/paperboat/cli COMPONENT runtime)
   endif()
-  # Python backends (pb#223): the `paperboat` package in lib/paperboat/python, which the CLI puts on
+  # Python stations (pb#223): the `paperboat` package in lib/paperboat/python, which the CLI puts on
   # PYTHONPATH, so `import paperboat` works with no pip step. Its extension is built from python/
   # (scripts/build_python.sh): one module per CPython ABI (abi3 for 3.12 and later, and 3.11);
   # each interpreter loads the one for it.

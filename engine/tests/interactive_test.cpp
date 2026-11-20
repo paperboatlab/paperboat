@@ -31,8 +31,8 @@ TEST_CASE("key follows keys_down for its configured key") {
   CHECK(get_or(space->step(Context{0.0, 0.01, nullptr}, {}), "pressed") == 0.0);  // no input source
 }
 
-TEST_CASE("dashboard switch supports toggle and momentary modes") {
-  const Template* t = builtins().find("dashboard/switch");
+TEST_CASE("board switch supports toggle and momentary modes") {
+  const Template* t = builtins().find("board/switch");
   REQUIRE(t != nullptr);
   CHECK(t->def.type == "switch");
   CHECK(t->def.kind == Kind::Monitor);
@@ -73,11 +73,11 @@ TEST_CASE("dashboard switch supports toggle and momentary modes") {
   CHECK(get_or(mom_sw->step(ctx_mom, {}), "y") == 0.0);
 }
 
-TEST_CASE("dashboard switch also answers its node id when a key is set") {
-  const Template* t = builtins().find("dashboard/switch");
+TEST_CASE("board switch also answers its node id when a key is set") {
+  const Template* t = builtins().find("board/switch");
   REQUIRE(t != nullptr);
   auto sw = t->make({{"initial", 0.0}}, {{"mode", "momentary"}, {"key", "btn"}});
-  KeySet keys{"sw1"};  // what the dashboard control sends
+  KeySet keys{"sw1"};  // what the board control sends
   Context ctx{.t = 0.0, .dt = 0.01, .keys_down = &keys, .node = "sw1"};
   CHECK(get_or(sw->step(ctx, {}), "y") == 0.0);  // first pass only latches
   CHECK(get_or(sw->step(ctx, {}), "y") == 1.0);
@@ -87,7 +87,7 @@ namespace {
 
 // A Lamp made as a descriptor would make it: the op by name in config, numbers in params.
 std::unique_ptr<Block> lamp(const std::string& op, double threshold, bool latch = false) {
-  const Template* t = builtins().find("dashboard/lamp");
+  const Template* t = builtins().find("board/lamp");
   REQUIRE(t != nullptr);
   return t->make({{"threshold", threshold}, {"latch", latch ? 1.0 : 0.0}}, {{"op", op}});
 }
@@ -96,8 +96,8 @@ double lit(Block& b, double v) { return get_or(b.step(Context{}, {{"in", v}}), "
 
 }  // namespace
 
-TEST_CASE("dashboard lamp: definition") {
-  const Template* t = builtins().find("dashboard/lamp");
+TEST_CASE("board lamp: definition") {
+  const Template* t = builtins().find("board/lamp");
   REQUIRE(t != nullptr);
   CHECK(t->def.type == "lamp");
   CHECK(t->def.kind == Kind::Monitor);
@@ -121,7 +121,7 @@ TEST_CASE("dashboard lamp: definition") {
   CHECK(t->def.view.icon.is_object());
 }
 
-TEST_CASE("dashboard lamp: each comparison against its threshold") {
+TEST_CASE("board lamp: each comparison against its threshold") {
   SECTION("> lights strictly above") {
     auto b = lamp(">", 10);
     CHECK(lit(*b, 9.99) == 0.0);
@@ -151,13 +151,13 @@ TEST_CASE("dashboard lamp: each comparison against its threshold") {
     CHECK(lit(*ne, 1) == 1.0);
   }
   SECTION("the defaults (> 0.5) light on a boolean") {
-    const Template* t = builtins().find("dashboard/lamp");
+    const Template* t = builtins().find("board/lamp");
     auto b = t->make({}, {});
     CHECK(lit(*b, 0) == 0.0);
     CHECK(lit(*b, 1) == 1.0);
   }
   SECTION("the op by its index when no name is given (as an expression sees an enum)") {
-    const Template* t = builtins().find("dashboard/lamp");
+    const Template* t = builtins().find("board/lamp");
     auto b = t->make({{"op", 2.0}, {"threshold", 0.0}}, {});  // "<"
     CHECK(lit(*b, -1) == 1.0);
     CHECK(lit(*b, 1) == 0.0);
@@ -171,7 +171,7 @@ TEST_CASE("dashboard lamp: each comparison against its threshold") {
   }
 }
 
-TEST_CASE("dashboard lamp: a latch holds the trip for the rest of the run") {
+TEST_CASE("board lamp: a latch holds the trip for the rest of the run") {
   auto b = lamp(">", 10, true);
   CHECK(lit(*b, 5) == 0.0);
   CHECK(lit(*b, 11) == 1.0);
@@ -181,7 +181,7 @@ TEST_CASE("dashboard lamp: a latch holds the trip for the rest of the run") {
   CHECK(lit(*fresh, 5) == 0.0);
 }
 
-TEST_CASE("dashboard lamp: a tuned threshold applies at once") {
+TEST_CASE("board lamp: a tuned threshold applies at once") {
   auto b = lamp(">", 10);
   CHECK(lit(*b, 8) == 0.0);
   CHECK(b->set_param("threshold", 5));

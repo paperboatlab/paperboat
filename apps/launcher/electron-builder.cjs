@@ -19,7 +19,7 @@ module.exports = {
     { from: "resources/paperboat", to: "paperboat", filter: ["**/*"] },
   ],
   fileAssociations: [
-    { ext: "ppk", name: "Paperboat Backend Package", role: "Viewer" },
+    { ext: "pst", name: "Paperboat Station Package", role: "Viewer" },
   ],
   linux: {
     target: [

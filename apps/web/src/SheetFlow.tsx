@@ -4,7 +4,7 @@ import { flowLabel } from "./flowTypes.ts";
 
 /**
  * The open sheet's flow type (#9), in the Flow page's head: a switch between the types the
- * backend offers at the top level (the palette offers the blocks that work in the one picked),
+ * station offers at the top level (the palette offers the blocks that work in the one picked),
  * or a plain label inside a story, which runs its blocks as a Signal flow.
  */
 export function SheetFlow({
@@ -44,13 +44,13 @@ export function SheetFlow({
     );
   if (offered.length < 2 && offered.includes(flow))
     return (
-      <span className="sheet-flow lbl" title={`This sheet is a ${flowLabel(flow)}${mixed ? ", with both signal and step layers" : ""}: the only flow type this backend offers`}>
+      <span className="sheet-flow lbl" title={`This sheet is a ${flowLabel(flow)}${mixed ? ", with both signal and step layers" : ""}: the only flow type this station offers`}>
         {mixedLabel}
       </span>
     );
   if (!offered.includes(flow))
     return (
-      <span className="sheet-flow lbl" title="A block on this sheet makes it this flow type; the backend doesn't offer it as a choice">
+      <span className="sheet-flow lbl" title="A block on this sheet makes it this flow type; the station doesn't offer it as a choice">
         {flowLabel(flow)} · from the blocks
       </span>
     );

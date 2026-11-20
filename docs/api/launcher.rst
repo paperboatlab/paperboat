@@ -2,11 +2,11 @@ Paperboat Launcher
 ==================
 
 The **Paperboat Launcher** is the desktop window over the Paperboat CLI. It installs and
-updates the Squero Studio apps, runs backends, manages optional toolkits and gives you a
+updates the Squero Studio apps, runs stations, manages optional toolkits and gives you a
 console for any ``paperboat`` command without leaving the window.
 
 The Launcher bundles the CLI and the C++ SDK, so installing it is a complete install. It
-shares ``$PAPERBOAT_HOME`` with a separately installed CLI; apps, toolkits and backends
+shares ``$PAPERBOAT_HOME`` with a separately installed CLI; apps, toolkits and stations
 are the same in both.
 
 Starting it
@@ -38,9 +38,9 @@ The left rail has four pages:
      - What it is for
    * - **Apps**
      - Install, launch and update Paperboat and the Squero Studio apps; see live
-       sessions and start any backend quickly.
-   * - **Backends**
-     - Browse backend projects, run one, build it, verify it, package it as ``.ppk``.
+       sessions and start any station quickly.
+   * - **Stations**
+     - Browse station projects, run one, build it, verify it, package it as ``.pst``.
    * - **Toolkits**
      - Install, update and remove optional toolkits; browse the blocks they add.
    * - **Console**
@@ -48,12 +48,12 @@ The left rail has four pages:
 
 The top bar changes with the page. On **Apps** it carries the channel switch
 (``release`` / ``beta`` / ``dev``), **Check for updates** and the version/status pill. On
-**Backends** it has **Open .ppk…**, **+ New** and the source filter. On **Toolkits** it has
+**Stations** it has **Open .pst…**, **+ New** and the source filter. On **Toolkits** it has
 **+ Install toolkit…** and the block-kind filter. The right end always has the theme
 control.
 
 :kbd:`Ctrl` + :kbd:`K` opens the command palette; :kbd:`Alt` + :kbd:`1` … :kbd:`4` jump
-to Apps, Backends, Toolkits and Console.
+to Apps, Stations, Toolkits and Console.
 
 Apps
 ----
@@ -92,16 +92,16 @@ neighbours) is marked **workspace**; it is already ready and is not reinstalled.
 installed app shows its version and can be uninstalled from the same card. Uninstalling
 an app removes its folder from ``$PAPERBOAT_HOME/apps``; it does not touch your projects.
 
-**Active Sessions.** Pick a backend or an app in the quick-launch select and press
+**Active Sessions.** Pick a station or an app in the quick-launch select and press
 **Start**. The list shows each running or starting process with its port and URL:
 **Open** opens the web app or the app's own window; **Restart** and **Stop** act on that
 process; **Logs** jumps to the Console. **Stop all** ends every session.
 
-Backends
+Stations
 --------
 
-The Backends page lists the backend projects Paperboat can run: examples, installed
-backends and the built-in workbench. Use the filter box or the source switch
+The Stations page lists the station projects Paperboat can run: examples, installed
+stations and the built-in scratchpad. Use the filter box or the source switch
 (``all`` / ``builtin`` / ``example`` / ``installed``).
 
 .. list-table::
@@ -111,30 +111,30 @@ backends and the built-in workbench. Use the filter box or the source switch
    * - Action
      - What it does
    * - **Open folder…**
-     - Add a backend project from a local folder to the list.
-   * - **Open .ppk…**
-     - Open a packaged backend: unpack it into the local backend store or run it
+     - Add a station project from a local folder to the list.
+   * - **Open .pst…**
+     - Open a packaged station: unpack it into the local station store or run it
        directly.
-   * - **Open .ppj…**
+   * - **Open .psf…**
      - Open a saved Paperboat project in the web app.
    * - **New**
-     - Scaffold a C++, Python or Julia backend that passes ``paperboat check``.
+     - Scaffold a C++, Python or Julia station that passes ``paperboat check``.
    * - **Fetch examples**
-     - Fetch the official example backends.
+     - Fetch the official example stations.
 
-Select a backend to open its sheet:
+Select a station to open its sheet:
 
 - **Run** starts it on the selected port (with **Options** for ``--no-build``,
   ``--clean``, ``--time``, ``--verbose`` and ``--var key=value``). While it runs, the
   button changes to **Open in Paperboat**, **Restart** and **Stop**.
-- **Build** and **Rebuild (--clean)** compile a C++ backend. Python and Julia backends
+- **Build** and **Rebuild (--clean)** compile a C++ station. Python and Julia stations
   show **Install dependencies** instead.
-- **Pack .ppk** writes a portable backend package.
+- **Pack .pst** writes a portable station package.
 - **Verification** runs the four stages of ``paperboat check`` — manifest, catalog,
   smoke and golden — with a green/red step for each. **Fast** skips the slower stages.
-- **Open folder** reveals the project; an installed backend also has **Uninstall**.
+- **Open folder** reveals the project; an installed station also has **Uninstall**.
 
-The built-in workbench is a prebuilt backend: it has no source build, check or package
+The built-in scratchpad is a prebuilt station: it has no source build, check or package
 actions, but it can be run and opened like any other.
 
 Toolkits
@@ -154,8 +154,8 @@ installed and lists the blocks it adds.
 - The block cards show each block's label, type, kind (flow, station or board) and
   description. The search box and the **Kind** switch narrow the list.
 
-Installing a toolkit makes its blocks available to backends that import its package. The
-block cards on this page show what it adds; start the backend again so it loads the new
+Installing a toolkit makes its blocks available to stations that import its package. The
+block cards on this page show what it adds; start the station again so it loads the new
 plugin.
 
 Console
@@ -168,7 +168,7 @@ The Console runs the same commands you would type in a shell:
    paperboat› status
    paperboat› pkg list
    paperboat› toolkit list
-   paperboat› backends
+   paperboat› stations
 
 The prompt completes commands and names with :kbd:`Tab`; :kbd:`→` accepts the grey
 suggestion; :kbd:`↑` and :kbd:`↓` walk the history. **Help** prints the CLI reference,
@@ -191,11 +191,11 @@ Keys
    * - :kbd:`Ctrl` + :kbd:`K`
      - Command palette: search every action on the current page.
    * - :kbd:`Ctrl` + :kbd:`O`
-     - Open a ``.ppk`` package.
+     - Open a ``.pst`` package.
    * - :kbd:`Ctrl` + :kbd:`N`
-     - New backend project.
+     - New station project.
    * - :kbd:`Alt` + :kbd:`1` … :kbd:`4`
-     - Apps, Backends, Toolkits, Console.
+     - Apps, Stations, Toolkits, Console.
    * - :kbd:`Escape`
      - Close the open dialog.
    * - :kbd:`Tab`, :kbd:`→`, :kbd:`↑`, :kbd:`↓`
@@ -204,10 +204,10 @@ Keys
 Storage and cleanup
 -------------------
 
-Apps, toolkits and backends live under ``$PAPERBOAT_HOME`` (default
+Apps, toolkits and stations live under ``$PAPERBOAT_HOME`` (default
 ``~/.local/share/paperboat`` on Linux/macOS, ``%LOCALAPPDATA%\paperboat`` on Windows).
 Removing an app or toolkit from the Launcher removes that folder; your own projects,
-``.ppj`` files and backend folders elsewhere are never touched. Uninstalling the
+``.psf`` files and station folders elsewhere are never touched. Uninstalling the
 Launcher package leaves ``$PAPERBOAT_HOME`` in place; delete it by hand for a clean
 slate.
 
@@ -218,10 +218,10 @@ If something fails
   retry; :ref:`installation` lists the requirement for each app.
 - **A build or install fails.** Open the Console or the task's **Logs**; the last lines
   are kept there. The same command in a terminal shows the full output.
-- **A backend is still starting.** A C++ backend compiles before it serves. The status
+- **A station is still starting.** A C++ station compiles before it serves. The status
   pill and the session row show the stage; ``paperboat status`` in the Console gives the
   same detail as JSON.
-- **The port is taken.** Change the backend's port in its Run sheet. The apps use their
+- **The port is taken.** Change the station's port in its Run sheet. The apps use their
   own ports (OM 59201, MX 59202); the session row shows the URL they actually opened.
 
 .. seealso::

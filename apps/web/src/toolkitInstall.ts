@@ -1,4 +1,4 @@
-// Toolkits (#118): asking for the ones a project needs and this backend lacks, and telling the
+// Toolkits (#118): asking for the ones a project needs and this station lacks, and telling the
 // user how to install them from the repository or folder they trust. Installation is never
 // triggered from the manifest: it is an explicit CLI action.
 
@@ -17,8 +17,8 @@ export function useToolkitInstall(
   const promptedToolkits = useRef<string>("");
   const [missingDialog, setMissingDialog] = useState<ToolkitStatus[] | null>(null);
 
-  // What we asked for that the backend has not acknowledged yet, so the keys dim and say "installing…"
-  // on the press instead of a round trip later. One toolkit operation at a time: the backend runs
+  // What we asked for that the station has not acknowledged yet, so the keys dim and say "installing…"
+  // on the press instead of a round trip later. One toolkit operation at a time: the station runs
   // them one after another, so a second click would only queue a request that fails (#341).
   const [requested, setRequested] = useState<Record<string, "installing" | "uninstalling">>({});
   const requestedRef = useRef(requested);
@@ -29,7 +29,7 @@ export function useToolkitInstall(
     setRequested(requestedRef.current);
     return true;
   };
-  // Its `busy` word takes over as soon as it lands; a lost connection or a backend that never
+  // Its `busy` word takes over as soon as it lands; a lost connection or a station that never
   // answers (a few seconds is well past a round trip) gives the keys back.
   useEffect(() => {
     if (Object.keys(requested).length === 0) return;
@@ -45,9 +45,9 @@ export function useToolkitInstall(
     return () => clearTimeout(timer);
   }, [requested, state.connection, state.toolkits]);
 
-  const restartBackend = useCallback(() => {
-    log("info", "restarting backend…");
-    send({ type: "backend.restart" });
+  const restartStation = useCallback(() => {
+    log("info", "restarting station…");
+    send({ type: "station.restart" });
   }, [log, send]);
   const installToolkit = useCallback(
     (name: string, version?: string) => {
@@ -87,5 +87,5 @@ export function useToolkitInstall(
     setMissingDialog(missing);
   }, [state.connection, state.engine, state.toolkits, nodes, missingDialog]);
 
-  return { missingDialog, setMissingDialog, restartBackend, installToolkit, toolkitVersions, uninstallToolkit, requestedToolkits: requested };
+  return { missingDialog, setMissingDialog, restartStation, installToolkit, toolkitVersions, uninstallToolkit, requestedToolkits: requested };
 }

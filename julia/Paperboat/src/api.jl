@@ -134,8 +134,8 @@ function definition(::Type{T}) where {T}
   throw(ArgumentError("$(nameof(T)): define `Paperboat.definition(::Type{$nameof(T)})`"))
 end
 
-"""A backend: its descriptor, its domain's types and how it runs."""
-Base.@kwdef struct Backend
+"""A station: its descriptor, its domain's types and how it runs."""
+Base.@kwdef struct Station
   name::String = "julia"
   descriptor::String
   blocks::Vector{Any} = Any[]

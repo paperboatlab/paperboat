@@ -1,4 +1,4 @@
-// paperboat._engine: the C++ engine for Python backends.
+// paperboat._engine: the C++ engine for Python stations.
 //
 // Python never implements a framework feature: the engine loads the descriptor, checks
 // and runs graphs (Signal flow, Step flow, run-once), runs the toolkit's blocks and serves
@@ -9,7 +9,7 @@
 // toolkit::StationObject, a domain state a toolkit::DomainState.
 //
 // Threads: the engine runs on its own threads; every call into Python takes the GIL, and
-// Python errors become C++ errors (which fail the run, never the backend).
+// Python errors become C++ errors (which fail the run, never the station).
 
 #include <cmath>
 #include <filesystem>
@@ -29,8 +29,8 @@
 #include <nanobind/stl/tuple.h>
 #include <nanobind/stl/unique_ptr.h>
 #include <nanobind/stl/vector.h>
-#include <paperboat/core/backend.hpp>
-#include <paperboat/core/backend_manager.hpp>
+#include <paperboat/core/server.hpp>
+#include <paperboat/core/station_manager.hpp>
 #include <paperboat/toolkit/bases.hpp>
 #include <paperboat/toolkit/model.hpp>
 #include <paperboat/toolkit/scene.hpp>
@@ -666,9 +666,9 @@ nb::dict params_dict(const tk::Values& params, const tk::Config& text) {
   return d;
 }
 
-// --- A backend hosted by Python ----------------------------------------------------------
+// --- A station hosted by Python ----------------------------------------------------------
 
-// Everything a backend points at, kept alive together.
+// Everything a station points at, kept alive together.
 struct Hosted {
   ~Hosted() {
     nb::gil_scoped_release free;  // stopping joins runs that may be waiting for the GIL
@@ -678,11 +678,11 @@ struct Hosted {
   tk::Catalog catalog;
   nb::object classes;  // the domain's block and station object classes, kept alive
   nb::object state;    // a class (or factory) for the domain state, or None
-  core::Backend backend;
+  core::Station station;
   std::unique_ptr<core::Server> server;
 
   void listen(int port) {
-    server = std::make_unique<core::Server>(backend, port);
+    server = std::make_unique<core::Server>(station, port);
     std::string error;
     {
       nb::gil_scoped_release free;
@@ -694,7 +694,7 @@ struct Hosted {
   std::string run_starter(const std::vector<std::pair<std::string, std::string>>& vars,
                           std::optional<double> duration = std::nullopt) {
     nb::gil_scoped_release free;  // the run takes the GIL for each call into Python
-    return core::run_starter(backend, std::cout, vars, duration);
+    return core::run_starter(station, std::cout, vars, duration);
   }
 
   void stop() {
@@ -717,11 +717,11 @@ std::unique_ptr<Hosted> make(const std::string& engine, const std::string& descr
                              nb::object state, const std::string& mode, double dt, double duration, int emit_every,
                              nb::object view, double speed, std::string solver, nb::object connectors) {
   auto h = std::make_unique<Hosted>();
-  if (solver.empty()) {  // not set by the backend: the backend.toml beside the descriptor, else rk4
+  if (solver.empty()) {  // not set by the station: the station.toml beside the descriptor, else rk4
     const auto dir = std::filesystem::path(descriptor).parent_path();
-    if (std::filesystem::is_regular_file(dir / "backend.toml")) {
+    if (std::filesystem::is_regular_file(dir / "station.toml")) {
       std::string err;
-      solver = core::BackendManager::load_manifest(dir, &err).solver;
+      solver = core::StationManager::load_manifest(dir, &err).solver;
       if (!err.empty()) throw std::runtime_error(err);
     }
     if (solver.empty()) solver = "rk4";
@@ -796,7 +796,7 @@ std::unique_ptr<Hosted> make(const std::string& engine, const std::string& descr
   h->catalog = tk::load_descriptor_file(descriptor, h->registry);
   h->state = state;
 
-  core::Backend& b = h->backend;
+  core::Station& b = h->station;
   b.engine = engine;
   b.catalog = &h->catalog;
   b.view = json_from_py(view);
@@ -850,13 +850,13 @@ NB_MODULE(_engine, m) {
            "A live picture: shapes ([{\"t\": \"line\", \"p\": [[x, y], ...]}, ...]: line, poly, circle with r, text "
            "with s) and/or a field ({\"w\", \"h\", \"v\": row by row from the top}), in view [xmin, ymin, xmax, ymax].");
 
-  nb::class_<Hosted>(m, "Hosted", "A backend: the domain's package, its catalog and (once listening) a server.")
+  nb::class_<Hosted>(m, "Hosted", "A station: the domain's package, its catalog and (once listening) a server.")
       .def("listen", &Hosted::listen, nb::arg("port"), "Serve the protocol (and a web station) on the port.")
       .def("run_starter", &Hosted::run_starter, nb::arg("vars") = std::vector<std::pair<std::string, std::string>>{},
            nb::arg("duration").none() = nb::none(),
            "Run the starter graph on the starter station once, headless; print each message as a JSON line.")
       .def("catalog_json", [](const Hosted& h) { return tk::catalog_message(h.catalog); },
-           "Return the protocol catalog JSON message for this backend.")
+           "Return the protocol catalog JSON message for this station.")
       .def("stop", &Hosted::stop);
 
   m.def("make", &make, nb::arg("engine"), nb::arg("descriptor"), nb::arg("blocks"), nb::arg("objects"),
@@ -951,5 +951,5 @@ NB_MODULE(_engine, m) {
       },
       nb::arg("argv"), nb::arg("default_port"), "(port, run, vars, duration) from a command line: --port N, --run, --duration S, --var name=value.");
   m.def("remember_args", nb::overload_cast<std::vector<std::string>>(&core::remember_args), nb::arg("args"),
-        "Remember the process command line for backend.restart.");
+        "Remember the process command line for station.restart.");
 }

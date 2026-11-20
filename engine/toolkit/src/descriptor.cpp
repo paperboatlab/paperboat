@@ -260,35 +260,35 @@ ObjectEntry object_from_template(const json& e, const std::string& at, const Reg
   return entry;
 }
 
-// [dashboard]: the default layout of the Dashboard's grid, in the protocol's shape. Blocks
+// [board]: the default layout of the Board's grid, in the protocol's shape. Blocks
 // are not checked against the catalog (a layout may name monitors the user has not added;
 // the UI ignores unknown ones), only its own shape.
-void load_dashboard(const json& doc, Catalog& catalog) {
-  if (!doc.contains("dashboard")) return;
-  const json& d = doc.at("dashboard");
-  only_fields(d, {"columns", "tabs", "instruments", "decorations"}, "dashboard");
+void load_board(const json& doc, Catalog& catalog) {
+  if (!doc.contains("board")) return;
+  const json& d = doc.at("board");
+  only_fields(d, {"columns", "tabs", "instruments", "decorations"}, "board");
   json out = json::object();
   int columns = 6;  // the UI's default when none is given
   if (d.contains("columns")) {
     if (!d["columns"].is_number_integer() || d["columns"] < 1 || d["columns"] > 12)
-      throw DescriptorError("dashboard.columns must be a whole number from 1 to 12");
+      throw DescriptorError("board.columns must be a whole number from 1 to 12");
     out["columns"] = d["columns"];
     columns = d["columns"].get<int>();
   }
-  // Tabs: pages of the Dashboard. An instrument or decoration may name the tab it is on.
+  // Tabs: pages of the Board. An instrument or decoration may name the tab it is on.
   std::set<std::string> tabs;
   if (d.contains("tabs")) {
-    if (!d["tabs"].is_array()) throw DescriptorError("dashboard.tabs must be a list of names");
+    if (!d["tabs"].is_array()) throw DescriptorError("board.tabs must be a list of names");
     for (const auto& t : d["tabs"]) {
-      if (!t.is_string() || t.get<std::string>().empty()) throw DescriptorError("dashboard.tabs: each tab needs a name");
-      if (!tabs.insert(t.get<std::string>()).second) throw DescriptorError("dashboard.tabs: \"" + t.get<std::string>() + "\" is twice");
+      if (!t.is_string() || t.get<std::string>().empty()) throw DescriptorError("board.tabs: each tab needs a name");
+      if (!tabs.insert(t.get<std::string>()).second) throw DescriptorError("board.tabs: \"" + t.get<std::string>() + "\" is twice");
     }
     out["tabs"] = d["tabs"];
   }
   const auto check_tab = [&](const json& e, const std::string& at) {
     if (!e.contains("tab")) return;
     if (!e["tab"].is_string() || !tabs.contains(e["tab"].get<std::string>()))
-      throw DescriptorError(at + ": tab must be one of dashboard.tabs" + (tabs.empty() ? " (there are none)" : ""));
+      throw DescriptorError(at + ": tab must be one of board.tabs" + (tabs.empty() ? " (there are none)" : ""));
   };
   const auto check_at = [&](const json& a, const std::string& at) {
     if (!a.is_array() || a.size() != 2 || !a[0].is_number_integer() || !a[1].is_number_integer() || a[0] < 0 || a[1] < 0)
@@ -299,7 +299,7 @@ void load_dashboard(const json& doc, Catalog& catalog) {
   const json list = d.value("instruments", json::array());
   for (std::size_t i = 0; i < list.size(); ++i) {
     const auto& e = list[i];
-    const auto at = "dashboard.instruments[" + std::to_string(i) + "]";
+    const auto at = "board.instruments[" + std::to_string(i) + "]";
     only_fields(e, {"block", "size", "at", "tab", "settings"}, at);
     if (!e.contains("block") || !e["block"].is_string()) throw DescriptorError(at + ": needs \"block\", a monitor block's id");
     if (!seen.insert(e["block"].get<std::string>()).second)
@@ -328,12 +328,12 @@ void load_dashboard(const json& doc, Catalog& catalog) {
   // Decorations: a section (a titled frame), hline and vline (separators), a label (text), the console (#76).
   // They belong to the layout: the Flow still decides which instruments exist.
   if (d.contains("decorations")) {
-    if (!d["decorations"].is_array()) throw DescriptorError("dashboard.decorations must be a list");
+    if (!d["decorations"].is_array()) throw DescriptorError("board.decorations must be a list");
     json decorations = json::array();
     const auto& dlist = d["decorations"];
     for (std::size_t i = 0; i < dlist.size(); ++i) {
       const auto& e = dlist[i];
-      const auto at = "dashboard.decorations[" + std::to_string(i) + "]";
+      const auto at = "board.decorations[" + std::to_string(i) + "]";
       only_fields(e, {"kind", "text", "at", "span", "style", "tab"}, at);
       const std::string kind = e.contains("kind") && e["kind"].is_string() ? e["kind"].get<std::string>() : "";
       if (kind != "section" && kind != "hline" && kind != "vline" && kind != "label" &&
@@ -382,10 +382,10 @@ void load_dashboard(const json& doc, Catalog& catalog) {
     }
     out["decorations"] = std::move(decorations);
   }
-  catalog.dashboard = out.dump();
+  catalog.board = out.dump();
 }
 
-// [[variables]]: the backend's default variables (#36), in the protocol's shape. A type may
+// [[variables]]: the station's default variables (#36), in the protocol's shape. A type may
 // be left out when the value says it (a number, true / false, text; a formula is a number).
 void load_variables(const json& doc, Catalog& catalog) {
   if (!doc.contains("variables")) return;
@@ -522,7 +522,7 @@ void load_starters(const json& doc, Catalog& catalog) {
   if ((catalog.station_view == "web") != !catalog.station_page.empty())
     throw DescriptorError("station: a web station needs a page (and only a web station has one)");
   if (catalog.station_page.find("..") != std::string::npos || catalog.station_page.starts_with('/'))
-    throw DescriptorError("station.page must be a path inside the backend's folder");
+    throw DescriptorError("station.page must be a path inside the station's folder");
   station = {{"objects", station.value("objects", json::array())}};
   for (std::size_t i = 0; i < station["objects"].size(); ++i) {
     auto& o = station["objects"][i];
@@ -635,7 +635,7 @@ Catalog load_descriptor(std::string_view toml_text, const Registry& registry, co
   } catch (const toml::parse_error& err) {
     throw DescriptorError("not valid TOML: " + at_line(err.source()) + ": " + std::string(err.description()));
   }
-  only_fields(doc, {"domain", "import", "toolkit", "toolkits", "blocks", "objects", "graph", "station", "dashboard", "variables", "connectors", "flows"}, "descriptor");
+  only_fields(doc, {"domain", "import", "toolkit", "toolkits", "blocks", "objects", "graph", "station", "board", "variables", "connectors", "flows"}, "descriptor");
 
   Catalog catalog;
   catalog.domain = doc.value("domain", std::string{});
@@ -789,7 +789,7 @@ Catalog load_descriptor(std::string_view toml_text, const Registry& registry, co
           }))
         catalog.flows.push_back(flow);
   }
-  load_dashboard(doc, catalog);
+  load_board(doc, catalog);
   load_variables(doc, catalog);
   load_starters(doc, catalog);
   // The starters' references (#36) resolve against the defaults, or the descriptor is wrong.
@@ -853,7 +853,7 @@ std::optional<FlowMismatch> flow_mismatch(const nlohmann::json& graph, const Cat
     return FlowMismatch{"", "the sheet's flow type must be signal, step, state or model"};
   const auto flow = f.get<std::string>();
   if (std::ranges::find(catalog.flows, flow) == catalog.flows.end())
-    return FlowMismatch{"", "this sheet is a " + flow_label(flow) + ", which this backend doesn't offer (it offers a " +
+    return FlowMismatch{"", "this sheet is a " + flow_label(flow) + ", which this station doesn't offer (it offers a " +
                                 flows_label(catalog.flows) + ")"};
   // The story a block is in, if any, through the groups around it (a subsystem in a story too).
   std::map<std::string, std::string> group_of, parent_of, kind_of;
@@ -973,7 +973,7 @@ std::string catalog_message(const Catalog& catalog, int indent) {
   if (!catalog.missing_imports.empty()) msg["missing_imports"] = catalog.missing_imports;
   if (catalog.connectors.is_object() && !catalog.connectors.empty())
     msg["connectors"] = json::parse(catalog.connectors.dump());
-  if (!catalog.dashboard.empty()) msg["dashboard"] = json::parse(catalog.dashboard);
+  if (!catalog.board.empty()) msg["board"] = json::parse(catalog.board);
   if (!catalog.analyses.empty()) {
     json analyses = json::array();
     for (const AnalysisTemplate* a : catalog.analyses) {

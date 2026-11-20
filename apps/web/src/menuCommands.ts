@@ -1,9 +1,9 @@
 // The commands (#78): what the menus, the command search and the shortcuts all run. Only what the
-// app already does; backends' commands come with their issue (#85).
+// app already does; stations' commands come with their issue (#85).
 
 import type { MutableRefObject } from "react";
 import type { EngineState } from "./engine";
-import type { ClientMsg, Project, RunSettings, Variables } from "./protocol";
+import type { ClientMsg, StationFlow, RunSettings, Variables } from "./protocol";
 import { ago, changed, type Stored } from "./project";
 import type { Mode, Page, PageInfo, Theme } from "./Shell";
 import type { StationChoice } from "./stationVisibility";
@@ -17,7 +17,7 @@ import { count } from "./words";
 
 export type SolverOption = Solver;
 
-/** Whether the Run menu offers solvers (the backend or a block has one), and the one in use. */
+/** Whether the Run menu offers solvers (the station or a block has one), and the one in use. */
 export function solverChoice(state: EngineState, nodes: FlowNode[], runSettings: RunSettings) {
   const usesSolvers = Boolean(
     state.runDefaults.solver ||
@@ -42,14 +42,14 @@ export type CommandContext = {
   lastSession: Stored | undefined;
   restore: (s: Stored) => void;
   recent: Stored[];
-  openProject: (p: Project, name: string) => void;
+  openProject: (p: StationFlow, name: string) => void;
   projectLock: LockConfig | null;
   unlocked: boolean;
   locked: boolean;
   lockedArrange: boolean;
   setLockModalOpen: (open: boolean) => void;
-  setBackendOpen: (open: boolean) => void;
-  restartBackend: () => void;
+  setStationOpen: (open: boolean) => void;
+  restartStation: () => void;
   // Edit
   history: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean };
   undoOpen: (() => void) | null;
@@ -109,7 +109,7 @@ export type CommandContext = {
 
 export function menuCommands(c: CommandContext): Command[] {
   const {
-    state, send, openFile, saveProject, lastSession, restore, recent, openProject, projectLock, unlocked, locked, lockedArrange, setLockModalOpen, setBackendOpen, restartBackend,
+    state, send, openFile, saveProject, lastSession, restore, recent, openProject, projectLock, unlocked, locked, lockedArrange, setLockModalOpen, setStationOpen, restartStation,
     history, undoOpen, flow, stationCanvas, setBrowser, running, variables, varsShown, setVarsShown,
     setSearchOpen, mode, setMode, allowedModes, pages, page, setPage, open, stationShown, setStationShown, stationChoice, setStationChoice, stationDrawer, flowDrawer, view, themeChoice, setThemeChoice, consoleShown, setConsoleShown, aboutShown, setAboutShown, errors,
     gridOn, setGridChoice, cameraProjection, setCameraProjection, arrangeCanvas, arrange, setArrange,
@@ -127,16 +127,16 @@ export function menuCommands(c: CommandContext): Command[] {
   const canvasWhy = (why: string) => (flowInView ? why : "Open the Flow page first");
 
   return [
-    { id: "file.open", label: "Open…", menu: "file", group: "project", shortcut: "Ctrl+O", chord: { key: "o", ctrl: true }, enabled: state.connection === "open", why: "Not connected to a backend", run: () => void openFile() },
-    { id: "file.save", label: "Save", menu: "file", group: "project", shortcut: "Ctrl+S", chord: { key: "s", ctrl: true }, enabled: !!state.engine, why: "Not connected to a backend yet", run: () => void saveProject(false) },
-    { id: "file.saveAs", label: "Save as…", menu: "file", group: "project", shortcut: "Ctrl+Shift+S", chord: { key: "s", ctrl: true, shift: true }, enabled: !!state.engine, why: "Not connected to a backend yet", run: () => void saveProject(true) },
+    { id: "file.open", label: "Open…", menu: "file", group: "project", shortcut: "Ctrl+O", chord: { key: "o", ctrl: true }, enabled: state.connection === "open", why: "Not connected to a station", run: () => void openFile() },
+    { id: "file.save", label: "Save", menu: "file", group: "project", shortcut: "Ctrl+S", chord: { key: "s", ctrl: true }, enabled: !!state.engine, why: "Not connected to a station yet", run: () => void saveProject(false) },
+    { id: "file.saveAs", label: "Save as…", menu: "file", group: "project", shortcut: "Ctrl+Shift+S", chord: { key: "s", ctrl: true, shift: true }, enabled: !!state.engine, why: "Not connected to a station yet", run: () => void saveProject(true) },
     { id: "file.openRecord", label: "Open run record…", menu: "file", group: "record", run: () => void loadRecord() },
     { id: "file.saveRecord", label: "Save run record…", menu: "file", group: "record", enabled: !!state.traces.span(), why: "No run to save yet", run: () => void saveRecord() },
     { id: "file.restore", label: "Restore last session", menu: "file", group: "session", enabled: !!lastSession, why: "No unsaved session to restore", run: () => lastSession && restore(lastSession) },
     { id: "file.lock", label: locked ? "Unlock UI…" : projectLock ? "UI Lock Settings…" : "Lock UI…", menu: "file", group: "session", run: () => setLockModalOpen(true) },
-    ...recent.map((s): Command => ({ id: `file.recent.${s.name}`, label: s.name, menu: "file", group: "recent", meta: ago(s.savedAt, Date.now()), enabled: state.connection === "open", why: "Not connected to a backend", run: () => openProject(s.project, s.name) })),
-    { id: "file.backend", label: "Backend…", menu: "file", group: "backend", run: () => setBackendOpen(true) },
-    { id: "file.restartBackend", label: "Restart backend", menu: "file", group: "backend", enabled: state.connection === "open", why: "Not connected to a backend", run: restartBackend },
+    ...recent.map((s): Command => ({ id: `file.recent.${s.name}`, label: s.name, menu: "file", group: "recent", meta: ago(s.savedAt, Date.now()), enabled: state.connection === "open", why: "Not connected to a station", run: () => openProject(s.project, s.name) })),
+    { id: "file.station", label: "Station…", menu: "file", group: "station", run: () => setStationOpen(true) },
+    { id: "file.restartStation", label: "Restart station", menu: "file", group: "station", enabled: state.connection === "open", why: "Not connected to a station", run: restartStation },
 
     { id: "edit.undo", label: "Undo", menu: "edit", group: "history", shortcut: "Ctrl+Z", enabled: history.canUndo, why: "Nothing to undo on the Flow canvas", run: history.undo },
     { id: "edit.undoOpen", label: "Undo open project", menu: "edit", group: "history", enabled: !!undoOpen, why: "No project was just opened", run: () => undoOpen?.() },
@@ -158,7 +158,7 @@ export function menuCommands(c: CommandContext): Command[] {
       menu: "edit",
       group: "add",
       enabled: !running && state.objects.length > 0,
-      why: running ? "Stop the run to edit the station" : "This backend has no station objects",
+      why: running ? "Stop the run to edit the station" : "This station has no station objects",
       run: () => {
         setStationShown(true);
         setBrowser("station");
@@ -185,12 +185,12 @@ export function menuCommands(c: CommandContext): Command[] {
     { id: "view.station", label: "Station page", menu: "view", group: "layout", checked: stationShown, run: () => setStationShown(!stationShown) },
     {
       id: "view.station.auto",
-      label: "Station page: follow backend",
+      label: "Station page: follow station",
       menu: "view",
       group: "layout",
       checked: stationChoice === "auto",
       enabled: stationChoice !== "auto",
-      why: "Already following this backend's default",
+      why: "Already following this station's default",
       run: () => setStationChoice("auto"),
     },
     { id: "view.mode.navigator", label: "Navigator", menu: "view", group: "mode", checked: mode === "navigator", enabled: isModeAllowed("navigator", projectLock, unlocked), why: isModeAllowed("navigator", projectLock, unlocked) ? undefined : "Locked by the project", run: () => setMode("navigator") },
@@ -250,7 +250,7 @@ export function menuCommands(c: CommandContext): Command[] {
       why: lockedArrange ? "Locked by the project" : undefined,
       run: () => {
         if (lockedArrange) return;
-        if (!arrange && mode === "navigator") setPage("dashboard");
+        if (!arrange && mode === "navigator") setPage("board");
         setArrange(!arrange);
       },
     },

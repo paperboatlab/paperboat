@@ -6,7 +6,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "paperboat/core/backend_manager.hpp"
+#include "paperboat/core/station_manager.hpp"
 #include "paperboat/toolkit/apps.hpp"
 #include "paperboat/toolkit/update.hpp"
 
@@ -37,12 +37,12 @@ output = "dist"
     CHECK_THROWS(tk::parse_apps_manifest(std::string("[[apps]]\nname = \"x\"\nrepo = \"r\"\ndeps = [\"") + bad + "\"]\n"));
 }
 
-TEST_CASE("an app is a program or a library, and a program says how it launches and where it listens") {
+TEST_CASE("an app is a squero or a library, and a squero says how it launches and where it listens") {
   const auto apps = tk::parse_apps_manifest(R"(
 [[apps]]
 name = "tool"
 repo = "https://example.com/tool.git"
-kind = "program"
+kind = "squero"
 launch = "tool-cmd"
 port = 8123
 [[apps]]
@@ -54,11 +54,11 @@ name = "plain"
 repo = "https://example.com/plain.git"
 )");
   REQUIRE(apps.size() == 3);
-  CHECK(apps[0].kind == "program");
+  CHECK(apps[0].kind == "squero");
   CHECK(apps[0].launch == "tool-cmd");
   CHECK(apps[0].port == 8123);
   CHECK(apps[1].kind == "library");
-  CHECK(apps[2].kind == "program");  // the default
+  CHECK(apps[2].kind == "squero");  // the default
   CHECK_THROWS(tk::parse_apps_manifest("[[apps]]\nname = \"x\"\nrepo = \"r\"\nkind = \"service\"\n"));
 }
 
@@ -342,14 +342,14 @@ TEST_CASE("get_examples finds the examples an installed toolkit ships") {
   fs::create_directories(root / "engine" / "toolkit" / "foo" / "examples" / "foo-01-demo");
   fs::create_directories(examples);
   std::ofstream(root / "toolkits.toml") << "[[toolkits]]\nname = \"foo\"\nrepo = \"https://example.com/foo.git\"\n";
-  std::ofstream(root / "engine" / "toolkit" / "foo" / "examples" / "foo-01-demo" / "backend.toml")
-      << "[backend]\nformat = 0\nname = \"foo-01-demo\"\nversion = \"0.1.0\"\nengine = \">=0.1\"\n"
+  std::ofstream(root / "engine" / "toolkit" / "foo" / "examples" / "foo-01-demo" / "station.toml")
+      << "[station]\nformat = 0\nname = \"foo-01-demo\"\nversion = \"0.1.0\"\nengine = \">=0.1\"\n"
          "language = \"cpp\"\nrun = \"build/foo\"\nport = 8791\ndescriptor = \"descriptor.toml\"\n";
   std::ofstream(root / "engine" / "toolkit" / "foo" / "examples" / "foo-01-demo" / "descriptor.toml")
       << "domain = \"foo\"\n[graph]\nnodes = []\nedges = []\n";
 
-  const auto list = core::BackendManager::get_examples(examples);
-  const core::ExampleBackend* found = nullptr;
+  const auto list = core::StationManager::get_examples(examples);
+  const core::ExampleStation* found = nullptr;
   for (const auto& e : list)
     if (e.name == "foo-01-demo") found = &e;
   REQUIRE(found != nullptr);

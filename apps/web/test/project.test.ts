@@ -35,31 +35,31 @@ const bad = (data: unknown) => {
   return r.error;
 };
 
-test("a project is built from its parts and leaves out what is empty", () => {
-  const p = buildProject({ backend: "cart-pole", flow, station: null, variables: [], run: {} });
-  assert.deepEqual(Object.keys(p), ["paperboat", "backend", "flow"]);
+test("a flow file is built from its parts and leaves out what is empty", () => {
+  const p = buildProject({ station: "cart-pole", flow, station_objects: null, variables: [], run: {} });
+  assert.deepEqual(Object.keys(p), ["paperboat", "station", "flow"]);
   assert.equal(p.paperboat, PROJECT_VERSION);
   const full = buildProject({
-    backend: "cart-pole",
+    station: "cart-pole",
     flow,
-    station: { objects: [{ id: "cart-1", type: "cartpole" }] },
+    station_objects: { objects: [{ id: "cart-1", type: "cartpole" }] },
     variables: [{ name: "L", type: "number", value: 1 }],
-    dashboard: { instruments: [] } as never,
+    board: { instruments: [] } as never,
     run: { duration: 5 },
   });
-  assert.deepEqual(Object.keys(full), ["paperboat", "backend", "flow", "station", "variables", "dashboard", "run"]);
+  assert.deepEqual(Object.keys(full), ["paperboat", "station", "flow", "station_objects", "variables", "board", "run"]);
 });
 
 test("what is written is read back unchanged", () => {
-  const p = buildProject({ backend: "b", flow, variables: [{ name: "x", type: "boolean", value: true }], run: { speed: 2 } });
+  const p = buildProject({ station: "b", flow, variables: [{ name: "x", type: "boolean", value: true }], run: { speed: 2 } });
   assert.deepEqual(ok(stringify(p)), p);
 });
 
-test("the run's solver and its options round-trip; only changes from the backend's are kept (#196)", () => {
+test("the run's solver and its options round-trip; only changes from the station's are kept (#196)", () => {
   const run = { solver: "rk45" as const, solver_options: { rtol: 1e-8, max_step: 0.001 } };
-  const p = buildProject({ backend: "b", flow, variables: [], run });
+  const p = buildProject({ station: "b", flow, variables: [], run });
   assert.deepEqual(ok(stringify(p)).run, run);
-  assert.match(bad({ paperboat: PROJECT_VERSION, backend: "b", flow, run: { solver_options: { rtol: "tight" } } }), /run\.solver_options\.rtol/);
+  assert.match(bad({ paperboat: PROJECT_VERSION, station: "b", flow, run: { solver_options: { rtol: "tight" } } }), /run\.solver_options\.rtol/);
   const defaults = { solver: "rk4" as const, solver_options: { rtol: 1e-6, atol: 1e-9, sub_steps: 1 } };
   assert.deepEqual(changed({ solver: "rk4", solver_options: { rtol: 1e-6, sub_steps: 4 } }, defaults), { solver_options: { sub_steps: 4 } });
   assert.deepEqual(changed({ solver: "euler", solver_options: { rtol: 1e-6 } }, defaults), { solver: "euler" });
@@ -70,26 +70,26 @@ test("flow node rotation and mirror are validated and preserved", () => {
     nodes: [{ id: "n1", type: "t", rotation: 90 as const, mirror: true, params: {} }],
     edges: [],
   };
-  const p = buildProject({ backend: "b", flow: rotatedFlow });
+  const p = buildProject({ station: "b", flow: rotatedFlow });
   const read = ok(stringify(p));
   assert.equal(read.flow.nodes[0].rotation, 90);
   assert.equal(read.flow.nodes[0].mirror, true);
 
-  const base = { paperboat: 0, backend: "b" };
+  const base = { paperboat: 0, station: "b" };
   assert.match(bad({ ...base, flow: { nodes: [{ id: "a", type: "t", rotation: 45 }], edges: [] } }), /rotation must be 0, 90, 180, or 270/);
   assert.match(bad({ ...base, flow: { nodes: [{ id: "a", type: "t", mirror: "yes" }], edges: [] } }), /mirror must be a boolean/);
 });
 
 test("the sheet's flow type (#9) is kept, and checked", () => {
-  const read = ok(stringify(buildProject({ backend: "b", flow: { ...flow, flow: "step" } })));
+  const read = ok(stringify(buildProject({ station: "b", flow: { ...flow, flow: "step" } })));
   assert.equal(read.flow.flow, "step");
-  assert.equal(ok(stringify(buildProject({ backend: "b", flow }))).flow.flow, undefined); // not chosen
-  assert.match(bad({ paperboat: 0, backend: "b", flow: { ...flow, flow: "liquid" } }), /flow\.flow must be one of signal, step, state, model/);
+  assert.equal(ok(stringify(buildProject({ station: "b", flow }))).flow.flow, undefined); // not chosen
+  assert.match(bad({ paperboat: 0, station: "b", flow: { ...flow, flow: "liquid" } }), /flow\.flow must be one of signal, step, state, model/);
 });
 
 test("the text is indented and ends with a newline, so a diff reads", () => {
-  const text = stringify(buildProject({ backend: "b", flow }));
-  assert.ok(text.includes('\n  "backend": "b"'));
+  const text = stringify(buildProject({ station: "b", flow }));
+  assert.ok(text.includes('\n  "station": "b"'));
   assert.ok(text.endsWith("}\n"));
 });
 
@@ -100,28 +100,28 @@ test("a file that is not JSON, or not a project, says so", () => {
 });
 
 test("a newer format is refused and says which", () => {
-  const e = bad({ paperboat: PROJECT_VERSION + 1, backend: "b", flow });
+  const e = bad({ paperboat: PROJECT_VERSION + 1, station: "b", flow });
   assert.match(e, /format 1/);
   assert.match(e, /newer Paperboat/);
-  assert.match(bad({ paperboat: "0", backend: "b", flow }), /whole number/);
-  assert.match(bad({ paperboat: -1, backend: "b", flow }), /whole number/);
+  assert.match(bad({ paperboat: "0", station: "b", flow }), /whole number/);
+  assert.match(bad({ paperboat: -1, station: "b", flow }), /whole number/);
 });
 
-test("the backend and the flow are required", () => {
-  assert.match(bad({ paperboat: 0, flow }), /which backend/);
-  assert.match(bad({ paperboat: 0, backend: "b" }), /flow must be an object/);
-  assert.match(bad({ paperboat: 0, backend: "b", flow: { nodes: [] } }), /flow\.edges/);
+test("the station and the flow are required", () => {
+  assert.match(bad({ paperboat: 0, flow }), /which station/);
+  assert.match(bad({ paperboat: 0, station: "b" }), /flow must be an object/);
+  assert.match(bad({ paperboat: 0, station: "b", flow: { nodes: [] } }), /flow\.edges/);
 });
 
 test("damage is named by where it is", () => {
-  const base = { paperboat: 0, backend: "b" };
+  const base = { paperboat: 0, station: "b" };
   assert.match(bad({ ...base, flow: { nodes: [{ id: "a" }], edges: [] } }), /flow\.nodes\[0\] needs an id and a type/);
   assert.match(bad({ ...base, flow: { nodes: [], edges: [{ from: ["a"], to: ["b", "c"] }] } }), /flow\.edges\[0\]/);
   assert.match(bad({ ...base, flow: { nodes: [{ id: "a", type: "t", pos: [1] }], edges: [] } }), /pos must be two numbers/);
   assert.match(bad({ ...base, flow: { nodes: [], edges: [], groups: [{ id: "g", kind: "weird", nodes: [] }] } }), /flow\.groups\[0\]/);
-  assert.match(bad({ ...base, flow, station: { objects: [{ id: "x" }] } }), /station\.objects\[0\]/);
+  assert.match(bad({ ...base, flow, station_objects: { objects: [{ id: "x" }] } }), /station_objects\.objects\[0\]/);
   assert.match(bad({ ...base, flow, variables: [{ name: "x", type: "color" }] }), /variables\[0\]/);
-  assert.match(bad({ ...base, flow, dashboard: {} }), /dashboard\.instruments/);
+  assert.match(bad({ ...base, flow, board: {} }), /board\.instruments/);
   assert.match(bad({ ...base, flow, run: { duration: "long" } }), /run\.duration/);
   assert.match(bad({ ...base, flow, ui: "not-an-obj" }), /ui must be an object/);
   assert.match(bad({ ...base, flow, ui: { lock: "not-an-obj" } }), /ui\.lock must be an object/);
@@ -130,17 +130,17 @@ test("damage is named by where it is", () => {
   assert.match(bad({ ...base, flow, ui: { lock: { pages: [123] } } }), /ui\.lock\.pages must be a non-empty list/);
   assert.match(bad({ ...base, flow, ui: { lock: { modes: [] } } }), /ui\.lock\.modes must be a non-empty list/);
   assert.match(bad({ ...base, flow, ui: { lock: { passcode: { algo: "sha256" } } } }), /ui\.lock\.passcode needs algo, salt, and hash/);
-  assert.match(bad({ ...base, flow, run: { duration: "long" } }), /^The project is damaged: /);
+  assert.match(bad({ ...base, flow, run: { duration: "long" } }), /^The flow file is damaged: /);
 });
 
 test("ui.lock is preserved in buildProject and validated by parseProject", () => {
   const lock = {
     arrange: true,
-    pages: ["station", "dashboard"],
+    pages: ["station", "board"],
     modes: ["navigator"],
     passcode: { algo: "sha256", salt: "1234567890abcdef", hash: "abcdef1234567890" },
   };
-  const p = buildProject({ backend: "b", flow, ui: { lock } });
+  const p = buildProject({ station: "b", flow, ui: { lock } });
   assert.deepEqual(p.ui?.lock, lock);
   const parsed = ok(stringify(p));
   assert.deepEqual(parsed.ui?.lock, lock);
@@ -154,8 +154,8 @@ test("a file name is made safe and ends in the project extension", () => {
 });
 
 test("a project's name is its file's without the extension", () => {
-  assert.equal(projectName("balance.ppj"), "balance");
-  assert.equal(projectName("Balance.PPJ"), "Balance");
+  assert.equal(projectName("balance.psf"), "balance");
+  assert.equal(projectName("Balance.PSF"), "Balance");
   assert.equal(projectName("balance.paperboat.json"), "balance");
   assert.equal(projectName("Balance.PAPERBOAT.JSON"), "Balance");
   assert.equal(projectName("notes.json"), "notes");
@@ -173,7 +173,7 @@ test("time since is said in the largest sensible unit", () => {
 });
 
 test("recent projects: newest first, one per name, at most five", () => {
-  const entry = (name: string, at: number): Stored => ({ name, savedAt: at, project: buildProject({ backend: "b", flow }) });
+  const entry = (name: string, at: number): Stored => ({ name, savedAt: at, project: buildProject({ station: "b", flow }) });
   let list: Stored[] = [];
   for (let i = 0; i < 7; i++) list = addRecent(list, entry(`p${i}`, i));
   assert.equal(list.length, RECENT_MAX);
@@ -187,7 +187,7 @@ test("recent projects: a huge project doesn't push out the one just saved", () =
   const big = (name: string): Stored => ({
     name,
     savedAt: 1,
-    project: buildProject({ backend: "b", flow: { nodes: [{ id: "a", type: "t", params: { text: "x".repeat(1_400_000) } }], edges: [] } }),
+    project: buildProject({ station: "b", flow: { nodes: [{ id: "a", type: "t", params: { text: "x".repeat(1_400_000) } }], edges: [] } }),
   });
   const list = addRecent(addRecent([], big("one")), big("two"));
   assert.deepEqual(list.map((s) => s.name), ["two"], "the older one makes way: the list stays under the cap");

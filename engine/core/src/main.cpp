@@ -1,5 +1,5 @@
-// A backend's command line: serve the protocol, or run the starter once (`--run`) for a
-// test that checks a backend's result without a UI.
+// A station's command line: serve the protocol, or run the starter once (`--run`) for a
+// test that checks a station's result without a UI.
 
 #include <algorithm>
 #include <cstdlib>
@@ -18,7 +18,7 @@
 #include <unistd.h>
 #endif
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/core/record.hpp"
 
 namespace paperboat::core {
@@ -57,7 +57,7 @@ void exec_remembered_args() {
   }
   if (args.empty()) return;
 #if defined(_WIN32)
-  // The CLI keeps its backend in a kill-on-close job: a process started here would die with the
+  // The CLI keeps its station in a kill-on-close job: a process started here would die with the
   // CLI when it sees us exit. Ask it to start us again instead, so the rebuilt binary runs.
   if (const char* supervised = std::getenv(kSupervisedEnv); supervised && *supervised) std::exit(kRestartExit);
   // Otherwise start the same program again, detached, and end this one, so the binary that serves
@@ -123,10 +123,10 @@ Options parse_options(int argc, char** argv, int default_port) {
       options.vars.emplace_back(setting.substr(0, eq), setting.substr(eq + 1));
     } else if (arg == "--duration" && i + 1 < argc) {
       options.duration = std::stod(argv[++i]);
-    } else if (arg == "--project" && i + 1 < argc) {
-      options.project = argv[++i];
+    } else if (arg == "--psf" && i + 1 < argc) {
+      options.psf = argv[++i];
     } else {
-      throw std::invalid_argument("unknown option " + arg + " (use --port N, --run, --catalog, --duration S, --project P, --var name=value)");
+      throw std::invalid_argument("unknown option " + arg + " (use --port N, --run, --catalog, --duration S, --psf P, --var name=value)");
     }
   }
   return options;
@@ -139,7 +139,7 @@ json with_vars(const toolkit::Catalog& catalog, const std::vector<std::pair<std:
     if (it == list.end()) {
       std::string known;
       for (const auto& v : list) known += (known.empty() ? "" : ", ") + v.at("name").get<std::string>();
-      throw std::invalid_argument("--var " + name + ": no such variable" + (known.empty() ? "" : " (this backend has " + known + ")"));
+      throw std::invalid_argument("--var " + name + ": no such variable" + (known.empty() ? "" : " (this station has " + known + ")"));
     }
     const auto type = it->at("type").get<std::string>();
     json value = text;
@@ -163,12 +163,12 @@ json with_vars(const toolkit::Catalog& catalog, const std::vector<std::pair<std:
   return list;
 }
 
-std::string run_starter(const Backend& backend, std::ostream& out, const std::vector<std::pair<std::string, std::string>>& vars,
+std::string run_starter(const Station& station, std::ostream& out, const std::vector<std::pair<std::string, std::string>>& vars,
                         std::optional<double> duration) {
-  Backend headless = backend;
+  Station headless = station;
   headless.run.real_time = false;
   if (duration) headless.run.duration = *duration;
-  const auto& catalog = *backend.catalog;
+  const auto& catalog = *station.catalog;
   if (!catalog.missing_imports.empty()) {
     std::string missing;
     for (const auto& m : catalog.missing_imports) missing += (missing.empty() ? "" : ", ") + m;
@@ -178,20 +178,20 @@ std::string run_starter(const Backend& backend, std::ostream& out, const std::ve
     return "failed";
   }
   json graph = json::parse(catalog.graph);
-  json station = catalog.station.empty() ? json() : json::parse(catalog.station);
+  json station_objects = catalog.station.empty() ? json() : json::parse(catalog.station);
   json variables = with_vars(catalog, vars);
-  if (!backend.initial_project.is_null() && backend.initial_project.is_object()) {
-    const auto& p = backend.initial_project;
+  if (!station.initial_psf.is_null() && station.initial_psf.is_object()) {
+    const auto& p = station.initial_psf;
     if (p.contains("flow") && p["flow"].is_object()) graph = p["flow"];
-    if (p.contains("station")) station = p["station"];
+    if (p.contains("station_objects")) station_objects = p["station_objects"];
     if (p.contains("variables") && p["variables"].is_array()) variables = p["variables"];
     if (p.contains("run") && p["run"].is_object()) headless.run = with_overrides(headless.run, p["run"]);
   }
   // A headless record (#277), when `paperboat run/open --record` asked for one.
   std::optional<RunRecord> record;
   if (auto meta = record_meta_from_env()) {
-    record.emplace(std::move(*meta), backend.engine,
-                   json{{"graph", graph}, {"station", station}, {"variables", variables}, {"settings", settings_json(headless.run)}});
+    record.emplace(std::move(*meta), station.engine,
+                   json{{"graph", graph}, {"station", station_objects}, {"variables", variables}, {"settings", settings_json(headless.run)}});
   }
   const auto emit = [&out, &record](const json& msg) {
     if (record) {
@@ -204,12 +204,12 @@ std::string run_starter(const Backend& backend, std::ostream& out, const std::ve
     }
     out << msg.dump() << '\n';
   };
-  const auto status = run("run-1", graph, station, headless, emit, nullptr, {}, nullptr, variables);
+  const auto status = run("run-1", graph, station_objects, headless, emit, nullptr, {}, nullptr, variables);
   out.flush();  // a host may end the process right after (the Python bindings do)
   return status;
 }
 
-int main(const Backend& backend, int argc, char** argv, int default_port) {
+int main(const Station& station, int argc, char** argv, int default_port) {
   remember_args(argc, argv);
   Options options;
   try {
@@ -218,29 +218,29 @@ int main(const Backend& backend, int argc, char** argv, int default_port) {
     std::cerr << err.what() << '\n';
     return 2;
   }
-  Backend b = backend;
-  if (const char* run = std::getenv("PAPERBOAT_RUN"); run && *run) {  // backend.toml's [run], from paperboat
+  Station b = station;
+  if (const char* run = std::getenv("PAPERBOAT_RUN"); run && *run) {  // station.toml's [run], from paperboat
     try {
       b.run = with_overrides(b.run, json::parse(run));
     } catch (const std::exception& err) {
-      std::cerr << "error: PAPERBOAT_RUN (backend.toml [run]): " << err.what() << '\n';
+      std::cerr << "error: PAPERBOAT_RUN (station.toml [run]): " << err.what() << '\n';
       return 2;
     }
   }
-  if (!options.project.empty()) {
+  if (!options.psf.empty()) {
     try {
-      b.initial_project = load_json(options.project);
-      b.initial_project_name = std::filesystem::path(options.project).stem().string();
-      if (b.initial_project_name.ends_with(".paperboat")) {
-        b.initial_project_name = b.initial_project_name.substr(0, b.initial_project_name.size() - 10);
+      b.initial_psf = load_json(options.psf);
+      b.initial_psf_name = std::filesystem::path(options.psf).stem().string();
+      if (b.initial_psf_name.ends_with(".paperboat")) {
+        b.initial_psf_name = b.initial_psf_name.substr(0, b.initial_psf_name.size() - 10);
       }
     } catch (const std::exception& err) {
-      std::cerr << "error: cannot load project file " << options.project << ": " << err.what() << '\n';
+      std::cerr << "error: cannot load flow file " << options.psf << ": " << err.what() << '\n';
       return 1;
     }
   }
   if (options.catalog) {
-    // What the backend really offers, with the blocks and station objects its code registered
+    // What the station really offers, with the blocks and station objects its code registered
     json blocks = json::array(), objects = json::array();
     for (const auto& e : b.catalog->entries) blocks.push_back(e.def.type);
     for (const auto& o : b.catalog->objects) objects.push_back(o.def.type);

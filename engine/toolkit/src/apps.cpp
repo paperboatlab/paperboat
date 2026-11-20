@@ -235,11 +235,11 @@ std::vector<AppEntry> parse_apps_manifest(std::string_view toml_text) {
     e.repo = (*t)["repo"].value_or(std::string{});
     e.description = (*t)["description"].value_or(std::string{});
     e.output = (*t)["output"].value_or(std::string{});
-    e.kind = (*t)["kind"].value_or(std::string{"program"});
+    e.kind = (*t)["kind"].value_or(std::string{"squero"});
     e.launch = (*t)["launch"].value_or(std::string{});
     e.port = (*t)["port"].value_or(0);
-    if (e.kind != "program" && e.kind != "library")
-      throw DescriptorError("apps[" + std::to_string(i) + "]: kind must be \"program\" or \"library\"");
+    if (e.kind != "squero" && e.kind != "library")
+      throw DescriptorError("apps[" + std::to_string(i) + "]: kind must be \"squero\" or \"library\"");
     for (const auto& spec : strings(*t, "deps")) {
       const auto at = spec.find('@');
       AppDep d{spec.substr(0, at), at == std::string::npos ? std::string{} : spec.substr(at + 1)};
@@ -372,7 +372,7 @@ ToolkitResult install(std::string_view name, std::string_view requested, const f
   if (version.empty()) version = newest_fitting(tags, needed_by).value_or("dev");
   if (version == "main") version = "dev";
   if (reachable && parse_version(version) && std::ranges::find(tags, version) == tags.end())
-    return {false, "\"" + e->name + "\" has no release " + version + " (`paperboat pkg versions " + e->name + "` lists them)"};
+    return {false, "\"" + e->name + "\" has no release " + version + " (`paperboat squero versions " + e->name + "` lists them)"};
   for (const auto& c : needed_by) {
     if (dep_satisfied(version, c.dep, c.app_version)) continue;
     const std::string why = label(e->name, version) + " is outside " + c.dep.range + ", the range " +
@@ -395,7 +395,7 @@ ToolkitResult install(std::string_view name, std::string_view requested, const f
     if (!have.empty()) {
       const std::string why = label(e->name, version) + " needs \"" + dep.spec() + "\", and " + have + " is installed";
       if (!force)
-        return {false, why + "; reinstall it in range with `paperboat pkg install " + e->name +
+        return {false, why + "; reinstall it in range with `paperboat squero install " + e->name +
                            (requested.empty() ? "" : "@" + version) + " --force`"};
       if (log) log("warn", why + "; reinstalling it (--force)");
     } else if (log) {

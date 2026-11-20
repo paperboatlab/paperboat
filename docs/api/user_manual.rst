@@ -3,7 +3,7 @@ User Manual
 
 Paperboat is an interactive cockpit for engineering simulations, signal processing,
 control systems, and data pipelines. It pairs a high-performance C++ engine with a clean,
-responsive interface that adapts to whatever domain your backend provides.
+responsive interface that adapts to whatever domain your station provides.
 
 The look and feel follows a clear design philosophy: **flat mono, like a well-made instrument**.
 Surfaces are grey panels with hairlines, input fields are recessed grey wells, output
@@ -22,7 +22,7 @@ The workspace is organized around four core pages and an overarching control bar
    parameters and initial states.
 2. **Flow**: The procedure page. An intuitive canvas where computational and signal blocks
    are wired together into graphs.
-3. **Board**: The live operations deck (referred to as the Dashboard in technical specs).
+3. **Board**: The live operations deck (referred to as the Board in technical specs).
    Instruments—such as real-time wave plots, numeric cards, and image feeds—show what the
    system is doing as it runs.
 4. **Console**: A streaming diagnostic log that records events, warnings, block-attributed
@@ -80,17 +80,17 @@ Switching Modes
 Working with the Station
 ------------------------
 
-The Station page represents the "physical" world of your project. Each backend starts from
-its own default (a backend can start hidden by setting ``[station] visible = false`` in its
-descriptor). **View > Station page** shows or hides it for the current backend without
-affecting other backends, and **View > Station page: follow backend** returns to the
-backend's default. A hidden Station leaves the other pages as they are (Commander puts the
+The Station page represents the "physical" world of your project. Each station starts from
+its own default (a station can start hidden by setting ``[station] visible = false`` in its
+descriptor). **View > Station page** shows or hides it for the current station without
+affecting other stations, and **View > Station page: follow station** returns to the
+station's default. A hidden Station leaves the other pages as they are (Commander puts the
 Flow and the Board side by side, and Lookout has no Station drawer).
 
 Interacting with the 3D Scene
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When your backend provides a 3D station (such as rigid bodies, vehicles, or kinematic arms):
+When your station provides a 3D station (such as rigid bodies, vehicles, or kinematic arms):
 
 - **Orbit / Rotate**: Click and drag with the primary (left) mouse button.
 - **Pan**: Drag with the secondary (right) mouse button, or hold :kbd:`Shift` while dragging
@@ -127,7 +127,7 @@ There are three ways to add blocks:
   fast search palette at your cursor. Type the name of a block (e.g., `sine`, `pid`, `gain`,
   `monitor`) and press :kbd:`Enter`.
 - **Block Browser**: Click **+ Add** on the canvas header to browse cards organized by
-  package (`signal`, `math`, `step`, `dashboard`, domain-specific packages). Drag cards
+  package (`signal`, `math`, `step`, `board`, domain-specific packages). Drag cards
   onto the canvas.
 - **Insert onto Wire**: Drag a block card from the browser directly over an existing wire.
   The wire will split and reconnect through the inserted block.
@@ -277,7 +277,7 @@ without deleting them, losing parameters, or rewiring ports:
 - **Block Notes & Documentation**:
   Click the small **note** button in any block header to open a recessed well where you can
   record formulas, design notes, or tuning rationale. The notes are saved directly in your
-  :code:`.ppj` project file.
+  :code:`.psf` project file.
 - **Canvas Annotations** (:code:`base/comment`):
   Add a freeform note card from the Block Palette (:code:`base/comment`) onto the canvas to
   document subsystems, test setups, or architecture directly alongside your blocks.
@@ -381,43 +381,43 @@ Click the **Console** tab on the rail or open it from the Board drawer to inspec
 - When an error occurs, the Console prints the exact node ID that failed. Clicking the node
   link in the Console immediately highlights and pans to the offending block on the Flow canvas.
 
-The Workbench (no domain)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+The Scratchpad (no domain)
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Paperboat's engine includes a **workbench** backend with only the standard toolkits
-(`base`, `math`, `signal` and `dashboard`), no domain, and every optional toolkit
+Paperboat's engine includes a **scratchpad** station with only the standard toolkits
+(`base`, `math`, `signal` and `board`), no domain, and every optional toolkit
 installed in the checkout (`control`, `opencv`, `optimization`…). It listens on the
-default backend port, so the web app connects to it as it is:
+default station port, so the web app connects to it as it is:
 
 .. code-block:: sh
 
-   ./bin/paperboat start         # web app on :3047, workbench on ws://localhost:8765
-   npm run backend:workbench     # or just the backend
+   ./bin/paperboat start         # web app on :3047, scratchpad on ws://localhost:8765
+   npm run station:scratchpad     # or just the station
    npm run dev                   # or just the web app, http://localhost:3047
 
 The Flow opens with a Sine into a Graph; build any signal, mathematical or control model
 from the palette and run it. The Station page is hidden by default (View > Station shows
-it): a station belongs to a domain backend, and the workbench has none. The optional
+it): a station belongs to a domain station, and the scratchpad has none. The optional
 blocks are in the palette once their toolkit is installed in ``engine/toolkit``.
-Connect a domain backend from **File > Backend…** to switch.
+Connect a domain station from **File > Station…** to switch.
 
-Until the backend answers, the pages show what Paperboat is waiting for (``connecting to the backend
-at ws://…``, then ``waiting for a backend at ws://…`` while it retries), with how long once it is
-slow and, after a few seconds, how to start one. A backend still being built says how far it is
+Until the station answers, the pages show what Paperboat is waiting for (``connecting to the station
+at ws://…``, then ``waiting for a station at ws://…`` while it retries), with how long once it is
+slow and, after a few seconds, how to start one. A station still being built says how far it is
 (``configuring cart-pole``, ``compiling cart-pole… 42s``, ``starting cart-pole``), and a failed build
-says why, from ``paperboat status``. A backend that drops later leaves your pages as they
+says why, from ``paperboat status``. A station that drops later leaves your pages as they
 are: the status pill and the Console say it is reconnecting.
 
 Project Management
 ------------------
 
 Paperboat saves your entire workspace into human-readable, version-controlled project files
-with the extension :code:`.ppj` (JSON inside).
+with the extension :code:`.psf` (JSON inside).
 
 - **Saving**: Press :kbd:`Ctrl` + :kbd:`S` (or :kbd:`File > Save`) to save changes. To save a copy,
   choose :kbd:`File > Save As...`.
 - **Opening**: Press :kbd:`Ctrl` + :kbd:`O` (or :kbd:`File > Open`), or drag-and-drop any
-  :code:`.ppj` file (or an older :code:`.paperboat.json`) directly into your browser window.
+  :code:`.psf` file (or an older :code:`.paperboat.json`) directly into your browser window.
 - **Session Restoration**: If your browser accidentally closes or refreshes during a run,
   reopening the app presents an option to restore your unsaved session state.
 
@@ -425,7 +425,7 @@ Squero Studio: OpenModelica
 ---------------------------
 
 Squero Studio OM is a separate app, in the ``squero-studio-om`` repository, for building the equipment a Paperboat flow runs: you draw
-a Modelica model, and Paperboat opens the backend generated from it. It is not a page of the
+a Modelica model, and Paperboat opens the station generated from it. It is not a page of the
 app above. Start it with ``paperboat start squero-studio-om [Model.mo]``, which fetches and builds the app from GitHub the first time
 (``paperboat pkg`` manages it: ``pkg versions squero-studio-om``, ``pkg update squero-studio-om``), and open ``http://localhost:59201``; with no file it opens ``./Untitled.mo``, creating it if it isn't there. It needs
 OpenModelica (``omc``) on the path.
@@ -458,14 +458,14 @@ is saved after each one, so the ``.mo`` stays a normal Modelica file that OMEdit
   one port with a count.
 
 **The split view** (right) shows the model beside the canvas. ``[ .mo ]`` is the Modelica text
-(read-only for now). ``[ causal ODE c++ ]`` is the backend Studio would generate, from a dry run:
+(read-only for now). ``[ causal ODE c++ ]`` is the station Studio would generate, from a dry run:
 nothing is written. Above the code it says which way the model goes, ``ode`` (a plain C++ model)
 or ``fmu`` (omc's compiled model behind an adapter), and why; an FMU model shows no code, since
-omc builds it. The dock's *Export backend* writes the real thing.
+omc builds it. The dock's *Export station* writes the real thing.
 
 **Simulate** is a check, not a second Flow page: set a stop time, press *Simulate*, and omc runs
 the model and plots chosen variables. Switch variables on and off with the chips under the plot.
-Nothing leaves Studio: no block, board or backend is involved; put the model in a flow by exporting it.
+Nothing leaves Studio: no block, board or station is involved; put the model in a flow by exporting it.
 
 Help
 ----
@@ -473,7 +473,7 @@ Help
 The **Help** key at the end of the menus, or :kbd:`F1`, opens the same Help window in Paperboat
 and both Squero Studios: a search field, the matching topics, and the chosen page.
 
-- **Paperboat** lists a reference page for every block the backend offers, written from its
+- **Paperboat** lists a reference page for every block the station offers, written from its
   template: what it does, its inputs and outputs, and its parameters with their defaults and units.
   :kbd:`F1` with a block selected opens that block's page.
 - **Squero Studio MX** shows Julia docstrings from the kernel (:kbd:`F1` on a word in the editor,

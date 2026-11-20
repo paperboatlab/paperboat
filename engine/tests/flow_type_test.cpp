@@ -10,7 +10,7 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <nlohmann/json.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/core/graph.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
 #include "received.hpp"
@@ -46,7 +46,7 @@ struct Twice final : tk::Block {
 
 const tk::Catalog& mixed() {
   static const tk::Catalog catalog = tk::load_descriptor(R"(domain = "mixed"
-import = ["step", "base", "signal", "math", "dashboard"]
+import = ["step", "base", "signal", "math", "board"]
 [[blocks]]
 use = "math/gain"
 type = "signal-only"
@@ -60,7 +60,7 @@ flows = ["signal"]
 // still refuses a Model-only block.
 const tk::Catalog& with_model() {
   static const tk::Catalog catalog = tk::load_descriptor(R"(domain = "mixed-model"
-import = ["step", "base", "signal", "math", "dashboard"]
+import = ["step", "base", "signal", "math", "board"]
 [[blocks]]
 use = "math/gain"
 type = "signal-only"
@@ -86,7 +86,7 @@ json step_graph() {
 }
 
 std::string refusal(const json& graph, const tk::Catalog& catalog, std::string* node = nullptr) {
-  core::Station none;
+  core::StationObjects none;
   try {
     core::prepare_graph(graph, catalog, none);
   } catch (const core::GraphError& err) {
@@ -99,8 +99,8 @@ std::string refusal(const json& graph, const tk::Catalog& catalog, std::string* 
 }  // namespace
 
 TEST_CASE("packages say which flow types their blocks work in (#9)") {
-  // base, signal, math, dashboard: every flow type (no list).
-  for (const char* name : {"base/constant", "base/key", "base/if", "signal/sine", "signal/clock", "math/gain", "math/sum", "dashboard/graph"}) {
+  // base, signal, math, board: every flow type (no list).
+  for (const char* name : {"base/constant", "base/key", "base/if", "signal/sine", "signal/clock", "math/gain", "math/sum", "board/graph"}) {
     INFO(name);
     CHECK(builtin(name).flows.empty());
     for (const auto& flow : tk::flow_types()) CHECK(tk::works_in(builtin(name), flow));
@@ -160,7 +160,7 @@ flows = ["model"]
 }
 
 TEST_CASE("the flow types a domain offers: the descriptor's, else Signal flow and those its blocks name") {
-  CHECK(tk::load_descriptor("domain = \"a\"\nimport = [\"base\", \"math\", \"dashboard\"]\n").flows == Flows{"signal"});
+  CHECK(tk::load_descriptor("domain = \"a\"\nimport = [\"base\", \"math\", \"board\"]\n").flows == Flows{"signal"});
   CHECK(tk::load_descriptor("domain = \"a\"\nimport = [\"base\"]\n").flows == Flows{"signal"});
   CHECK(tk::load_descriptor("domain = \"a\"\nimport = [\"step\", \"base\"]\n").flows == Flows{"signal", "step"});
   CHECK(tk::load_descriptor("domain = \"a\"\nimport = [\"base\"]\n[[blocks]]\nuse = \"base/constant\"\ntype = \"m\"\nflows = [\"model\"]\n").flows ==
@@ -178,13 +178,13 @@ TEST_CASE("a starter graph's flow type is checked at load") {
   // A Signal sheet may hold step paths: the sheet is mixed.
   CHECK_NOTHROW(tk::load_descriptor(head + "flow = \"signal\"\nnodes = [{ id = \"s\", type = \"start\" }]\n"));
   CHECK_THROWS_WITH(tk::load_descriptor(head + "flow = \"model\"\nnodes = []\n"),
-                    ContainsSubstring("this sheet is a Model flow, which this backend doesn't offer (it offers a Signal flow or Step flow)"));
+                    ContainsSubstring("this sheet is a Model flow, which this station doesn't offer (it offers a Signal flow or Step flow)"));
   CHECK_THROWS_WITH(tk::load_descriptor(head + "flow = \"liquid\"\nnodes = []\n"), ContainsSubstring("graph.flow must be a flow type"));
 }
 
 TEST_CASE("the engine refuses a block on a sheet of a flow type it doesn't work in") {
   const auto& catalog = mixed();
-  core::Station none;
+  core::StationObjects none;
   // Not chosen (a graph from before sheets had a type): nothing is refused.
   CHECK_NOTHROW(core::prepare_graph(step_graph(), catalog, none));
 
@@ -233,19 +233,19 @@ TEST_CASE("the engine refuses a block on a sheet of a flow type it doesn't work 
   g["edges"] = {{{"from", {"one", "y"}}, {"to", {"pid", "u"}}}};
   CHECK(refusal(g, catalog).empty());
 
-  // A flow type the backend doesn't offer.
+  // A flow type the station doesn't offer.
   g["flow"] = "state";
   node.clear();
-  CHECK_THAT(refusal(g, catalog, &node), ContainsSubstring("this sheet is a State flow, which this backend doesn't offer"));
+  CHECK_THAT(refusal(g, catalog, &node), ContainsSubstring("this sheet is a State flow, which this station doesn't offer"));
   CHECK(node.empty());
 }
 
-TEST_CASE("hello says which flow types the backend offers") {
-  const core::Backend backend{.engine = "test", .catalog = &mixed(), .run = {.real_time = false}};
+TEST_CASE("hello says which flow types the station offers") {
+  const core::Station station{.engine = "test", .catalog = &mixed(), .run = {.real_time = false}};
   std::vector<json> sent;
   std::mutex mutex;
   {
-    core::Session session(backend, [&](const std::string& text) {
+    core::Session session(station, [&](const std::string& text) {
       std::lock_guard lock(mutex);
       receive(sent, text);
     });

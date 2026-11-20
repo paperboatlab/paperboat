@@ -5,7 +5,7 @@
     python3 protocol/gen_ts.py --check   # exit 1 if protocol.ts is out of date (CI)
 
 Each $defs entry becomes an exported type of the same name; the messages each way become
-the unions ServerMsg ($defs/toUI) and ClientMsg ($defs/toBackend). Descriptions become doc
+the unions ServerMsg ($defs/toUI) and ClientMsg ($defs/toStation). Descriptions become doc
 comments. Knows only the parts of JSON Schema the protocol uses.
 """
 
@@ -34,7 +34,7 @@ def ts(s: dict, defs: dict, indent: str = "") -> str:
     if "$ref" in s:
         name = s["$ref"].split("/")[-1]
         # A message (signals' list of signal) is a member of its union, not a type of its own.
-        for union_name, side in (("ServerMsg", "toUI"), ("ClientMsg", "toBackend")):
+        for union_name, side in (("ServerMsg", "toUI"), ("ClientMsg", "toStation")):
             if name in defs[side]["properties"]["type"]["enum"]:
                 return f'Extract<{union_name}, {{ type: "{name}" }}>'
         return name
@@ -92,8 +92,8 @@ def generate() -> str:
         "// Do not edit: change the schema and run `npm run gen:protocol`.",
         "",
     ]
-    skip = {"toUI", "toBackend"} | set(defs["toUI"]["properties"]["type"]["enum"]) | set(
-        defs["toBackend"]["properties"]["type"]["enum"]
+    skip = {"toUI", "toStation"} | set(defs["toUI"]["properties"]["type"]["enum"]) | set(
+        defs["toStation"]["properties"]["type"]["enum"]
     )
     for name, s in defs.items():
         if name in skip:
@@ -102,7 +102,7 @@ def generate() -> str:
         out.append("")
     out.append(doc(defs["toUI"].get("description")) + "export type ServerMsg =\n" + messages(defs["toUI"], defs) + ";")
     out.append("")
-    out.append(doc(defs["toBackend"].get("description")) + "export type ClientMsg =\n" + messages(defs["toBackend"], defs) + ";")
+    out.append(doc(defs["toStation"].get("description")) + "export type ClientMsg =\n" + messages(defs["toStation"], defs) + ";")
     out.append("")
     return "\n".join(out)
 

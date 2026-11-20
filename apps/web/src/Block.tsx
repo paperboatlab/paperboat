@@ -22,7 +22,7 @@ const HEAD = 28;
 const nodeEl = (id: string) => document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`);
 
 /**
- * Generic node: everything it shows comes from the backend's BlockDef. A block with a plate
+ * Generic node: everything it shows comes from the station's BlockDef. A block with a plate
  * (`view.compact` or an icon) draws as the plate; double-click floats its card over it to inspect
  * and edit, and the card's unfold key puts the card on the canvas instead (`unfolded`, saved),
  * making room for it. Other blocks are always their card. One card, the same three ways.
@@ -132,7 +132,7 @@ function BlockFace({ id, data, selected }: NodeProps<BlockNode>) {
   const card = (
     <div
       className={classes.filter(Boolean).join(" ")}
-      title={missing ? `This backend has no "${def.type}" block: its params and wires are kept. Replace or delete it.` : undefined}
+      title={missing ? `This station has no "${def.type}" block: its params and wires are kept. Replace or delete it.` : undefined}
     >
       {ports.top}
       <div className="block-title">

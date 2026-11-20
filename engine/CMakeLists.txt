@@ -11,14 +11,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Off when a backend pulls the engine in with add_subdirectory: it only needs the libraries.
+# Off when a station pulls the engine in with add_subdirectory: it only needs the libraries.
 option(PAPERBOAT_BUILD_TESTS "Build the Catch2 tests" ${PROJECT_IS_TOP_LEVEL})
 option(PAPERBOAT_BUILD_TOOLS "Build paperboat-catalog" ${PROJECT_IS_TOP_LEVEL})
 include(GNUInstallDirs)
 option(PAPERBOAT_STATIC_RUNTIME "Link libstdc++ and libgcc statically, so a release binary needs only glibc" OFF)
 # Shared engine libraries (pb#352): one copy of the registry, the solvers' run defaults and the toolkit
 # code per process, so a toolkit is a plugin the hosts load at runtime and installs without an engine
-# rebuild. On for a standalone build on Linux and macOS; static when a backend or the Python module pulls
+# rebuild. On for a standalone build on Linux and macOS; static when a station or the Python module pulls
 # the engine in, and on Windows (its SDK uses the static MSVC runtime, #222).
 set(_pb_shared_default OFF)
 if(PROJECT_IS_TOP_LEVEL AND NOT WIN32)
@@ -39,7 +39,7 @@ if(PAPERBOAT_SHARED_LIBS)
     set(CMAKE_INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
   endif()
 endif()
-# The SDK (pb#177): install paperboat::core, paperboat::toolkit and their headers, so a backend can
+# The SDK (pb#177): install paperboat::core, paperboat::toolkit and their headers, so a station can
 # find_package(Paperboat) instead of building the engine from source.
 option(PAPERBOAT_INSTALL "Install the SDK (libraries, headers, CMake config)" ${PROJECT_IS_TOP_LEVEL})
 
@@ -179,7 +179,7 @@ add_subdirectory(host)
 # experimental, off unless _LIBCPP_ENABLE_EXPERIMENTAL is defined; from the macOS 26 SDK they are on.
 # Both are header-only there. PUBLIC: core's and the toolkit's own headers use std::stop_token
 # (toolkit's block.hpp is in the run's face), so everything that includes them (tests, the Python
-# module, SDK backends through the exported targets) needs it too.
+# module, SDK stations through the exported targets) needs it too.
 if(APPLE)
   include(CheckCXXSourceCompiles)
   set(_pb_jthread_src "#include <stop_token>\n#include <thread>\nint main() { std::jthread t([](std::stop_token) {}); }")
@@ -209,7 +209,7 @@ if(PAPERBOAT_INSTALL)
   install(EXPORT PaperboatTargets NAMESPACE paperboat:: DESTINATION ${PAPERBOAT_CMAKE_DIR} COMPONENT dev)
   configure_package_config_file(cmake/PaperboatConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfig.cmake
                                 INSTALL_DESTINATION ${PAPERBOAT_CMAKE_DIR})
-  # 0.x: a backend built against 0.1 needs a 0.1 engine (SameMinorVersion).
+  # 0.x: a station built against 0.1 needs a 0.1 engine (SameMinorVersion).
   write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfigVersion.cmake COMPATIBILITY SameMinorVersion)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfigVersion.cmake
           DESTINATION ${PAPERBOAT_CMAKE_DIR} COMPONENT dev)
@@ -242,15 +242,15 @@ foreach(manifest IN LISTS optional_toolkit_manifests)
   endif()
 endforeach()
 
-# The workbench backend (base, math, signal, and installed optional toolkits, no domain).
-# Only a standalone engine build serves it; a backend that pulls the engine in has its own.
+# The scratchpad station (base, math, signal, and installed optional toolkits, no domain).
+# Only a standalone engine build serves it; a station that pulls the engine in has its own.
 if(PROJECT_IS_TOP_LEVEL)
-  add_subdirectory(workbench)
+  add_subdirectory(scratchpad)
 endif()
 if(PAPERBOAT_BUILD_TOOLS)
   add_subdirectory(tools)
 endif()
-# Backends (examples/backends/*-cpp) are projects of their own that use the engine; the
+# Stations (examples/stations/*-cpp) are projects of their own that use the engine; the
 # engine never builds or reads them.
 
 # Packages (cpack -G TGZ / DEB / RPM / ZIP): CLI-only packages (paperboat + SDK, no GUI launcher).

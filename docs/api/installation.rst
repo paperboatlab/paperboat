@@ -7,7 +7,7 @@ Paperboat has two front doors:
 
 - the **Paperboat CLI** (``paperboat``) for a terminal, scripts and CI; and
 - the **Paperboat Launcher**, a desktop window over the same CLI for installing apps,
-  toolkits and backends.
+  toolkits and stations.
 
 You can install either one. The Launcher bundles the CLI, so it is a complete install by
 itself; installing both is fine and they share the same ``$PAPERBOAT_HOME``.
@@ -19,7 +19,7 @@ itself; installing both is fine and they share the same ``$PAPERBOAT_HOME``.
    * - If you want to…
      - Install
      - Then
-   * - run backends, build projects, use scripts or CI
+   * - run stations, build projects, use scripts or CI
      - the CLI (and the C++ development package, ``paperboat-dev`` / ``paperboat-devel``)
      - read :ref:`paperboat-cli` and :ref:`paperboat-dev`
    * - work from a desktop app, install Squero Studio, manage toolkits
@@ -60,7 +60,7 @@ Prerequisites
 -------------
 
 The CLI and the Launcher need almost nothing themselves. The build tools are needed when
-Paperboat builds **for you**: a C++ backend, an app, a toolkit, or the ``dev`` channel.
+Paperboat builds **for you**: a C++ station, an app, a toolkit, or the ``dev`` channel.
 
 .. list-table::
    :header-rows: 1
@@ -82,15 +82,15 @@ Paperboat builds **for you**: a C++ backend, an app, a toolkit, or the ``dev`` c
    * - the CLI ``dev`` channel or a source build
      - Git, CMake 3.25+, Ninja (recommended), a C++20 compiler (GCC 12+/Clang 17+ or
        MSVC 2022), Node.js 22+ with npm, and Python 3.11+ for the bindings.
-   * - C++ backends
+   * - C++ stations
      - CMake 3.25+, Ninja (recommended), and a C++20 compiler. On Linux, the packaged SDK
        asks for ``g++ >= 12``; GCC 13+ or Clang 17+ is the comfortable baseline.
-   * - Python backends
+   * - Python stations
      - Python 3.11+. The release ships ``paperboat._engine`` for CPython 3.11 and, through
        the stable ABI, for CPython 3.12 and later. ``pip`` is only needed for the
-       backend's own packages.
-   * - Julia backends
-     - Julia 1.11+, then ``paperboat deps install`` in the backend folder.
+       station's own packages.
+   * - Julia stations
+     - Julia 1.11+, then ``paperboat deps install`` in the station folder.
    * - Squero Studio OM
      - Git, Node.js 22+/npm, CMake 3.25+, Ninja, a C++20 compiler, and either OpenModelica
        ``omc`` or Podman/Docker.
@@ -108,11 +108,11 @@ Paperboat builds **for you**: a C++ backend, an app, a toolkit, or the ``dev`` c
      - CMake and a C++20 compiler; no extra system library is required.
 
 You also need network access to GitHub (releases and repositories), and to npm, PyPI and
-the Julia registry when an app or backend installs its own dependencies. The Julia kernel
+the Julia registry when an app or station installs its own dependencies. The Julia kernel
 image comes from ``ghcr.io``.
 
 These requirements apply whether you use the CLI or the Launcher. The Launcher does not
-bundle compilers or language runtimes: when it installs an app, toolkit or backend, it
+bundle compilers or language runtimes: when it installs an app, toolkit or station, it
 runs the same install and build commands through its bundled CLI.
 
 .. _paperboat-cli:
@@ -238,7 +238,7 @@ The ``.deb`` and ``.rpm`` split the install in two:
 
 - ``paperboat`` — the CLI, the web app and the runtime libraries;
 - ``paperboat-dev`` on Debian/Ubuntu or ``paperboat-devel`` on Fedora/RHEL — the headers,
-  libraries and ``paperboatConfig.cmake`` for building C++ backends and toolkits against
+  libraries and ``paperboatConfig.cmake`` for building C++ stations and toolkits against
   the installed engine.
 
 Install both when you build C++ code from distribution packages:
@@ -266,11 +266,11 @@ Verify the install
    $ paperboat --version
    paperboat 0.1.5
    $ paperboat commands
-   start     Start the web app, or a backend or program (start [backend|program])
-   stop      Stop the web app, or a backend or program (stop [backend|program])
-   restart   Restart the web app, or a backend or program
-   run       Build and run a backend (or .ppk) in the foreground
-   open      Open a saved project file (.ppj, .paperboat.json)
+   start     Start the web app, or a station or program (start [station|program])
+   stop      Stop the web app, or a station or program (stop [station|program])
+   restart   Restart the web app, or a station or program
+   run       Build and run a station (or .pst) in the foreground
+   open      Open a saved project file (.psf, .paperboat.json)
    …
 
 With no arguments on a terminal, ``paperboat`` opens the interactive console. It is the
@@ -338,7 +338,7 @@ The Paperboat Launcher
 ----------------------
 
 The Launcher is a desktop window over the CLI. It bundles the CLI and SDK, so a Launcher
-install can build and run backends, apps and toolkits without a separate CLI install.
+install can build and run stations, apps and toolkits without a separate CLI install.
 The two share ``$PAPERBOAT_HOME``.
 
 Linux
@@ -373,7 +373,7 @@ shortcuts, and offers to launch **Paperboat Launcher** when it finishes.
 The first window
 ~~~~~~~~~~~~~~~~
 
-The Launcher opens on **Apps**. The left rail switches between Apps, Backends, Toolkits
+The Launcher opens on **Apps**. The left rail switches between Apps, Stations, Toolkits
 and Console; the top bar carries the page's controls, the version/status pill and the
 theme control. On Apps it also carries the channel switch; :kbd:`Ctrl` + :kbd:`K` opens
 the command palette from anywhere. There is no first-run wizard: the Apps page is the
@@ -381,7 +381,7 @@ starting point.
 
 .. seealso::
 
-   :doc:`launcher` — a page-by-page guide to installing apps, running backends, managing
+   :doc:`launcher` — a page-by-page guide to installing apps, running stations, managing
    toolkits and using the console.
 
 .. _from-checkout:
@@ -412,6 +412,6 @@ are built from tagged commits. The Launcher can also run from the checkout:
 Next steps
 ----------
 
-- :doc:`quickstart` — create a backend and run it.
+- :doc:`quickstart` — create a station and run it.
 - :doc:`launcher` — the Launcher, page by page.
 - :doc:`user_manual` — the Station, Flow and Board.

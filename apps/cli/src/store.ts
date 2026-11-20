@@ -51,7 +51,7 @@ export type Mode = 'prompt' | 'picker' | 'toolkit' | 'dash' | 'logs' | 'about';
 export interface Job {
   id: number;
   name: string;
-  kind: 'backend' | 'web' | 'build';
+  kind: 'station' | 'web' | 'squero' | 'build';
   args: string[];
   port: number;
   pid: number;
@@ -60,7 +60,7 @@ export interface Job {
   stopped: boolean;
   t0: number;
   ready: number;
-  /** A backend already on the port when this one started: not this job's sign of life. */
+  /** A station already on the port when this one started: not this job's sign of life. */
   stale: number;
   log: string[];
   child: ChildProcess | null;
@@ -96,23 +96,23 @@ export interface External {
   name: string;
   port: number;
   pid: number;
-  /** A backend, or an app (the web app, squero-studio-om). */
-  kind: 'backend' | 'app';
+  /** A station, paperboat web UI, or a squero app. */
+  kind: 'station' | 'paperboat' | 'squero';
 }
 
-/** An app from apps.toml (`pkg list --json`): a program can be started, a library only builds. */
-export interface Program {
+/** An entry from apps.toml (`squero list --json`): a squero app can be started, a library only builds. */
+export interface SqueroApp {
   name: string;
-  kind: 'program' | 'library';
+  kind: 'squero' | 'library';
   launch: string;
   port: number;
   installed: boolean;
-  /** A sibling checkout of the app in the repository root's parent (not `pkg`-installed). */
+  /** A sibling checkout in the repository root's parent (not `squero`-installed). */
   checkout?: boolean;
   description: string;
 }
 
-export interface Backend {
+export interface Station {
   name: string;
   language: string;
   port: number;
@@ -135,7 +135,7 @@ const OWN: CommandSpec[] = [
   {name: 'clear', summary: 'Clear the screen', aliases: [], subcommands: [], flags: [], arg: ''},
   {name: 'help', summary: 'List commands and keys', aliases: [], subcommands: [], flags: [], arg: ''},
   {name: 'about', summary: 'Versions and installed pieces', aliases: [], subcommands: [], flags: [], arg: ''},
-  {name: 'exit', summary: 'Leave the console', aliases: ['quit'], subcommands: [], flags: [], arg: ''},
+  {name: 'exit', summary: 'Leave Paperboat CLI', aliases: ['quit'], subcommands: [], flags: [], arg: ''},
 ];
 
 export const S = {
@@ -154,8 +154,8 @@ export const S = {
   jobs: [] as Job[],
   tasks: [] as Task[],
   external: [] as External[],
-  backends: [] as Backend[],
-  programs: [] as Program[],
+  stations: [] as Station[],
+  squeros: [] as SqueroApp[],
   toolkits: [] as Toolkit[],
   commands: OWN as CommandSpec[],
   picker: {query: '', i: 0},
@@ -198,7 +198,7 @@ export function say(line: Out): void {
 export const alive = (j: Job) => j.state !== 'exited';
 /** Something is being built or checked: the spinner and the logo's live ripple. */
 export const working = () => S.jobs.some(j => j.state === 'building') || S.tasks.length > 0;
-/** Anything that keeps the console's spinner running, including the live dashboard. */
+/** Anything that keeps the console's spinner running, including the live board. */
 export const busy = () => working() || S.mode === 'dash';
 
 /** The newest job by that name (or instance base name / port): a live service first, then any live one, then any. */
@@ -213,7 +213,7 @@ export function jobBy(name: string): Job | undefined {
   );
 }
 
-/** All live services (not builds) matching an exact instance name, port, or base backend name. */
+/** All live services (not builds) matching an exact instance name, port, or base station name. */
 export function servicesBy(target: string): Job[] {
   const exact = S.jobs.filter(j => alive(j) && j.kind !== 'build' && (j.name === target || String(j.port) === target));
   if (exact.length) return exact;
@@ -227,9 +227,9 @@ export const serviceBy = (target: string): Job | undefined => {
 };
 
 export function sources(): Sources {
-  let ppk: string[] = [];
+  let pst: string[] = [];
   try {
-    ppk = readdirSync('.').filter(f => f.endsWith('.ppk'));
+    pst = readdirSync('.').filter(f => f.endsWith('.pst'));
   } catch {
     // unreadable folder: no packages to offer
   }
@@ -241,9 +241,9 @@ export function sources(): Sources {
     commands: S.commands,
     listDir,
     args: {
-      backend: [
-        ...S.backends.map(x => ({value: x.name, detail: `backend · ${x.language} · :${x.port} · ${x.description}`})),
-        ...S.programs.filter(p => p.kind === 'program').map(p => ({value: p.name, detail: `program · :${p.port} · ${p.description}`})),
+      station: [
+        ...S.stations.map(x => ({value: x.name, detail: `station · ${x.language} · :${x.port} · ${x.description}`})),
+        ...S.squeros.filter(p => p.kind === 'squero').map(p => ({value: p.name, detail: `squero · :${p.port} · ${p.description}`})),
       ],
       toolkit: S.toolkits.map(x => ({value: x.name, detail: x.builtin ? 'built-in' : x.installed ? 'installed' : 'available'})),
       target: [
@@ -255,17 +255,17 @@ export function sources(): Sources {
         ...S.external.map(e => ({value: e.name, detail: `:${e.port} · started outside`})),
       ],
       job: [...new Set(S.jobs.map(j => j.name))].map(n => ({value: n, detail: jobBy(n)!.state})),
-      ppk: ppk.map(f => ({value: f, detail: 'in this folder'})),
+      pst: pst.map(f => ({value: f, detail: 'in this folder'})),
     },
   };
 }
 
-/** Folders and .ppk files in `dir`, for completing a path (`run ../examples/ca`). */
+/** Folders and .pst files in `dir`, for completing a path (`run ../examples/ca`). */
 function listDir(dir: string): Choice[] {
   try {
     const at = dir.replace(/^~(?=\/|$)/, homedir()) || '.';
     return readdirSync(at, {withFileTypes: true})
-      .filter(e => !e.name.startsWith('.') && (e.isDirectory() || e.name.endsWith('.ppk')))
+      .filter(e => !e.name.startsWith('.') && (e.isDirectory() || e.name.endsWith('.pst')))
       .map(e => ({value: e.isDirectory() ? `${e.name}/` : e.name, detail: e.isDirectory() ? 'folder' : 'package'}));
   } catch {
     return [];
@@ -299,23 +299,23 @@ interface Running {
   port: number;
   pid: number;
   domain: string;
-  kind?: 'backend' | 'app';
+  kind?: 'station' | 'paperboat' | 'squero';
   name?: string;
 }
 
-export async function refreshBackends(): Promise<void> {
-  S.backends = (await pb.json<Backend[]>(['backends', '--json'])) ?? S.backends;
+export async function refreshStations(): Promise<void> {
+  S.stations = (await pb.json<Station[]>(['stations', '--json'])) ?? S.stations;
   changed();
 }
 
-export async function refreshPrograms(): Promise<void> {
-  S.programs = (await pb.json<Program[]>(['pkg', 'list', '--json'])) ?? S.programs;
+export async function refreshSqueros(): Promise<void> {
+  S.squeros = (await pb.json<SqueroApp[]>(['squero', 'list', '--json'])) ?? S.squeros;
   changed();
 }
 
-/** squero-studio-om, or its command (squero): something `start` runs that is not a backend. */
-export function programNamed(target: string): Program | undefined {
-  return S.programs.find(p => p.kind === 'program' && (p.name === target || (p.launch !== '' && p.launch === target)));
+/** squero-studio-om, or its command (squero): a Squero app managed by `paperboat squero`. */
+export function squeroNamed(target: string): SqueroApp | undefined {
+  return S.squeros.find(p => p.kind === 'squero' && (p.name === target || (p.launch !== '' && p.launch === target)));
 }
 
 export async function refreshToolkits(): Promise<void> {
@@ -334,10 +334,10 @@ async function poll(): Promise<void> {
     S.external = list
       .filter(r => !S.jobs.some(j => alive(j) && j.port === r.port))
       .map(r => ({
-        name: r.kind === 'app' && r.name ? r.name : r.domain && r.domain !== 'unknown' ? r.domain : (S.backends.find(x => x.port === r.port)?.name ?? `:${r.port}`),
+        name: (r.kind === 'paperboat' || r.kind === 'squero') && r.name ? r.name : r.domain && r.domain !== 'unknown' ? r.domain : (S.stations.find(x => x.port === r.port)?.name ?? `:${r.port}`),
         port: r.port,
         pid: r.pid,
-        kind: r.kind ?? 'backend',
+        kind: r.kind ?? 'station',
       }));
     changed();
   }
@@ -368,12 +368,12 @@ export async function init(): Promise<void> {
   ]);
   S.git = branch && hash ? `${branch} @ ${hash}` : hash;
   S.version = ver.out[0]?.replace(/^paperboat\s+/, '') ?? '';
-  await Promise.all([refreshBackends(), refreshToolkits(), refreshPrograms()]);
+  await Promise.all([refreshStations(), refreshToolkits(), refreshSqueros()]);
 
-  // When running paperboat, ensure the workbench backend is running on default port 8765
+  // When running paperboat, ensure the scratchpad station is running on default port 8765
   const port8765Active = runningList?.some(r => r.port === 8765) || S.external.some(e => e.port === 8765);
   if (!port8765Active && !S.jobs.some(j => alive(j) && j.port === 8765)) {
-    startJob('workbench', 'backend', ['run', 'workbench', '--port', '8765'], 8765);
+    startJob('scratchpad', 'station', ['run', 'scratchpad', '--port', '8765'], 8765);
   }
 }
 
@@ -396,12 +396,12 @@ export function clearScreen(): void {
 
 let nextJob = 1;
 
-/** What a job is busy with before it's up: C++ backends compile first. */
+/** What a job is busy with before it's up: C++ stations compile first. */
 export function doing(job: Job): string {
   if (job.kind === 'build') return 'compiling';
   const base = parseInstanceName(job.name).base;
-  const language = S.backends.find(x => x.name === job.name || x.name === base)?.language;
-  return job.kind === 'backend' && language !== 'python' ? 'building' : 'starting';
+  const language = S.stations.find(x => x.name === job.name || x.name === base)?.language;
+  return job.kind === 'station' && language !== 'python' ? 'building' : 'starting';
 }
 
 function startJob(name: string, kind: Job['kind'], args: string[], port: number): Job {
@@ -426,7 +426,7 @@ function spawnJob(job: Job): void {
       pushLine(job.log, line);
       // `paperboat run` names the port it chose (descriptor, manifest or --port).
       const port = /^paperboat running .* on ws:\/\/[^:]+:(\d+)/.exec(line);
-      if (port && job.kind === 'backend') job.port = Number(port[1]);
+      if (port && job.kind === 'station') job.port = Number(port[1]);
       if (job.kind === 'web' && job.state === 'building' && /ready in|Local:/.test(line)) ready(job, job.pid);
       changed();
     },
@@ -637,17 +637,17 @@ const flag = (args: string[], name: string) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 
-/** Backends matching the picker's filter, best first. */
-export function pickList(query: string): Array<{backend: Backend; match: number[]}> {
-  return S.backends
-    .flatMap(backend => {
-      const m = fuzzy(query, backend.name);
-      return m ? [{backend, match: m.match, score: m.score}] : [];
+/** Stations matching the picker's filter, best first. */
+export function pickList(query: string): Array<{station: Station; match: number[]}> {
+  return S.stations
+    .flatMap(station => {
+      const m = fuzzy(query, station.name);
+      return m ? [{station, match: m.match, score: m.score}] : [];
     })
     .sort((x, y) => y.score - x.score);
 }
 
-/** The dashboard's rows: this console's jobs (finished builds dropped), then the others. */
+/** The board's rows: this console's jobs (finished builds dropped), then the others. */
 export function dashRows(): Array<{job?: Job; ext?: External}> {
   return [...S.jobs.filter(j => j.kind !== 'build' || alive(j)).map(job => ({job})), ...S.external.map(ext => ({ext}))];
 }
@@ -655,7 +655,7 @@ export function dashRows(): Array<{job?: Job; ext?: External}> {
 export function openPicker(): void {
   S.mode = 'picker';
   S.picker = {query: '', i: 0};
-  void refreshBackends();
+  void refreshStations();
 }
 
 export function openToolkits(): void {
@@ -676,9 +676,9 @@ export function openLogs(job: Job, back: Mode): void {
   S.logs = {job: job.id, back};
 }
 
-export function runBackend(target: string, args: string[] = []): void {
-  const backend = S.backends.find(x => x.name === target);
-  const baseName = backend ? backend.name : targetName(target);
+export function runStation(target: string, args: string[] = []): void {
+  const station = S.stations.find(x => x.name === target);
+  const baseName = station ? station.name : targetName(target);
   const liveJobs = S.jobs.filter(j => alive(j) && j.kind !== 'build');
   const name = nextInstanceName(baseName, liveJobs.map(j => j.name));
 
@@ -696,14 +696,14 @@ export function runBackend(target: string, args: string[] = []): void {
     ...liveJobs.map(j => j.port).filter(Boolean),
     ...S.external.map(e => e.port),
   ]);
-  let port = explicitPort || backend?.port || 8765;
+  let port = explicitPort || station?.port || 8765;
   if (!explicitPort) {
     while (usedPorts.has(port)) port++;
   }
 
   const restArgs = args.filter(a => a !== target);
   const runArgs = !explicitPort && port ? ['run', target, ...restArgs, '--port', String(port)] : ['run', target, ...restArgs];
-  startJob(name, 'backend', runArgs, port);
+  startJob(name, 'station', runArgs, port);
 }
 
 export function stopTarget(target: string): void {
@@ -747,24 +747,24 @@ function table(header: string, rows: Out[]): void {
 function ps(): void {
   const live = S.jobs.filter(j => alive(j) && j.kind !== 'build');
   if (!live.length && !S.external.length) {
-    say([mu('nothing running · start runs the web app, start <backend|program> the rest')]);
+    say([mu('nothing running · start runs the web app, start <station> or squero start <squero>')]);
     return;
   }
-  table(`  ${'STATE'.padEnd(12)}${'KIND'.padEnd(9)}${'NAME'.padEnd(20)}${'PORT'.padEnd(7)}${'PID'.padEnd(9)}FROM`, [
+  table(`  ${'STATE'.padEnd(12)}${'KIND'.padEnd(11)}${'NAME'.padEnd(20)}${'PORT'.padEnd(7)}${'PID'.padEnd(9)}FROM`, [
     ...live.map(j => [
-      s('  '), j.state === 'running' ? sg('● running   ') : sg('◌ building  '), mu((j.kind === 'backend' ? 'backend' : 'app').padEnd(9)),
-      s(j.name.padEnd(20)), s(String(j.port).padEnd(7)), s(String(j.pid).padEnd(9)), mu('console'),
+      s('  '), j.state === 'running' ? sg('● running   ') : sg('◌ building  '), mu((j.kind === 'station' ? 'station' : j.kind === 'squero' ? 'squero' : 'paperboat').padEnd(11)),
+      s(j.name.padEnd(20)), s(String(j.port).padEnd(7)), s(String(j.pid).padEnd(9)), mu('cli'),
     ]),
     ...S.external.map(e => [
-      s('  '), mu('● running   '), mu(e.kind.padEnd(9)), s(e.name.padEnd(20)), s(String(e.port).padEnd(7)), s(String(e.pid).padEnd(9)), mu('outside'),
+      s('  '), mu('● running   '), mu(e.kind.padEnd(11)), s(e.name.padEnd(20)), s(String(e.port).padEnd(7)), s(String(e.pid).padEnd(9)), mu('outside'),
     ]),
   ]);
 }
 
 export function requestExit(): void {
-  // Backends started outside the console (the workbench `paperboat start` auto-launches, an
+  // Stations started outside the console (the scratchpad `paperboat start` auto-launches, an
   // example from another terminal) are not jobs; ask to stop them too when quitting.
-  if (S.jobs.some(alive) || S.external.some(e => e.kind === 'backend')) S.confirm = true;
+  if (S.jobs.some(alive) || S.external.some(e => e.kind === 'station')) S.confirm = true;
   else S.quit = true;
   changed();
 }
@@ -772,34 +772,34 @@ export function requestExit(): void {
 export async function exitNow(): Promise<void> {
   S.confirm = false;
   const live = S.jobs.filter(alive);
-  const external = S.external.filter(e => e.kind === 'backend');
+  const external = S.external.filter(e => e.kind === 'station');
   if (live.length || external.length) say([mu('stopping everything…')]);
   await Promise.all(live.map(j => stopJob(j, true)));
   if (external.length) {
     await plain(['stop', '--all']);
-    S.external = S.external.filter(e => e.kind !== 'backend');
+    S.external = S.external.filter(e => e.kind !== 'station');
   }
   S.quit = true;
   changed();
 }
 
-/** The web app: `start`, `stop` and `restart` without a target, and `app <verb>`. */
-function appCommand(verb: string, rest: string[]): void {
+/** The web app: `start`, `stop` and `restart` without a target, and `web <verb>`. */
+function webCommand(verb: string, rest: string[]): void {
   const web = S.jobs.find(j => j.kind === 'web' && j.name === 'web' && alive(j));
   const port = Number(flag(rest, '--port')) || 3047;
   if (verb === 'start') {
     if (web) return void say([mu(`web is already running on :${web.port} · restart restarts it`)]);
-    startJob('web', 'web', ['app', 'start', ...rest], port);
+    startJob('web', 'web', ['web', 'start', ...rest], port);
   } else if (verb === 'stop') {
     if (web) void stopJob(web);
-    else void plain(['app', 'stop', ...rest]);
+    else void plain(['web', 'stop', ...rest]);
   } else if (verb === 'restart') {
     if (web) void restartJob(web);
-    else startJob('web', 'web', ['app', 'start', ...rest], port);
+    else startJob('web', 'web', ['web', 'start', ...rest], port);
   } else if (verb === 'build') {
-    startJob('web-build', 'build', ['app', 'build'], 0);
+    startJob('web-build', 'build', ['web', 'build'], 0);
   } else {
-    say([mu('start | stop | restart (the web app) · app build')]);
+    say([mu('start | stop | restart (Paperboat web UI) · web build')]);
   }
 }
 
@@ -835,15 +835,15 @@ export function exec(raw: string): void {
       return requestExit();
     case 'run':
     case 'start': {
-      if (!pos[0]) return spec.name === 'run' ? openPicker() : appCommand('start', args);  // start alone: the web app
-      const program = programNamed(pos[0]);  // run on a program starts it, as the picker offers
-      if (!program) return runBackend(pos[0], args);
-      if (program.installed === false) say([mu(`${program.name} is not installed yet · it is fetched and built first`)]);
-      const port = Number(flag(args, '--port')) || program.port;
+      if (!pos[0]) return spec.name === 'run' ? openPicker() : webCommand('start', args);  // start alone: the web app
+      const squero = squeroNamed(pos[0]);  // run on a squero starts it, as the picker offers
+      if (!squero) return runStation(pos[0], args);
+      if (squero.installed === false) say([mu(`${squero.name} is not installed yet · it is fetched and built first`)]);
+      const port = Number(flag(args, '--port')) || squero.port;
       if (S.external.some(e => e.port === port) || S.jobs.some(j => alive(j) && j.port === port)) {
-        return void say([mu(`${program.name} is already running on :${port} · stop ${program.name} first`)]);
+        return void say([mu(`${squero.name} is already running on :${port} · stop ${squero.name} first`)]);
       }
-      startJob(program.name, 'web', ['start', program.name, ...args.filter(a => a !== pos[0])], port);
+      startJob(squero.name, 'squero', ['squero', 'start', squero.name, ...args.filter(a => a !== pos[0])], port);
       return;
     }
     case 'build':
@@ -872,13 +872,13 @@ export function exec(raw: string): void {
         void plain(['stop', '--all']);
         return;
       }
-      if (!pos[0]) return appCommand('stop', args);
+      if (!pos[0]) return webCommand('stop', args);
       return stopTarget(pos[0]);
     case 'restart':
-      if (!pos[0]) return appCommand('restart', args);
+      if (!pos[0]) return webCommand('restart', args);
       return restartTarget(pos[0]);
-    case 'app':
-      return appCommand(pos[0] ?? '', args.filter(x => x !== pos[0]));
+    case 'web':
+      return webCommand(pos[0] ?? '', args.filter(x => x !== pos[0]));
     case 'toolkit': {
       if (!pos[0]) return openToolkits();
       if (['install', 'add', 'update', 'uninstall', 'remove'].includes(pos[0]) && !args.includes('--version')) {
@@ -899,8 +899,8 @@ export function exec(raw: string): void {
       void packOrUnpack(spec.name, args);
       return;
     default: {
-      const refresh = spec.name === 'backends';
-      void plain([word, ...args]).then(() => (refresh ? refreshBackends() : undefined));
+      const refresh = spec.name === 'stations';
+      void plain([word, ...args]).then(() => (refresh ? refreshStations() : undefined));
     }
   }
 }

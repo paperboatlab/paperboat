@@ -12,7 +12,7 @@ Paperboat spans several repositories that are cloned **side by side**. Some path
 work/
 ├─ paperboat/            this repository
 ├─ paperboat-shared/     the UI kit (@paperboat/shared). Required: the web app builds against it
-├─ paperboat-examples/   the example backends. Optional, and not publicly available: `npm run backend:*`,
+├─ paperboat-examples/   the example stations. Optional, and not publicly available: `npm run station:*`,
 │                        `paperboat run <example>` and `protocol/golden.py` need it
 └─ squero-studio-om/     Squero Studio (OpenModelica). Optional; scripts/verify.sh checks it
 ```
@@ -80,12 +80,12 @@ python3 protocol/gen_ts.py          # --check: only verify
 python3 docs/gen_tokens.py          # --check: only verify
 ```
 
-**A backend against the protocol**: every backend, in any language, must pass the same
+**A station against the protocol**: every station, in any language, must pass the same
 domain-neutral smoke test, and the examples must still match their golden runs.
 
 ```sh
-./bin/paperboat check engine/tests/sdk-backend   # manifest, catalog, smoke test, golden run
-npm run smoke -- 8765                           # the smoke test against a backend already running on a port
+./bin/paperboat check engine/tests/sdk-station   # manifest, catalog, smoke test, golden run
+npm run smoke -- 8765                           # the smoke test against a station already running on a port
 npm run golden                                  # every example's starter result (needs paperboat-examples)
 ```
 

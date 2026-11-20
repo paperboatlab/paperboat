@@ -3,8 +3,8 @@ import type { EngineState } from "./engine";
 import type { ClientMsg, ServerMsg, Station } from "./protocol";
 
 type Props = {
-  /** The backend's WebSocket URL: the page is served over HTTP on the same host and port. */
-  backend: string;
+  /** The station's WebSocket URL: the page is served over HTTP on the same host and port. */
+  station: string;
   /** The page's path on that port (hello.station.page). */
   page: string;
   state: EngineState;
@@ -13,9 +13,9 @@ type Props = {
   onStation: (station: Station) => void;
 };
 
-/** http(s)://host:port/page for a ws(s)://host:port backend. */
-export function pageUrl(backend: string, page: string): string {
-  const url = new URL(backend);
+/** http(s)://host:port/page for a ws(s)://host:port station. */
+export function pageUrl(station: string, page: string): string {
+  const url = new URL(station);
   url.protocol = url.protocol === "wss:" ? "https:" : "http:";
   url.pathname = page;
   url.search = "";
@@ -23,12 +23,12 @@ export function pageUrl(backend: string, page: string): string {
 }
 
 /**
- * A web station: the backend's own page, shown in place of the built-in scene (GUIDELINES
+ * A web station: the station's own page, shown in place of the built-in scene (GUIDELINES
  * §6.4). The page is sandboxed (scripts only, no same-origin: it can't reach the app) and
- * talks to the app through the bridge it loads from the backend: it hears every protocol
+ * talks to the app through the bridge it loads from the station: it hears every protocol
  * message, and may send back only what the Station could (`station.set`, `input`).
  */
-export function WebStation({ backend, page, state, subscribe, send, onStation }: Props) {
+export function WebStation({ station, page, state, subscribe, send, onStation }: Props) {
   const frame = useRef<HTMLIFrameElement>(null);
   const latest = useRef(state);
   latest.current = state;
@@ -70,11 +70,11 @@ export function WebStation({ backend, page, state, subscribe, send, onStation }:
     <iframe
       ref={frame}
       className="web-station"
-      title="Station (the backend's page)"
+      title="Station (the station's page)"
       sandbox="allow-scripts"
       allow="fullscreen"
       allowFullScreen
-      src={pageUrl(backend, page)}
+      src={pageUrl(station, page)}
     />
   );
 }

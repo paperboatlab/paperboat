@@ -1,4 +1,4 @@
-"""The Python bindings, end to end: a tiny backend written in Python runs its starter on
+"""The Python bindings, end to end: a tiny station written in Python runs its starter on
 the C++ engine (`--run`), and what it reports is checked. Run: pytest python/tests
 (with the extension built: npm run build:python, or pip install ./python)."""
 
@@ -62,11 +62,11 @@ class Hook(paperboat.StationObject):
     def read(self):
         return {"holds": self.load.props["mass"] if self.load else 0.0}
 
-paperboat.serve(paperboat.Backend(engine="test", descriptor="descriptor.toml", blocks=[Double, Square, Slide],
+paperboat.serve(paperboat.Station(engine="test", descriptor="descriptor.toml", blocks=[Double, Square, Slide],
                                   objects=[Weight, Hook], state=World, dt=0.1, duration=5.0, emit_every=1))
 '''
 
-VECTOR_BACKEND = '''
+VECTOR_STATION = '''
 import paperboat
 from paperboat import Vector, vector_port
 
@@ -84,13 +84,13 @@ class AddCoordinates(paperboat.Block):
         x, y = inputs["state"]
         return {"total": x + y}
 
-paperboat.serve(paperboat.Backend(engine="test-vectors", descriptor="descriptor.toml",
+paperboat.serve(paperboat.Station(engine="test-vectors", descriptor="descriptor.toml",
                                   blocks=[Position, AddCoordinates], mode="once"))
 '''
 
 VECTOR_DESCRIPTOR = '''
 domain = "vectors"
-import = ["dashboard"]
+import = ["board"]
 [graph]
 nodes = [
   { id = "position", type = "position" },
@@ -107,7 +107,7 @@ edges = [
 
 DESCRIPTOR = '''
 domain = "t"
-import = ["base", "step", "signal", "dashboard"]
+import = ["base", "step", "signal", "board"]
 
 [station]
 objects = [{ id = "w", type = "weight" }, { id = "h", type = "hook", links = { load = "w" } }]
@@ -132,9 +132,9 @@ edges = [
 '''
 
 
-def run_backend(tmp_path: Path, backend: str = BACKEND, descriptor: str = DESCRIPTOR,
+def run_station(tmp_path: Path, station: str = BACKEND, descriptor: str = DESCRIPTOR,
                 args: tuple[str, ...] = (), success: bool = True) -> list[dict]:
-    (tmp_path / "server.py").write_text(textwrap.dedent(backend))
+    (tmp_path / "server.py").write_text(textwrap.dedent(station))
     (tmp_path / "descriptor.toml").write_text(textwrap.dedent(descriptor))
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
     proc = subprocess.run([sys.executable, "server.py", "--run", *args], cwd=tmp_path, env=env, capture_output=True,
@@ -143,8 +143,8 @@ def run_backend(tmp_path: Path, backend: str = BACKEND, descriptor: str = DESCRI
     return [json.loads(line) for line in proc.stdout.splitlines() if line.startswith("{")]
 
 
-def test_a_python_backend_runs_on_the_engine(tmp_path: Path) -> None:
-    msgs = run_backend(tmp_path)
+def test_a_python_station_runs_on_the_engine(tmp_path: Path) -> None:
+    msgs = run_station(tmp_path)
     assert msgs[-1] == {"type": "run.finished", "run": "run-1", "status": "done"}
     last = {m["node"]: m["v"] for m in msgs if m["type"] == "signal"}
     assert last["doubled"] == 1.0          # a Block, its number param
@@ -156,7 +156,7 @@ def test_a_python_backend_runs_on_the_engine(tmp_path: Path) -> None:
 
 
 def test_a_python_vector_uses_one_typed_wire_with_component_metadata(tmp_path: Path) -> None:
-    msgs = run_backend(tmp_path, backend=VECTOR_BACKEND, descriptor=VECTOR_DESCRIPTOR)
+    msgs = run_station(tmp_path, station=VECTOR_STATION, descriptor=VECTOR_DESCRIPTOR)
     signal = next(m for m in msgs if m["type"] == "signal" and m["node"] == "show")
     assert signal["v"] == 5.0
     vector_signal = next(m for m in msgs if m["type"] == "signal" and m["node"] == "vector-show")
@@ -165,26 +165,26 @@ def test_a_python_vector_uses_one_typed_wire_with_component_metadata(tmp_path: P
 
 
 def test_a_python_vector_must_match_its_declared_dimension(tmp_path: Path) -> None:
-    backend = VECTOR_BACKEND.replace(
+    station = VECTOR_STATION.replace(
         'vector_port("state", components=[("x", "m"), ("y", "m")])',
         'vector_port("state", 3)',
         1,
     )
-    backend = backend.replace(
+    station = station.replace(
         'inputs = [vector_port("state", components=[("horizontal", "m"), ("vertical", "m")])]',
         'inputs = [vector_port("state")]',
     )
-    msgs = run_backend(tmp_path, backend=backend, descriptor=VECTOR_DESCRIPTOR, success=False)
+    msgs = run_station(tmp_path, station=station, descriptor=VECTOR_DESCRIPTOR, success=False)
     assert msgs[-1]["type"] == "run.finished" and msgs[-1]["status"] == "failed"
     assert any(m.get("node") == "position" and "expected 3" in m.get("text", "") for m in msgs)
 
 
 def test_python_vector_component_units_are_checked_on_a_wire(tmp_path: Path) -> None:
-    backend = VECTOR_BACKEND.replace(
+    station = VECTOR_STATION.replace(
         '("horizontal", "m"), ("vertical", "m")',
         '("horizontal", "cm"), ("vertical", "m")',
     )
-    msgs = run_backend(tmp_path, backend=backend, descriptor=VECTOR_DESCRIPTOR, success=False)
+    msgs = run_station(tmp_path, station=station, descriptor=VECTOR_DESCRIPTOR, success=False)
     assert msgs[-1]["type"] == "run.finished" and msgs[-1]["status"] == "failed"
     assert any("vector component 0 in m" in m.get("text", "") for m in msgs if m["type"] == "log")
 
@@ -192,13 +192,13 @@ def test_python_vector_component_units_are_checked_on_a_wire(tmp_path: Path) -> 
 def test_a_blocks_view_is_checked(tmp_path: Path) -> None:
     anchor = 'inputs, outputs = ["u"], ["y"]\n    params = {"k": 2.0,'
 
-    def backend(view: str) -> str:
+    def station(view: str) -> str:
         return BACKEND.replace(anchor, f'inputs, outputs = ["u"], ["y"]\n    view = {view}\n    params = {{"k": 2.0,')
 
-    msgs = run_backend(tmp_path, backend('{"compact": True, "glyph": "gain", "value": "{k}"}'))
+    msgs = run_station(tmp_path, station('{"compact": True, "glyph": "gain", "value": "{k}"}'))
     assert msgs[-1]["status"] == "done"  # a view is only a hint: the block runs as before
 
-    (tmp_path / "server.py").write_text(textwrap.dedent(backend('{"glyf": "gain"}')))
+    (tmp_path / "server.py").write_text(textwrap.dedent(station('{"glyf": "gain"}')))
     (tmp_path / "descriptor.toml").write_text(textwrap.dedent(DESCRIPTOR))
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
     proc = subprocess.run([sys.executable, "server.py", "--run"], cwd=tmp_path, env=env, capture_output=True,
@@ -213,8 +213,8 @@ def test_variables_feed_params_and_take_var_overrides(tmp_path: Path) -> None:
                                     'params = { k = { var = "gain" }, loud = true, name = "hello" }')
     descriptor += '\n[[variables]]\nname = "gain"\nvalue = 3\n'
     doubled = lambda msgs: [m["v"] for m in msgs if m["type"] == "signal" and m["node"] == "doubled"][-1]
-    assert doubled(run_backend(tmp_path, descriptor=descriptor)) == 1.5
-    assert doubled(run_backend(tmp_path, descriptor=descriptor, args=("--var", "gain=4"))) == 2.0
+    assert doubled(run_station(tmp_path, descriptor=descriptor)) == 1.5
+    assert doubled(run_station(tmp_path, descriptor=descriptor, args=("--var", "gain=4"))) == 2.0
 
 
 def test_a_bad_definition_is_reported(tmp_path: Path) -> None:
@@ -247,13 +247,13 @@ class PlusOne(paperboat.Block):
     def step(self, ctx, inputs):
         return {"y": inputs.get("u", 0.0) + 1}
 
-paperboat.serve(paperboat.Backend(engine="loop", descriptor="descriptor.toml", blocks=[Memory, PlusOne],
+paperboat.serve(paperboat.Station(engine="loop", descriptor="descriptor.toml", blocks=[Memory, PlusOne],
                                   dt=0.1, duration=1.0, emit_every=1))
 '''
 
 LOOP_DESCRIPTOR = '''
 domain = "loop"
-import = ["dashboard"]
+import = ["board"]
 
 [graph]
 nodes = [{ id = "m", type = "memory" }, { id = "p", type = "plus-one" }, { id = "count", type = "display" }]
@@ -266,7 +266,7 @@ edges = [
 
 
 def test_a_python_block_without_feedthrough_closes_a_loop(tmp_path: Path) -> None:
-    msgs = run_backend(tmp_path, LOOP_BACKEND, LOOP_DESCRIPTOR)
+    msgs = run_station(tmp_path, LOOP_BACKEND, LOOP_DESCRIPTOR)
     assert msgs[-1]["status"] == "done"
     counts = [m["v"] for m in msgs if m["type"] == "signal" and m["node"] == "count"]
     assert counts == [float(k) for k in range(11)]  # one more each clock step, 0 to 10
@@ -296,13 +296,13 @@ class Mass(paperboat.Model):
         return [scene.rect(f"{id}/mass", self.x[0], 0, 0.4, 0.4, "#2f5d62", z=z),
                 scene.spring(f"{id}/spring", (-2, 0), (self.x[0] - 0.2, 0), coils=6)]
 
-paperboat.serve(paperboat.Backend(engine="model", descriptor="descriptor.toml", objects=[Mass],
+paperboat.serve(paperboat.Station(engine="model", descriptor="descriptor.toml", objects=[Mass],
                                   dt=0.01, duration=1.0, emit_every=100))
 '''
 
 MODEL_DESCRIPTOR = '''
 domain = "model"
-import = ["dashboard"]
+import = ["board"]
 
 [station]
 objects = [{ id = "m", type = "mass", props = { solver = "SOLVER" } }]
@@ -319,7 +319,7 @@ def test_a_python_model_is_stepped_by_the_engines_solver(tmp_path: Path) -> None
     import paperboat
     implicit = [(name, 1e-5) for name in ("cvode", "ida") if name in paperboat.solve.names()]
     for solver, tolerance in [("rk4", 1e-7), ("rk45", 1e-5), ("euler", 0.1), *implicit]:
-        msgs = run_backend(tmp_path, MODEL_BACKEND, MODEL_DESCRIPTOR.replace("SOLVER", solver))
+        msgs = run_station(tmp_path, MODEL_BACKEND, MODEL_DESCRIPTOR.replace("SOLVER", solver))
         assert msgs[-1]["status"] == "done", msgs
         x = [m["v"] for m in msgs if m["type"] == "signal" and m["node"] == "x"][-1]
         # The display shows x before the last step: t = 0.99 at the run's last pass (ω = 2).
@@ -355,12 +355,12 @@ class Scale(paperboat.Block):
     def step(self, ctx, inputs):
         return {"y": inputs.get("u", 0.0) * self.params["k"]}
 
-paperboat.serve(paperboat.Backend(engine="test-elementwise", descriptor="descriptor.toml", blocks=[Scale], mode="once"))
+paperboat.serve(paperboat.Station(engine="test-elementwise", descriptor="descriptor.toml", blocks=[Scale], mode="once"))
 '''
 
 ELEMENTWISE_DESCRIPTOR = '''
 domain = "ew"
-import = ["base", "dashboard"]
+import = ["base", "board"]
 [graph]
 nodes = [
   { id = "one", type = "constant", params = { value = 1 } }, { id = "two", type = "constant", params = { value = 2 } },
@@ -376,7 +376,7 @@ edges = [
 
 
 def test_an_elementwise_python_block_takes_a_vector_and_stays_scalar_on_numbers(tmp_path: Path) -> None:
-    msgs = run_backend(tmp_path, backend=ELEMENTWISE_BACKEND, descriptor=ELEMENTWISE_DESCRIPTOR)
+    msgs = run_station(tmp_path, station=ELEMENTWISE_BACKEND, descriptor=ELEMENTWISE_DESCRIPTOR)
     last = {m["node"]: m for m in msgs if m["type"] == "signal"}
     assert last["show"]["v"] == [10.0, 20.0]
     assert [c["id"] for c in last["show"]["components"]] == ["p", "q"]
@@ -397,13 +397,13 @@ class Tuner(paperboat.Block):
             assert not ctx.set_variable("h", 1.0)  # not tunable
         return {"seen": ctx.variable("g")}
 
-paperboat.serve(paperboat.Backend(engine="test-tuner", descriptor="descriptor.toml", blocks=[Tuner],
+paperboat.serve(paperboat.Station(engine="test-tuner", descriptor="descriptor.toml", blocks=[Tuner],
                                   dt=0.1, duration=1.0, emit_every=1))
 '''
 
 TUNER_DESCRIPTOR = '''
 domain = "tuner"
-import = ["dashboard"]
+import = ["board"]
 [[variables]]
 name = "g"
 value = 2
@@ -419,7 +419,7 @@ edges = [{ from = ["tuner", "seen"], to = ["show", "in"] }]
 
 def test_a_python_block_reads_and_sets_a_tunable_variable(tmp_path: Path) -> None:
     # #166: ctx.set_variable lands at the end of the pass; the UI is told with variables.patch.
-    msgs = run_backend(tmp_path, backend=TUNER_BACKEND, descriptor=TUNER_DESCRIPTOR)
+    msgs = run_station(tmp_path, station=TUNER_BACKEND, descriptor=TUNER_DESCRIPTOR)
     seen = [m["v"] for m in msgs if m["type"] == "signal" and m["node"] == "show"]
     assert seen[0] == 2.0 and seen[-1] == 4.0
     assert [m["values"] for m in msgs if m["type"] == "variables.patch"] == [{"g": 4.0}]
@@ -440,13 +440,13 @@ class Watch(paperboat.Block):
                   field={"w": 2, "h": 1, "v": [u, None]}, view=[-1, -1, 1, 1])
         return {"y": u}
 
-paperboat.serve(paperboat.Backend(engine="test-events", descriptor="descriptor.toml", blocks=[Watch],
+paperboat.serve(paperboat.Station(engine="test-events", descriptor="descriptor.toml", blocks=[Watch],
                                   dt=0.1, duration=0.5, emit_every=1))
 '''
 
 EVENTS_DESCRIPTOR = '''
 domain = "events"
-import = ["signal", "dashboard"]
+import = ["signal", "board"]
 [graph]
 nodes = [{ id = "c", type = "clock" }, { id = "w", type = "watch" }, { id = "show", type = "display" }]
 edges = [{ from = ["c", "t"], to = ["w", "u"] }, { from = ["w", "y"], to = ["show", "in"] }]
@@ -457,7 +457,7 @@ def test_a_python_block_sends_metric_monitor_state_and_frame(tmp_path: Path) -> 
     # #17: ctx.metric, ctx.monitor_state and ctx.frame become per-node events the schema allows.
     import jsonschema
 
-    msgs = run_backend(tmp_path, backend=EVENTS_BACKEND, descriptor=EVENTS_DESCRIPTOR)
+    msgs = run_station(tmp_path, station=EVENTS_BACKEND, descriptor=EVENTS_DESCRIPTOR)
     schema = json.loads((ROOT / "protocol" / "schema" / "paperboat-0.schema.json").read_text())
     validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/toUI"})
     for m in msgs:
@@ -527,10 +527,10 @@ def test_solve_ode_step_with_explicit_time_and_euler():
     assert ode.solver == "euler"
 
 
-def test_backend_with_solver_setting():
+def test_station_with_solver_setting():
     import paperboat
 
-    b = paperboat.Backend(engine="test-engine", descriptor="descriptor.toml", solver="rk45")
+    b = paperboat.Station(engine="test-engine", descriptor="descriptor.toml", solver="rk45")
     assert b.solver == "rk45"
 
 
@@ -554,8 +554,8 @@ def test_solve_helper_functions():
     assert abs(s_disc.x[0] - 0.5) < 1e-12
 
 
-def test_backend_toml_solver_is_read_by_the_engine(tmp_path: Path) -> None:
-    (tmp_path / "backend.toml").write_text('[backend]\nformat = 0\nname = "t"\nsolver = "nope"\n')
+def test_station_toml_solver_is_read_by_the_engine(tmp_path: Path) -> None:
+    (tmp_path / "station.toml").write_text('[station]\nformat = 0\nname = "t"\nsolver = "nope"\n')
     (tmp_path / "server.py").write_text(textwrap.dedent(BACKEND))
     (tmp_path / "descriptor.toml").write_text(textwrap.dedent(DESCRIPTOR))
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
@@ -593,7 +593,7 @@ class RigLoad(paperboat.StationObject):
     def read(self):
         return {"w": 1.0}
 
-paperboat.serve(paperboat.Backend(
+paperboat.serve(paperboat.Station(
     engine="icon-test",
     descriptor="descriptor.toml",
     blocks=[Shunt],
@@ -607,7 +607,7 @@ paperboat.serve(paperboat.Backend(
 
 ICON_DESCRIPTOR = '''
 domain = "icons"
-import = ["dashboard"]
+import = ["board"]
 
 [connectors.RealOutput]
 kind = "output"
@@ -625,7 +625,7 @@ edges = [{ from = ["s1", "y"], to = ["show", "in"] }]
 
 
 def test_view_icon_and_connectors_passthrough(tmp_path: Path) -> None:
-    msgs = run_backend(tmp_path, backend=ICON_BACKEND, descriptor=ICON_DESCRIPTOR)
+    msgs = run_station(tmp_path, station=ICON_BACKEND, descriptor=ICON_DESCRIPTOR)
     assert msgs[-1]["status"] == "done"
 
     inspect_script = ICON_BACKEND.replace(
@@ -647,7 +647,7 @@ def test_view_icon_and_connectors_passthrough(tmp_path: Path) -> None:
     assert blocks["shunt"]["view"]["icon"]["ports"][0]["class"] == "RealInput"
     assert blocks["rig-load"]["view"]["icon"]["g"][0]["t"] == "ellipse"
 
-PACED_BACKEND = '''
+PACED_STATION = '''
 import paperboat
 
 class Double(paperboat.Block):
@@ -656,20 +656,20 @@ class Double(paperboat.Block):
     def step(self, ctx, inputs):
         return {"y": 2 * inputs.get("u", 0.0)}
 
-paperboat.serve(paperboat.Backend(engine="paced", descriptor="descriptor.toml", blocks=[Double], dt=0.01, duration=10.0))
+paperboat.serve(paperboat.Station(engine="paced", descriptor="descriptor.toml", blocks=[Double], dt=0.01, duration=10.0))
 '''
 
 PACED_DESCRIPTOR = '''
 domain = "paced"
-import = ["base", "dashboard"]
+import = ["base", "board"]
 [graph]
 nodes = [{ id = "one", type = "constant", params = { value = 1 } }, { id = "d", type = "double" }, { id = "show", type = "display" }]
 edges = [{ from = ["one", "y"], to = ["d", "u"] }, { from = ["d", "y"], to = ["show", "in"] }]
 '''
 
 
-def test_a_python_backend_takes_a_speed_change_during_a_run(tmp_path: Path) -> None:
-    # #219: run.speed is the engine's (session and run loop), so a Python backend has it too: a
+def test_a_python_station_takes_a_speed_change_during_a_run(tmp_path: Path) -> None:
+    # #219: run.speed is the engine's (session and run loop), so a Python station has it too: a
     # 10 s run at 1×, switched to max after half a second, ends early and says it took the speed.
     import asyncio
     import socket
@@ -686,7 +686,7 @@ def test_a_python_backend_takes_a_speed_change_during_a_run(tmp_path: Path) -> N
                     return port
         raise RuntimeError("no free port in 5650-5699")
 
-    (tmp_path / "server.py").write_text(textwrap.dedent(PACED_BACKEND))
+    (tmp_path / "server.py").write_text(textwrap.dedent(PACED_STATION))
     (tmp_path / "descriptor.toml").write_text(textwrap.dedent(PACED_DESCRIPTOR))
     port = free_port()
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
@@ -701,7 +701,7 @@ def test_a_python_backend_takes_a_speed_change_during_a_run(tmp_path: Path) -> N
             except OSError:
                 await asyncio.sleep(0.1)
         else:
-            raise RuntimeError("backend never listened: " + (proc.stderr.read() if proc.poll() is not None else ""))
+            raise RuntimeError("station never listened: " + (proc.stderr.read() if proc.poll() is not None else ""))
         async with ws:
             graph = None
             while graph is None:
@@ -725,7 +725,7 @@ def test_a_python_backend_takes_a_speed_change_during_a_run(tmp_path: Path) -> N
     assert [m for m in msgs if m["type"] == "run.speed"] == [{"type": "run.speed", "run": "run-1", "speed": 0}]
     assert took < 5  # not the 10 s it would take at 1×
 
-FLOWS_BACKEND = '''
+FLOWS_STATION = '''
 import json, pathlib
 import paperboat
 from paperboat import Port
@@ -744,7 +744,7 @@ class Resistor(paperboat.Block):
 class Beep(paperboat.Step):
     type = "beep"
 
-b = paperboat.Backend(engine="flows", descriptor="descriptor.toml", blocks=[Anywhere, Clocked, Resistor, Beep])
+b = paperboat.Station(engine="flows", descriptor="descriptor.toml", blocks=[Anywhere, Clocked, Resistor, Beep])
 h = paperboat._engine.make(b.engine, str(pathlib.Path(__file__).parent / b.descriptor), b.blocks, b.objects, b.state, b.mode,
                            b.dt, b.duration, b.emit_every, b.view, b.speed, b.solver, b.connectors)
 print(h.catalog_json())
@@ -756,12 +756,12 @@ def test_a_python_block_says_which_flow_types_it_works_in(tmp_path: Path) -> Non
     (tmp_path / "descriptor.toml").write_text('domain = "flows"\n')
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
 
-    def catalog(backend: str) -> subprocess.CompletedProcess:
-        (tmp_path / "inspect_flows.py").write_text(textwrap.dedent(backend))
+    def catalog(station: str) -> subprocess.CompletedProcess:
+        (tmp_path / "inspect_flows.py").write_text(textwrap.dedent(station))
         return subprocess.run([sys.executable, "inspect_flows.py"], cwd=tmp_path, env=env, capture_output=True, text=True,
                               timeout=60)
 
-    proc = catalog(FLOWS_BACKEND)
+    proc = catalog(FLOWS_STATION)
     assert proc.returncode == 0, proc.stderr
     blocks = {b["type"]: b for b in json.loads(proc.stdout.strip())["blocks"]}
     assert "flows" not in blocks["anywhere"]
@@ -769,9 +769,9 @@ def test_a_python_block_says_which_flow_types_it_works_in(tmp_path: Path) -> Non
     assert blocks["resistor"]["flows"] == ["model"]
     assert blocks["beep"]["flows"] == ["step"]
 
-    proc = catalog(FLOWS_BACKEND.replace('flows = ("model",)', 'flows = ("liquid",)'))
+    proc = catalog(FLOWS_STATION.replace('flows = ("model",)', 'flows = ("liquid",)'))
     assert proc.returncode != 0
     assert 'Resistor: no flow type "liquid" (signal, step, state, model)' in proc.stderr
-    proc = catalog(FLOWS_BACKEND.replace('flows = ("model",)', 'flows = "model"'))
+    proc = catalog(FLOWS_STATION.replace('flows = ("model",)', 'flows = "model"'))
     assert proc.returncode != 0
     assert "Resistor: flows must be a list of flow types" in proc.stderr

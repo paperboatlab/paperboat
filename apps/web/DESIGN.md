@@ -32,12 +32,12 @@ The direction and its history are in issue #48.
 4. **State in words.** A block's head says what it is (`fn`, `source`, `monitor`,
    `step`, `station`) or what is happening to it (`running`, `failed`, `missing`; `queued` and `cached` in the muted ink: waiting its turn in a run-once, or reused from an earlier run).
 5. **Displays are for output; wells are for input.** What the run shows (instruments, the
-   Console) sits in black displays. What you type (the backend's address, run length,
+   Console) sits in black displays. What you type (the station's address, run length,
    speed) sits in recessed grey wells: present, never loud.
 6. **Readable first.** Body 13px, labels 12px in a dark grey, values 12.5px monospace.
 7. **Room to breathe.** 14px between sections and around the app, 16px inside them.
 8. **Simple to enter.** A first-time user sees one page (Navigator), a Run key and the
-   flow the backend opened with. Nothing needs setting up before the first run.
+   flow the station opened with. Nothing needs setting up before the first run.
 
 ## Themes
 
@@ -58,7 +58,7 @@ Switch with the view switch on the bar, or Alt+M (it cycles the three); the rail
 into Commander or Lookout and back. Every page stays mounted in every mode (the pages not in view in Navigator are inert),
 so switching never loses a canvas, a scene or a run; a canvas fits itself again when its
 size changes. Page names are words, not numbered: Station, Flow, **Board** (the run page;
-`dashboard` in code and the protocol).
+`board` in code and the protocol).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -82,14 +82,14 @@ sideways), the bar wraps, and Commander stacks its pages in one scrolling column
 
 The bar holds only the wordmark, the **menus**, the project's name (centred on the bar like a window title, in muted monospace so it isn't taken for a key; after the menus below 1100px; a signal-coloured dot
 while there are changes not saved), the view switch, an error count when the Console has
-errors, a connection status pill (which opens File > Backend…) and the theme key. The pill
+errors, a connection status pill (which opens File > Station…) and the theme key. The pill
 (`StatusPill`, shared with Squero Studio) keeps the room of its widest label, so `connecting` →
 engine name never shifts the keys beside it. Its dot says the state with the words: live (connected,
 ready) fills in `--signal`, on the way (connecting, starting) is a hollow ring that breathes (still
 under reduced motion), failed is a `--danger` ring with the label in `--danger-text`. Until the
-backend's first `hello` the pages are the shared **wait screen** (`WaitScreen`, as Squero OM opens):
-in the middle, on the ground grey, the words (`connecting to the backend at ws://…`, `waiting for a
-backend at ws://…`; while the backend on that port builds, `paperboat status` words instead:
+station's first `hello` the pages are the shared **wait screen** (`WaitScreen`, as Squero OM opens):
+in the middle, on the ground grey, the words (`connecting to the station at ws://…`, `waiting for a
+station at ws://…`; while the station on that port builds, `paperboat status` words instead:
 `configuring cart-pole`, `compiling cart-pole`, `starting cart-pole`, or the failure in the danger ink),
 the seconds past 3 s (the build's own clock when it has one), the busy wave (the logo's water, 8px dots), and past 6 s a
 hint in small type on how to start one; the run dock waits with it. A connection lost after that keeps
@@ -117,14 +117,14 @@ an Alt chord answers to its physical key, since Option types another character t
   is its keys, never a blank patch where a key might go.
 - **Projects** (#82, `project.ts`, `ProjectUI.tsx`): File > Open (Ctrl+O), Save (Ctrl+S), Save as,
   Restore last session and Recent projects; a file dropped on the window opens too. Anything
-  that needs a word first (another backend, unsaved changes, the offer to restore) is a
+  that needs a word first (another station, unsaved changes, the offer to restore) is a
   **notice** floating in the middle, with its safe choice last (Esc). Errors, warnings and
   results ("Opened …", a file that can't be read) go to the **Console**, never a popup over
   the footer; the Console key turns red with the error count. Edit > Undo open project
   brings back what an open replaced. See
   `docs/api/project.rst` for the file.
 - **Keys:** a menu, the search and the dock's buttons take their keys (arrows, Enter) for
-  themselves: elements marked `data-own-keys` are not forwarded to the backend. A
+  themselves: elements marked `data-own-keys` are not forwarded to the station. A
   command's `chord` is handled by the registry (Alt+1–3, Alt+M, Alt+V, Ctrl+K); undo and
   copy/cut/paste stay with the canvas, which the Edit menu reaches through `FlowControls`.
 - **Arrange Blocks** (#103): View > Arrange Blocks lays out the visible node canvases left to
@@ -168,7 +168,7 @@ readable at 4.5:1 on a panel), `--focus`, `--text-on-signal` (text on a signal f
 | **Minimap** | Bottom-right of the Flow canvas, Navigator mode on the Flow page only (never in Commander). A sunken grey well with a 1px outline: blocks in grey, groups as outlines, running in the signal colour, failed red; the view is the clear window in the mask. Click or drag to move the view, scroll to zoom. Kinds are not coloured |
 | **Well** | A recessed grey field for input (address, run length, speed); ink text, no spinners. A select draws its own chevron in the text colour, 8px from the right edge, never the platform's (#281) |
 | **Display** | Black, 5px radius; light monospace text; the signal colour for traces and live values. For output only |
-| **Bar** | The wordmark (the logo mark and the name), the backend (a well with the address and engine name; Connect), the run (Run, length, speed, Cancel, status in words), view and theme, divided by a hairline |
+| **Bar** | The wordmark (the logo mark and the name), the station (a well with the address and engine name; Connect), the run (Run, length, speed, Cancel, status in words), view and theme, divided by a hairline |
 | **Rail** | The pages share the rail's full height on sunken grey, each an icon over its name in monospace (no numbers). The current one sits in 2px square ink brackets, like a chosen switch option; it is ink, the others grey, its icon lifted a little. On a change the pair glides to the new key as one, on the page column's curve and time (`--slide`), so rail and page move together; the icons and names ease in step. Placed from the key's face plus 8px, so they never touch the name |
 | **Panel** | Grey, 1px edge, 6px radius; a head with its number, name and a short count on the right |
 | **Block** | Raised grey, 1px outline; head with the name, a ✎ note key and a word tag (deleted from the selection dialog or the Delete key). The note key keeps 16px and shows on hover or selection; it is inked while a note exists, so it never reads as a second kind tag. Step blocks are outlined in ink; a linked block carries its object's 3px ink bar on top, the Station glyph and its id in its head and the tag `linked`; missing ones dashed red (dashed means missing, nothing else); failed ones outlined red. Params are underlined values |
@@ -182,7 +182,7 @@ readable at 4.5:1 on a panel), `--focus`, `--text-on-signal` (text on a signal f
 | **Instrument** | A display with its name (and latest value) underneath; readouts show a 30px monospace number. Four sizes on a grid of equal cells (116px tall, 12px apart), picked S, M, L, XL: **compact** 1×1 (a readout), **normal** 2×1 (a plot to read at a glance), **large** 2×2 (a plot or picture to study), **xlarge** 3×3 (the one to fill the page with); a kind's default is display and lamp compact, graph normal, image and scope large. Before a run sends anything it is a placeholder: same frame, greyed, dashed edge, "–" |
 | **Lamp** | An indicator on the screen: a disc beside its label and its state in words (`ON`/`OFF`, `TRIPPED`/`ARMED` when it latches), so colour is never the only signal. Lit: the disc and word in the signal colour (a warning) or red (`color = "danger"`, a trip), with a soft glow; off: a dark disc ringed in the screen's dim grey. The caption holds the condition (`> 10 · latch`). The engine decides when it is lit |
 | **Graph and Scope** | **Graph** is the glance: the shape of one signal (a vector: one dashed variant per component) and its latest number; no axes, no controls. **Scope** (#37) is the study: canvas (uPlot), one y axis per unit (first left, second right, the rest share the left), units in the screen's corners, a legend of line sample + source port + value + unit (click to hide). The screen is output only; the caption holds the name, the state in words (`live`, `frozen`, `armed`, `triggered`; signal colour when live), the mode choice `[ time ]  xy  fft`, then `+ tap  freeze  cursors  trigger  ⋯` (a toggle that is on in brackets). At normal size only ⋯, which then holds everything. Gestures: drag pans (and freezes), Ctrl+wheel zooms time, Shift+Ctrl+wheel zooms y, Ctrl-drag zooms to a box, double-click autoscales and follows; F, C, T, A while focused. Cursors are dashed ink lines with tabs 1 and 2 and a readout strip; the trigger is an orange T on the right edge (drag it) and ▼ at the trigger point. Draw styles `line`, `line+points`, `points`, `smooth` (monotone, never overshoots) |
-| **Arrange** | The Board head's key. While on: a dashed outline round each instrument, faint dashed cells under the grid, a size picker (C N L in brackets, full names on hover) top right of each, a solid outline where a drag would land. Drag to a cell, or focus and use the arrows. Reset layout returns to the backend's default. The bar also adds decorations (Section, Label, Console, Separator — and |) and a tab; a picked decoration gets the solid selection outline, a remove key, a corner grip to resize (a separator's end to lengthen) and, for a label, a bracketed `heading` / `note` switch. Double-click text to edit it where it stands; while editing, a row of value chips (one per monitor) puts `{block}` in at the caret on click, or by drag |
+| **Arrange** | The Board head's key. While on: a dashed outline round each instrument, faint dashed cells under the grid, a size picker (C N L in brackets, full names on hover) top right of each, a solid outline where a drag would land. Drag to a cell, or focus and use the arrows. Reset layout returns to the station's default. The bar also adds decorations (Section, Label, Console, Separator — and |) and a tab; a picked decoration gets the solid selection outline, a remove key, a corner grip to resize (a separator's end to lengthen) and, for a label, a bracketed `heading` / `note` switch. Double-click text to edit it where it stands; while editing, a row of value chips (one per monitor) puts `{block}` in at the caret on click, or by drag |
 | **Decoration** | On the Board grid, from the layout (#65, #76). **Section**: a titled frame, 1px line, the title sits on the edge on the panel colour; takes no cells. **Separator**: a 1px line in the gap, horizontal or vertical. **Label**: text on the grid, `heading` (600 weight) or `note` (muted, small); takes cells. **Console**: the Console's lines in a screen-coloured frame; takes cells. Text is a formatted string: `{block}` shows the monitor's latest value in monospace tabular figures ("–" and muted before a run) |
 | **Tabs** | The Board's pages as a bracketed choice switch above the grid, shown from two tabs; double-click (or F2 on a focused tab) renames it in place, in or out of Arrange: Enter or clicking away keeps it, Esc drops it, a name another tab has is outlined red and not taken; **+ tab** opens the new tab already renaming; × removes an empty one, dropping an instrument on a tab name moves it there |
 | **Console** | A floating window, centred, opened by the Console key beside Variables (its count shows errors; Esc closes); a display; numbered lines; warnings in the signal colour, errors red; a block's id is a key that shows it on the Flow page; hovering a line shows a **copy** key (plain text: `[level] block: message`, then `copied` for a moment), and the head has **Copy all** |
@@ -196,14 +196,14 @@ readable at 4.5:1 on a panel), `--focus`, `--text-on-signal` (text on a signal f
 | **Port (while a wire is dragged)** | A 24px hit area round the 8px dot. A drop within 40px of a port that accepts the wire joins it (a wire's end is grabbed within 20px; both in `SNAP`, `wireSnap.tsx`). The port it would join is enlarged, ringed, in the signal colour, with its name bold; ports that can't take the wire (wrong type, same block) dim to 30%. The nearest port that accepts wins, not the nearest port |
 | **Variables sheet** (#36) | A drawer at the right edge of the pages in every view: 360px in Navigator, 330px in Commander and Lookout, a bottom sheet below 860px. Closed, it is a standing tab like Lookout's side drawers (chevron, `=`, "Variables", the count); click it, Alt+V or Edit > Variables opens it, sliding out on `--slide` with its content uncovered at full width, never squeezed; the head's chevron, Alt+V or Esc closes it. Rows by group: name in monospace (drag it onto a field to bind, or onto a Board label or section title to show its value there: `{name}` goes at the end of the text, which is outlined dashed while the variable is over it, in or out of Arrange), type in words, value in a well, unit, "2 uses" or "unused". A number's well is one field like a spreadsheet cell: a number or a formula over other variables (`kp_theta / 5`); it shows the result, and the formula while editing (and on a line below the row); a number applies as you type, a formula on Enter. The open row has an ink outline: name, type as bracketed choices, value, unit, range, note, group, where it's used (Show), Reset to default or Delete. Errors in words, red. Copy as TOML in the foot |
 | **Analysis drawer** (pb#370) | A toolkit's analysis of a subsystem or a selection, docked at the pages' right edge before the Variables (440px in Navigator, 400px in Commander and Lookout, a bottom sheet below 860px); its column exists only while it is open. Opened by **Analyse** in the selection dialog or **analyse** on a subsystem's head, both shown only when a toolkit offers an analysis. Head: `∿`, the analysis's name (a well choice when several are offered), what it analyses in mono (`loop`, `3 picked`) with `· …` while asking, and the round remove key. Its body is the toolkit's panel; it asks again as the flow, the variables or the panel's options change |
-| **Package panel** (shared: `@paperboat/shared/packages`) | The one package manager across the apps, opened the same way in each: a key opens a floating window (`PackageWindow`) titled with the bootstrapped runtime's version; Esc or a press outside closes it. The Toolkits key here, the kernel chip in Squero MX, the OpenModelica chip in Squero Studio OM. Runtime first (its name and version in mono, channels as rows with `→ newer` in the signal colour, an Update key when the app can update it), a hairline, then a bracketed switch `[ toolkits ]  registry`. The environment lists what is installed (name, version, a round remove unless it is kept, with why), its path and tags, keys in the foot (Restart backend) and the count. The registry has a `find` well, the source and match count, rows with Add or `added`, and a card per package (description, facts, repo link, a version picker where the app installs a chosen version). One operation at a time; it says what is running in the signal colour, errors in red, the command's output tail in a well |
+| **Package panel** (shared: `@paperboat/shared/packages`) | The one package manager across the apps, opened the same way in each: a key opens a floating window (`PackageWindow`) titled with the bootstrapped runtime's version; Esc or a press outside closes it. The Toolkits key here, the kernel chip in Squero MX, the OpenModelica chip in Squero Studio OM. Runtime first (its name and version in mono, channels as rows with `→ newer` in the signal colour, an Update key when the app can update it), a hairline, then a bracketed switch `[ toolkits ]  registry`. The environment lists what is installed (name, version, a round remove unless it is kept, with why), its path and tags, keys in the foot (Restart station) and the count. The registry has a `find` well, the source and match count, rows with Add or `added`, and a card per package (description, facts, repo link, a version picker where the app installs a chosen version). One operation at a time; it says what is running in the signal colour, errors in red, the command's output tail in a well |
 | **Bound field** | A param or property bound to a variable: the variable's name in an ink outline (a formula marked ƒ), what it comes to after it in grey. Click: edit the variable in place, Show in Variables, Unbind (keeps the value). Typing **=** in a number field lists the variables that fit, takes a formula, or makes a variable of the value. A variable dragged over a field it fits gets a dashed outline |
 | **Floating panel** | The only glass: what floats over live content (the station's properties). One token (`--float-blur: none`) retires it |
-| **View cube** | A 96px cube in the 3D Station's top-right corner (hidden in 2D views): a mono label on each face, ink edges, turning with the camera. Hover marks the third of the cube a click would pick (face, edge or corner) in the signal colour; click eases the camera there (260ms, none with reduced motion); drag orbits; a round Home key (a house) centred under it eases back to the opening view: grey while the view is already there, ink once it has moved. The opening view is the backend's `view.camera` (eye, target, fov), else eye [2, 4, 8] at the origin |
+| **View cube** | A 96px cube in the 3D Station's top-right corner (hidden in 2D views): a mono label on each face, ink edges, turning with the camera. Hover marks the third of the cube a click would pick (face, edge or corner) in the signal colour; click eases the camera there (260ms, none with reduced motion); drag orbits; a round Home key (a house) centred under it eases back to the opening view: grey while the view is already there, ink once it has moved. The opening view is the station's `view.camera` (eye, target, fov), else eye [2, 4, 8] at the origin |
 
 The Variables are shared by the Station and the Flow, so they belong to neither page: a sheet beside the page you're working on, never a page of their own (#36 weighs the options).
 
-On a canvas a drag pans and the wheel zooms; Ctrl-drag draws a dashed selection box (touching a block picks it), Ctrl-click adds one. The selection's actions are in its dialog, not in a toolbar. Space is never a canvas key: it belongs to the backend.
+On a canvas a drag pans and the wheel zooms; Ctrl-drag draws a dashed selection box (touching a block picks it), Ctrl-click adds one. The selection's actions are in its dialog, not in a toolbar. Space is never a canvas key: it belongs to the station.
 
 Focus is a 2px ink ring. Disabled keys are grey and faded.
 
@@ -279,7 +279,7 @@ positions and lines.
 
 - A new component uses existing tokens; a new value goes in as a primitive, then a
   semantic role, then is used through the role.
-- A backend's own look belongs in a web station (`[station] view = "web"`).
+- A station's own look belongs in a web station (`[station] view = "web"`).
 - Still open (#33): the signal colour, the Monitor mode.
 
 ## Squero Studio OM
@@ -313,7 +313,7 @@ Surfaces:
   card, and includes the **Look tab** for editing custom block icons (§3 primitives on a 5-unit grid,
   with `Choice` pickers for stroke, weight, fill, and dash, plus light and dark preview tiles).
 - **Dock**: live equation/unknown balance from `checkModel` (e.g. `balanced · 76 / 76`), dangling flow
-  connectors with domain fixes (`L1.n unconnected [ Fix: Ground ]`), and `Export backend` with a 2px signal
+  connectors with domain fixes (`L1.n unconnected [ Fix: Ground ]`), and `Export station` with a 2px signal
   progress bar.
 
 ## Docs

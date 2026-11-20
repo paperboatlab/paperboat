@@ -5,7 +5,7 @@ import { availableSolvers, SOLVER_LABELS, type Solver } from "./solvers";
 
 type SolverOptions = NonNullable<RunSettings["solver_options"]>;
 
-// The engine's own defaults (solve::Options), for a backend that doesn't announce them.
+// The engine's own defaults (solve::Options), for a station that doesn't announce them.
 const ENGINE: Required<SolverOptions> = { rtol: 1e-6, atol: 1e-9, min_step: 0, max_step: 0, max_steps: 100000, sub_steps: 1 };
 const ENGINE_DT = 0.01;
 
@@ -33,7 +33,7 @@ const OPTIONS: SolverOptionInfo[] = [
 /**
  * Run > Solver settings… (#196): the run's solver and its options, used by every block and
  * station object whose own solver is auto. Changes apply to the next run and save with the
- * project; only what differs from the backend's defaults (hello.run) is kept. The dialog is the
+ * project; only what differs from the station's defaults (hello.run) is kept. The dialog is the
  * kit's SolverSettings, shared with Squero Studio.
  */
 export function SolverDialog({ defaults, value, onChange, onClose }: { defaults: RunSettings; value: RunSettings; onChange: (v: RunSettings) => void; onClose: () => void }) {

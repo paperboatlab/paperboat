@@ -128,7 +128,7 @@
 
 /* Pages: one at a time (Navigator), or all as tiles (Commander). */
 .pages { min-height: 0; min-width: 0; display: grid; gap: var(--gutter); }
-/* Waiting for the backend's hello: the shared WaitScreen over every page, on the ground. */
+/* Waiting for the station's hello: the shared WaitScreen over every page, on the ground. */
 .pages > .wait-screen { grid-area: 1 / 1 / -1 / -1; z-index: 5; display: grid; place-content: center; justify-items: center; width: 100%; height: 100%; margin: 0; background: var(--surface-ground); }
 .mode-navigator .pages { grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
 /* Navigator: the pages sit in a column, in rail order, and the column slides to the current
@@ -149,17 +149,17 @@
 .mode-commander .pages {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr) auto;
-  grid-template-areas: "station flow" "dashboard dashboard";
+  grid-template-areas: "station flow" "board board";
 }
 /* Lookout: the Board for whoever runs and watches the rig; Station and Flow are drawers at its sides. */
 .mode-lookout .pages {
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: "station dashboard flow";
+  grid-template-areas: "station board flow";
 }
 .mode-lookout .panel-station { grid-area: station; }
 .mode-lookout .panel-flow { grid-area: flow; }
-.mode-lookout .panel-dashboard { grid-area: dashboard; }
+.mode-lookout .panel-board { grid-area: board; }
 
 /* Drawers: the head is the handle (click to open or close, drag to size); a side drawer also
    has its inner edge. Closed, the bottom one is its head; a side one a standing tab. */
@@ -199,7 +199,7 @@
 .panel-peek b { font-weight: 500; color: var(--text); }
 .mode-commander .panel-station { grid-area: station; }
 .mode-commander .panel-flow { grid-area: flow; }
-.mode-commander .panel-dashboard { grid-area: dashboard; }
+.mode-commander .panel-board { grid-area: board; }
 
 .panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
 .panel-head {
@@ -233,7 +233,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .rail-face { flex-direction: row; padding: 4px 0; }
   .mode-commander .rail, .mode-lookout .rail { display: none; }
   .conn { display: none; }
-  .mode-commander .pages { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: minmax(320px, auto); grid-template-areas: "station" "flow" "dashboard"; overflow: auto; }
+  .mode-commander .pages { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: minmax(320px, auto); grid-template-areas: "station" "flow" "board"; overflow: auto; }
   .mode-commander .panel.drawer.closed { min-height: 0; }
 }
 
@@ -457,8 +457,8 @@ input.port-pill-name { height: 20px; padding: 0 4px; border: 0; border-radius: v
 .react-flow__handle.ghost-port.wire-dim { opacity: 0; }
 .group-tools button:disabled { opacity: 0.4; }
 
-/* ---- Dashboard: each instrument is a display with its name underneath. ------------- */
-.dashboard { flex: 1; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--panel-pad); overflow: auto; min-width: 0; }
+/* ---- Board: each instrument is a display with its name underneath. ------------- */
+.board { flex: 1; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--panel-pad); overflow: auto; min-width: 0; }
 .dash-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); font: var(--size-2xs) var(--font-sans); color: var(--text-muted); }
 .key.on { border-color: var(--line-ink); font-weight: 600; }
 
@@ -475,7 +475,7 @@ input.port-pill-name { height: 20px; padding: 0 4px; border: 0; border-radius: v
 .cell-tools .opt { font-size: var(--size-2xs); }
 .cell { z-index: 1; }
 
-/* ---- Dashboard decorations and tabs (#65): hairlines and text on the grid; no fills. ---- */
+/* ---- Board decorations and tabs (#65): hairlines and text on the grid; no fills. ---- */
 .dash-bar { flex-wrap: wrap; }
 .dash-add { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .dash-add .lbl { margin-right: var(--space-1); }
@@ -678,11 +678,11 @@ input.port-pill-name { height: 20px; padding: 0 4px; border: 0; border-radius: v
    Lookout's side drawers); open, it slides out on the same --slide as every drawer. */
 .mode-navigator .pages { grid-template: minmax(0, 1fr) / minmax(0, 1fr) auto; }
 .mode-navigator .pages > .vars-sheet { grid-area: 1 / 2; }
-.mode-commander .pages { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; grid-template-areas: "station flow vars" "dashboard dashboard vars"; }
-.mode-lookout .pages { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "station dashboard flow vars"; }
+.mode-commander .pages { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; grid-template-areas: "station flow vars" "board board vars"; }
+.mode-lookout .pages { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "station board flow vars"; }
 /* The Station page hidden: Commander puts the Board beside the Flow; Lookout has no Station drawer. */
-.mode-commander.no-station .pages { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; grid-template-rows: minmax(0, 1fr); grid-template-areas: "flow dashboard vars"; }
-.mode-lookout.no-station .pages { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "dashboard flow vars"; }
+.mode-commander.no-station .pages { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; grid-template-rows: minmax(0, 1fr); grid-template-areas: "flow board vars"; }
+.mode-lookout.no-station .pages { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "board flow vars"; }
 .mode-commander .pages > .vars-sheet, .mode-lookout .pages > .vars-sheet { grid-area: vars; }
 .vars-sheet { --drawer-size: 360px; }
 .mode-commander .vars-sheet, .mode-lookout .vars-sheet { --drawer-size: 330px; }
@@ -700,10 +700,10 @@ input.port-pill-name { height: 20px; padding: 0 4px; border: 0; border-radius: v
 .app.analysing.mode-navigator .pages { grid-template: minmax(0, 1fr) / minmax(0, 1fr) auto auto; }
 .app.analysing.mode-navigator .pages > .analysis-drawer { grid-area: 1 / 2; }
 .app.analysing.mode-navigator .pages > .vars-sheet { grid-area: 1 / 3; }
-.app.analysing.mode-commander .pages { grid-template-columns: repeat(2, minmax(0, 1fr)) auto auto; grid-template-areas: "station flow analysis vars" "dashboard dashboard analysis vars"; }
-.app.analysing.mode-lookout .pages { grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas: "station dashboard flow analysis vars"; }
-.app.analysing.mode-commander.no-station .pages { grid-template-columns: repeat(2, minmax(0, 1fr)) auto auto; grid-template-rows: minmax(0, 1fr); grid-template-areas: "flow dashboard analysis vars"; }
-.app.analysing.mode-lookout.no-station .pages { grid-template-columns: minmax(0, 1fr) auto auto auto; grid-template-areas: "dashboard flow analysis vars"; }
+.app.analysing.mode-commander .pages { grid-template-columns: repeat(2, minmax(0, 1fr)) auto auto; grid-template-areas: "station flow analysis vars" "board board analysis vars"; }
+.app.analysing.mode-lookout .pages { grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas: "station board flow analysis vars"; }
+.app.analysing.mode-commander.no-station .pages { grid-template-columns: repeat(2, minmax(0, 1fr)) auto auto; grid-template-rows: minmax(0, 1fr); grid-template-areas: "flow board analysis vars"; }
+.app.analysing.mode-lookout.no-station .pages { grid-template-columns: minmax(0, 1fr) auto auto auto; grid-template-areas: "board flow analysis vars"; }
 .mode-commander .pages > .analysis-drawer, .mode-lookout .pages > .analysis-drawer { grid-area: analysis; }
 .analysis-drawer .panel-head { cursor: default; gap: var(--space-2); }
 .analysis-drawer .panel-head .remove { margin-left: auto; }
@@ -809,8 +809,8 @@ button.link { border: 0; background: none; height: auto; padding: 0; font: inher
   .pages > .vars-sheet.closed { display: none; } /* Edit > Variables or Alt+V opens it */
   .pages > .analysis-drawer { position: fixed; left: 8px; right: 8px; bottom: 8px; width: auto; height: 70vh; z-index: 41; box-shadow: var(--shadow-up); }
   .mode-navigator .pages { grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
-  .mode-commander .pages { grid-template-columns: minmax(0, 1fr); grid-template-areas: "station" "flow" "dashboard"; }
-  .mode-commander.no-station .pages { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "flow" "dashboard"; overflow: auto; }
+  .mode-commander .pages { grid-template-columns: minmax(0, 1fr); grid-template-areas: "station" "flow" "board"; }
+  .mode-commander.no-station .pages { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "flow" "board"; overflow: auto; }
 }
 
 /* A port's or param's unit (#4): after its name, small and grey. */
@@ -847,28 +847,28 @@ button.link { border: 0; background: none; height: auto; padding: 0; font: inher
 /* Commander with the Board closed: the dock rides above the Board's head, not on it. */
 .dock { transition: bottom var(--slide); }
 /* Lookout: the dock is the Board's, centred over it (an absolute grid child takes its area as its box). */
-.mode-lookout .pages > .dock { grid-area: dashboard; }
+.mode-lookout .pages > .dock { grid-area: board; }
 .mode-commander .pages:has(.drawer-bottom.closed) > .dock { bottom: calc(var(--panel-head-height) + 2px + var(--gutter) + var(--space-3)); }
-.backend-window { height: auto; width: min(520px, calc(100vw - 32px)); }
-.backend-form { display: flex; align-items: center; gap: var(--space-3); padding: var(--panel-pad) var(--panel-pad) var(--space-2); }
-.backend-running { display: flex; flex-direction: column; gap: 6px; padding: 0 var(--panel-pad) var(--space-3); }
-.backend-running-head { display: flex; align-items: center; justify-content: space-between; }
-.backend-running ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.backend-pick { display: flex; align-items: baseline; gap: var(--space-2); width: 100%; padding: 5px 8px; background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); cursor: pointer; font: var(--size-2xs) var(--font-mono); text-align: left; }
-.backend-pick:hover { border-color: var(--line-ink); }
-.backend-pick.current { border-color: var(--line-ink); font-weight: 600; }
-.backend-pick .name { font-family: var(--font-sans); font-weight: 500; }
-.backend-pick .lbl { margin-left: auto; color: var(--text-muted); }
-.backend-presets { display: flex; align-items: center; gap: 6px; padding: 0 var(--panel-pad) var(--space-3); font-size: var(--size-2xs); }
-.backend-presets button { font-family: var(--font-mono); font-size: var(--size-2xs); }
-.backend-card { margin: 0 var(--panel-pad) var(--space-3); padding: var(--space-3); background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-md); font: var(--size-2xs) var(--font-sans); }
-.backend-card.muted { color: var(--text-muted); font-style: italic; }
-.backend-card-head { font-weight: 600; font-family: var(--font-mono); color: var(--text); margin-bottom: var(--space-2); display: flex; align-items: center; justify-content: space-between; }
-.backend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px var(--space-3); }
-.backend-grid-item { display: flex; flex-direction: column; gap: 2px; }
-.backend-grid-item .lbl { color: var(--text-muted); font-size: var(--size-2xs); }
-.backend-grid-item .val { color: var(--text); font-family: var(--font-mono); word-break: break-all; }
-.backend-note { margin: 0; padding: 0 var(--panel-pad) var(--panel-pad); }
+.station-window { height: auto; width: min(520px, calc(100vw - 32px)); }
+.station-form { display: flex; align-items: center; gap: var(--space-3); padding: var(--panel-pad) var(--panel-pad) var(--space-2); }
+.station-running { display: flex; flex-direction: column; gap: 6px; padding: 0 var(--panel-pad) var(--space-3); }
+.station-running-head { display: flex; align-items: center; justify-content: space-between; }
+.station-running ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.station-pick { display: flex; align-items: baseline; gap: var(--space-2); width: 100%; padding: 5px 8px; background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); cursor: pointer; font: var(--size-2xs) var(--font-mono); text-align: left; }
+.station-pick:hover { border-color: var(--line-ink); }
+.station-pick.current { border-color: var(--line-ink); font-weight: 600; }
+.station-pick .name { font-family: var(--font-sans); font-weight: 500; }
+.station-pick .lbl { margin-left: auto; color: var(--text-muted); }
+.station-presets { display: flex; align-items: center; gap: 6px; padding: 0 var(--panel-pad) var(--space-3); font-size: var(--size-2xs); }
+.station-presets button { font-family: var(--font-mono); font-size: var(--size-2xs); }
+.station-card { margin: 0 var(--panel-pad) var(--space-3); padding: var(--space-3); background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-md); font: var(--size-2xs) var(--font-sans); }
+.station-card.muted { color: var(--text-muted); font-style: italic; }
+.station-card-head { font-weight: 600; font-family: var(--font-mono); color: var(--text); margin-bottom: var(--space-2); display: flex; align-items: center; justify-content: space-between; }
+.station-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px var(--space-3); }
+.station-grid-item { display: flex; flex-direction: column; gap: 2px; }
+.station-grid-item .lbl { color: var(--text-muted); font-size: var(--size-2xs); }
+.station-grid-item .val { color: var(--text); font-family: var(--font-mono); word-break: break-all; }
+.station-note { margin: 0; padding: 0 var(--panel-pad) var(--panel-pad); }
 
 /* ---- Projects (#82): the name and the unsaved dot, notices, the undo toast ---------- */
 
@@ -903,7 +903,7 @@ button.link { border: 0; background: none; height: auto; padding: 0; font: inher
 .spinner-boat { vertical-align: -2px; }
 @media (prefers-reduced-motion: reduce) { .spinner-ripple.logo-live .logo-water .w { animation: none !important; } }
 
-/* Variable controls (#75): in the Dashboard's Controls tile and the run dock */
+/* Variable controls (#75): in the Board's Controls tile and the run dock */
 .deco .deco-controls { position: absolute; inset: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-screen); color: var(--text-on-screen); pointer-events: auto; }
 .var-controls-group { display: contents; }
 .var-control { display: flex; align-items: center; gap: var(--space-3); font: 500 var(--size-2xs) var(--font-sans); white-space: nowrap; }

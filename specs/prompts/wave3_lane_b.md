@@ -2,7 +2,7 @@
 
 You are Lane B. Task: three Studio panels in `apps/studio`: the **Component popover**, the
 **Interface sheet** (with the **Look** tab), and the **Dock** (balance, `[ Fix: Ground ]`,
-`Export backend`).
+`Export station`).
 
 Read first, in this order: `CLAUDE.md`, `specs/issue-160-contracts.md` (rev 3: **§8 first**,
 then §3, §4, §6), `specs/wave-status.toml`, `apps/studio/src/model/types.ts` (the frozen seam:
@@ -73,8 +73,8 @@ testing pure functions (balance parsing, dangling detection, Look edits) with `n
   `Modelica.Mechanics.Translational.Components.Fixed`, rotational →
   `Modelica.Mechanics.Rotational.Components.Fixed`; others show no button. Fix =
   `addComponent` near the port + `connect`.
-- `Export backend`: output folder field (default `<model>-cpp`), button →
-  `exportBackend(out, onProgress)`; a 2px `--signal` progress line across the dock top driven
+- `Export station`: output folder field (default `<model>-cpp`), button →
+  `exportStation(out, onProgress)`; a 2px `--signal` progress line across the dock top driven
   by `fraction`, stage word beside it; result line `ode · no events …` or the error in words.
   Disabled with the reason when unbalanced.
 

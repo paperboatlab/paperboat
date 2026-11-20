@@ -5,7 +5,7 @@ This technical manual details the underlying architecture, execution semantics, 
 mechanics, and extensibility model of the Paperboat framework.
 
 While the :doc:`user_manual` addresses the day-to-day operation of the web interface, this
-document serves developers, systems engineers, and contributors implementing backends,
+document serves developers, systems engineers, and contributors implementing stations,
 embedding the engine, or authoring custom toolkits.
 
 Architecture Overview
@@ -32,25 +32,25 @@ Paperboat is architected as four decoupled layers:
    manages graph compilation, cycle detection, topological execution scheduling, run clock
    stepping, and network sessions. It owns no domain physics or visual rendering logic.
 2. **Standard Toolkit (`paperboat::toolkit`)**: Modular library of reusable block primitives
-   (`base`, `signal`, `math`, `dashboard`, `step`), plus optional external toolkits such as
+   (`base`, `signal`, `math`, `board`, `step`), plus optional external toolkits such as
    `control` (`paperboat-toolkit-control`).
 3. **Python Bindings (`paperboat._engine`)**: Native C-extension bindings exposing the C++
-   scheduler and data types to Python backends with zero protocol serialization overhead.
+   scheduler and data types to Python stations with zero protocol serialization overhead.
 4. **Web Frontend (`apps/web`)**: A domain-agnostic React/TypeScript interface that builds its
-   entire UI dynamically from the backend's declared catalog and starter definitions.
+   entire UI dynamically from the station's declared catalog and starter definitions.
 
-The Workbench Backend
-~~~~~~~~~~~~~~~~~~~~~
+The Scratchpad Station
+~~~~~~~~~~~~~~~~~~~~~~
 
-`engine/workbench` is a backend made only of the first two layers: it embeds a descriptor
-that imports `base`, `math`, `signal`, `dashboard` and every optional toolkit installed in
-the checkout, and defines no domain blocks. It serves on 8765, the default backend port the
-web app connects to, so Flow and Dashboard work with no domain; the Station page is hidden
+`engine/scratchpad` is a station made only of the first two layers: it embeds a descriptor
+that imports `base`, `math`, `signal`, `board` and every optional toolkit installed in
+the checkout, and defines no domain blocks. It serves on 8765, the default station port the
+web app connects to, so Flow and Board work with no domain; the Station page is hidden
 (there is no scene to draw). Each optional toolkit is linked and registered when it is
-installed, so its blocks join the palette; the workbench loads without any of them. It is an
-ordinary `paperboat::core::Backend`; a domain backend differs only in its catalog and
+installed, so its blocks join the palette; the scratchpad loads without any of them. It is an
+ordinary `paperboat::core::Station`; a domain station differs only in its catalog and
 starters. `paperboat start` launches it with the web app; run it alone with
-`npm run backend:workbench` (or the installed `paperboat-workbench` binary).
+`npm run station:scratchpad` (or the installed `paperboat-scratchpad` binary).
 
 Mixed Step and Signal Flow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -75,30 +75,30 @@ Fault Containment Principle
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A fundamental guarantee of the Paperboat engine is that **a user's graph or block error
-never crashes the backend process**.
+never crashes the station process**.
 
 - Divide-by-zero, out-of-bounds array access, or uncaught exceptions thrown during a block's
   `step()` call are trapped by the execution harness.
 - The engine isolates the error, tags the offending node ID, emits a `node.state = "failed"`
   event, logs an attributed error message, and transitions the run to status `failed`.
-- The backend remains online, accepting subsequent graph edits from the client.
+- The station remains online, accepting subsequent graph edits from the client.
 
 The WebSocket Protocol (`paperboat/0`)
 --------------------------------------
 
-Communication between the web UI and the backend is multiplexed over a single HTTP/WebSocket
+Communication between the web UI and the station is multiplexed over a single HTTP/WebSocket
 connection. Every message is a structured JSON payload tagged with a `type` string. The
 authoritative schema is specified in :file:`protocol/schema/paperboat-0.schema.json`.
 
 Connection Handshake
 ~~~~~~~~~~~~~~~~~~~~
 
-Upon establishing the WebSocket connection, the backend initializes the client state in a
+Upon establishing the WebSocket connection, the station initializes the client state in a
 strict, ordered sequence:
 
 .. code-block:: text
 
-   Client                                            Backend
+   Client                                            Station
      │                                                  │
      │ ────────────── WebSocket Connect ───────────────▶│
      │                                                  │
@@ -117,7 +117,7 @@ When the user initiates a run, the client serializes the graph and active statio
 
 .. code-block:: text
 
-   Client                                            Backend
+   Client                                            Station
      │                                                  │
      │ ────────────── graph.run ───────────────────────▶│ (nodes, edges, groups, station overrides)
      │ ◀───────────── run.started ──────────────────────│ (acknowledgement with run ID)
@@ -138,10 +138,10 @@ While a run is active, the client can dispatch real-time events:
 - `run.cancel`: Immediately signals the scheduler to abort execution.
 - `run.speed`: Changes the run's speed (`{ speed: 4 }`; `0` is as fast as it can). Pacing
   re-anchors at the moment of the change, so the run goes on from where it is at the new
-  speed, and the backend answers with `run.speed` (`run`, `speed`) once it took it.
+  speed, and the station answers with `run.speed` (`run`, `speed`) once it took it.
 - `input`: Forwards raw keyboard events (`{ key: "ArrowUp", down: true }`) to any active
   `Key` blocks in the flow.
-- `station.set`: Transmits edited station properties from the Station panel. The backend
+- `station.set`: Transmits edited station properties from the Station panel. The station
   recomputes geometries and responds with an updated `scene` payload.
 
 Differential Scene Updates (`scene.patch`)
@@ -280,13 +280,13 @@ Replay is an app-side view of the last run (#284); the engine keeps sending the 
   `entitiesAt(t)` rebuilds the base with the patches up to `t`. The built-in Scene and a web
   Station both read that scene; the web Station receives it as a normal `scene` message.
 - **The playhead** is `EngineState.replay` (`{active, playing, time, from, to, speed}`), driven
-  by the reducer's own `replay.*` actions, not by the backend. While it is open, Dashboard
+  by the reducer's own `replay.*` actions, not by the station. While it is open, Board
   readouts, wire probes into monitors (`node:port`) and Scope needles read `t`; live, they
   read the latest message.
 - **Records**: `paperboat run --record <dir>` and `paperboat open … --record <dir>` set
-  `PAPERBOAT_RECORD` for the backend; `engine/core/src/record.cpp` keeps the run's `signal`
+  `PAPERBOAT_RECORD` for the station; `engine/core/src/record.cpp` keeps the run's `signal`
   and `scene.patch` messages (and the `graph.run` request) and writes `<dir>/record.json` when
-  `run.finished` arrives. The CLI adds the version, command line and backend version to the
+  `run.finished` arrives. The CLI adds the version, command line and station version to the
   environment. In the app, `File > Save run record…` writes `{paperboat: 0, run, channels,
   scene}` and `File > Open run record…` loads channels and scene patches into the stores; it
   accepts the engine's `signals` array too, so both files open.
@@ -295,7 +295,7 @@ The Descriptor System (`descriptor.toml`)
 -----------------------------------------
 
 The descriptor file defines the metadata, palette offerings, and starter configurations
-for a backend app. It is strictly declarative: **it never defines block implementations**,
+for a station app. It is strictly declarative: **it never defines block implementations**,
 which reside exclusively in C++ or Python code.
 
 Schema Breakdown
@@ -311,7 +311,7 @@ Schema Breakdown
      - Domain namespace string (e.g., `"robotics"`). Blocks registered under this package
        are imported automatically into the palette.
    * - `import`
-     - Array of toolkit packages to load into the catalog (e.g., `["base", "signal", "math", "dashboard"]`).
+     - Array of toolkit packages to load into the catalog (e.g., `["base", "signal", "math", "board"]`).
    * - `[[blocks]]`
      - Customizes or specializes a block template. May override `label`, `defaults`, or
        supply a custom `config` expression to specialize an extensible parent (such as `signal/generator`).
@@ -322,14 +322,14 @@ Schema Breakdown
    * - `[station]`
      - Defines initial station objects, scene camera view presets (`2d`, `3d`, or `web`),
        coordinate extents, and whether the Station page is shown by default (`visible`).
-   * - `[dashboard]`
+   * - `[board]`
      - Declares the default layout of instrument tiles, section groupings, and formatted
        label cards.
 
 Extending Parent Blocks in Descriptors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A backend can generate specialized domain blocks directly in TOML by extending parent
+A station can generate specialized domain blocks directly in TOML by extending parent
 templates without writing C++ code:
 
 .. code-block:: toml
@@ -358,7 +358,7 @@ Web Stations (Custom HTML5 / WebGL)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For domains requiring specialized visual presentations (such as GIS mapping, architectural
-CAD, or custom HTML5 games), backends can provide a custom web station:
+CAD, or custom HTML5 games), stations can provide a custom web station:
 
 1. Configure `descriptor.toml`:
 
@@ -368,8 +368,8 @@ CAD, or custom HTML5 games), backends can provide a custom web station:
       view = "web"
       page = "station/index.html"
 
-2. The C++ engine serves the contents of the backend's `station/` directory over HTTP on the
-   backend port.
+2. The C++ engine serves the contents of the station's `station/` directory over HTTP on the
+   station port.
 3. The client embeds the page in a secure, sandboxed iframe.
 4. The client injects the communication bridge at `/paperboat/station.js`:
 
@@ -392,13 +392,13 @@ communicates exclusively through structured message passing.
 Project Serialization Format
 ----------------------------
 
-Projects are serialized as formatted JSON (``*.ppj``):
+Projects are serialized as formatted JSON (``*.psf``):
 
 .. code-block:: json
 
    {
      "paperboat": 0,
-     "backend": "mass-spring",
+     "station": "mass-spring",
      "flow": {
        "nodes": [{ "id": "sine-1", "type": "sine", "pos": [120, 80], "params": { "freq": 1.5 } }],
        "edges": [{ "from": ["sine-1", "y"], "to": ["mass-1", "force"] }]
@@ -409,7 +409,7 @@ Projects are serialized as formatted JSON (``*.ppj``):
      "variables": [
        { "name": "damping", "type": "number", "value": 0.15, "unit": "N*s/m" }
      ],
-     "dashboard": {
+     "board": {
        "instruments": [{ "block": "plot-1", "size": "large", "at": [0, 0] }]
      },
      "run": {

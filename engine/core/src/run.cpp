@@ -230,10 +230,10 @@ Calling::~Calling() {
   ctx_.node = {};
 }
 
-Run::Run(std::string id, const Backend& backend, RunSettings settings, Emit emit, KeysNow keys, std::stop_token stop,
+Run::Run(std::string id, const Station& spec, RunSettings settings, Emit emit, KeysNow keys, std::stop_token stop,
          VariablesNow tune, SpeedNow speed, RunCache* cache)
     : id_(std::move(id)),
-      backend_(backend),
+      spec_(spec),
       settings_(settings),
       emit_(std::move(emit)),
       keys_now_(std::move(keys)),
@@ -293,8 +293,8 @@ std::string Run::go(const json& graph_given, const json& station_given, const js
   json graph_json, station_json;
   try {  // variables first (#36): blocks and objects get the values they stand for
     vars_ = toolkit::Variables(variables);
-    graph_json = toolkit::resolve_graph(graph_given, *backend_.catalog, vars_);
-    station_json = toolkit::resolve_station(station_given, *backend_.catalog, vars_);
+    graph_json = toolkit::resolve_graph(graph_given, *spec_.catalog, vars_);
+    station_json = toolkit::resolve_station(station_given, *spec_.catalog, vars_);
     graph_given_ = graph_given;
     station_given_ = station_given;
     variables_given_ = variables;
@@ -304,10 +304,10 @@ std::string Run::go(const json& graph_given, const json& station_given, const js
     return finish("failed");
   }
   try {
-    station_ = make_station(station_json, *backend_.catalog);
-    if (backend_.state) state_ = backend_.state();
+    objects_ = make_station(station_json, *spec_.catalog);
+    if (spec_.state) state_ = spec_.state();
     ctx_.state = state_.get();
-    g_ = prepare_graph(graph_json, *backend_.catalog, station_);
+    g_ = prepare_graph(graph_json, *spec_.catalog, objects_);
     for (auto& [gid, story] : g_.stories) {
       // A story's pass: its blocks, once. Its monitors' latest samples wait for the next frame,
       // except Scopes, which are instruments and sample every pass.
@@ -345,16 +345,16 @@ std::string Run::go(const json& graph_given, const json& station_given, const js
     emit_(log_msg("error", std::string("invalid graph: ") + err.what()));
     return finish("failed");
   }
-  emit_(scene_message(station_, state_.get(), backend_.view));
+  emit_(scene_message(objects_, state_.get(), spec_.view));
   try {
-    auto executor = backend_.executor ? backend_.executor(g_, settings_) : nullptr;
+    auto executor = spec_.executor ? spec_.executor(g_, settings_) : nullptr;
     if (!executor) executor = default_executor(g_, settings_);
     return finish(executor->execute(*this));
   } catch (const GraphError& err) {  // a path looped, a Step flow without a hat…
     fail(err.node.empty() ? failed_ : err.node, err.what());
     return finish("failed");
   } catch (const std::exception& err) {  // a block found its inputs unusable, or failed:
-    fail(failed_, err.what());          // the run fails, never the backend
+    fail(failed_, err.what());          // the run fails, never the station
     return finish("failed");
   }
 }
@@ -379,7 +379,7 @@ std::string Run::finish(const std::string& status) {
   if (status == "done") {
     if (state_)
       if (auto summary = state_->summary()) emit_(log_msg("info", *summary));
-    for (const auto& item : station_)
+    for (const auto& item : objects_)
       if (auto values = format_values(item.instance->read()); !values.empty()) emit_(log_msg("info", item.id + ": " + values));
     if (settings_.duration > 0) emit_({{"type", "run.progress"}, {"run", id_}, {"fraction", 1.0}});
   }
@@ -514,7 +514,7 @@ void Run::apply_variables(const json& next) {
     }
     if (station_given_.is_object() && station_given_.contains("objects")) {
       for (const auto& o : station_given_.at("objects")) {
-        const auto* entry = backend_.catalog->find_object(o.value("type", std::string{}));
+        const auto* entry = spec_.catalog->find_object(o.value("type", std::string{}));
         if (!entry || !o.contains("props") || !o["props"].is_object()) continue;
         const auto id = o.value("id", std::string{});
         for (const auto& [prop, given] : o["props"].items()) {
@@ -884,7 +884,7 @@ std::optional<std::string> Run::cache_signature(const Node& node) const {
     const auto text = node.text.find(p.id);
     if (text == node.text.end() || text->second.empty()) continue;
     std::filesystem::path path(text->second);
-    if (path.is_relative()) path = backend_.catalog->dir / path;
+    if (path.is_relative()) path = spec_.catalog->dir / path;
     std::error_code ec;
     const auto time = std::filesystem::last_write_time(path, ec);
     const auto size = ec ? 0 : std::filesystem::file_size(path, ec);
@@ -893,7 +893,7 @@ std::optional<std::string> Run::cache_signature(const Node& node) const {
   }
   const auto& o = settings_.solver_options;
   const json signature = {
-      {"catalog", reinterpret_cast<std::uintptr_t>(backend_.catalog)},
+      {"catalog", reinterpret_cast<std::uintptr_t>(spec_.catalog)},
       {"type", node.def.type},
       {"template", node.entry && node.entry->from ? node.entry->from->name : ""},
       {"inputs", ports_json(node.def.inputs)},
@@ -978,7 +978,7 @@ void Run::store_step_outputs(const std::string& id) {
 }
 
 std::optional<std::string> Run::advance() {
-  for (auto& item : station_) {
+  for (auto& item : objects_) {
     const auto call = calling(item.id);
     auto linked = g_.nodes.find(item.id);
     const bool passive = linked != g_.nodes.end() && linked->second.commented && linked->second.comment_mode == "out";
@@ -993,7 +993,7 @@ void Run::frame(const json& samples, std::optional<double> progress) {
     for (const auto& sample : list) emit_(sample);
   story_samples_.clear();
   flush_frames(false);
-  json patch = scene_of(station_);
+  json patch = scene_of(objects_);
   if (state_)
     for (const auto& e : entities_json(state_->patch())) patch.push_back(e);
   for (const auto& e : scene_of_blocks(blocks())) patch.push_back(e);
@@ -1055,7 +1055,7 @@ void Run::pace() {
 }
 
 json Run::scene(bool with_blocks) const {
-  return scene_message(station_, state_.get(), backend_.view, with_blocks ? blocks() : std::vector<const toolkit::Block*>{});
+  return scene_message(objects_, state_.get(), spec_.view, with_blocks ? blocks() : std::vector<const toolkit::Block*>{});
 }
 
 std::vector<const toolkit::Block*> Run::blocks() const {
@@ -1065,7 +1065,7 @@ std::vector<const toolkit::Block*> Run::blocks() const {
   return out;
 }
 
-json scene_message(const Station& station, const toolkit::DomainState* state, const json& view,
+json scene_message(const StationObjects& station, const toolkit::DomainState* state, const json& view,
                    const std::vector<const toolkit::Block*>& blocks) {
   json entities = scene_of(station);
   if (state)
@@ -1142,12 +1142,12 @@ json settings_json(const RunSettings& s) {
   return j;
 }
 
-std::string run(const std::string& id, const json& graph, const json& station, const Backend& backend,
+std::string run(const std::string& id, const json& graph, const json& station, const Station& spec,
                 const Emit& emit, const KeysNow& keys, const std::stop_token& stop, const json& settings,
                 const json& variables, const VariablesNow& tune, const SpeedNow& speed, RunCache* cache) {
   RunSettings s;
   try {
-    s = with_overrides(backend.run, settings);
+    s = with_overrides(spec.run, settings);
   } catch (const std::invalid_argument& err) {
     emit({{"type", "run.started"}, {"run", id}});
     emit(log_msg("error", err.what()));
@@ -1155,7 +1155,7 @@ std::string run(const std::string& id, const json& graph, const json& station, c
     return "failed";
   }
   toolkit::solve::set_defaults({s.solver, s.solver_options});  // this thread's "auto" solvers
-  return Run(id, backend, s, emit, keys, stop, tune, speed, cache).go(graph, station, variables);
+  return Run(id, spec, s, emit, keys, stop, tune, speed, cache).go(graph, station, variables);
 }
 
 }  // namespace paperboat::core

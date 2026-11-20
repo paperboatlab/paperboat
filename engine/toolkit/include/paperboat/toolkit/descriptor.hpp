@@ -57,22 +57,22 @@ struct Catalog {
   // station.load's station ("" when absent). Checked against this catalog at load.
   std::string graph;
   std::string station;
-  // The optional [dashboard] table: the default layout of the Dashboard's grid, as the
+  // The optional [board] table: the default layout of the Board's grid, as the
   // protocol's JSON text ("" when absent). Sent in the catalog message.
-  std::string dashboard;
+  std::string board;
   // The optional top-level [connectors] table (merged with C++-registered connectors):
   // Modelica connector class definitions (§4), sent in the catalog message when non-empty.
   nlohmann::json connectors = nullptr;
-  // The optional [[variables]]: the backend's default variables (#36), as the protocol's
+  // The optional [[variables]]: the station's default variables (#36), as the protocol's
   // JSON text (a list; "" when absent). Sent in variables.load; the starters may use them.
   std::string variables;
   // How the Station page shows the station: "scene" (the built-in 2D/3D scene), "graph"
-  // (station objects as nodes, their links as wires) or "web" (the backend's own page,
+  // (station objects as nodes, their links as wires) or "web" (the station's own page,
   // `station_page`, relative to `dir`, served by the engine).
   std::string station_view = "scene";
   std::string station_page;
   // Whether the Station page is offered (the descriptor's [station] visible, default true).
-  // False hides it in the UI: the backend's default, which the user can change in View.
+  // False hides it in the UI: the station's default, which the user can change in View.
   bool station_visible = true;
   // Which 3D corner orientation widget a scene station shows: "cube" (default) or "axes".
   std::string station_orientation = "cube";

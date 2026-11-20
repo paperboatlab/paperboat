@@ -1,6 +1,6 @@
 // Lists on the wires (#24): "numbers" (a list of numbers) and "points" (a list of points) as
 // port types, their wire rules, the list package's blocks, elementwise math as a map, and how
-// the Dashboard's monitors show a list.
+// the Board's monitors show a list.
 
 #include <map>
 #include <string>
@@ -10,7 +10,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/core/graph.hpp"
 #include "rig.hpp"
 
@@ -24,7 +24,7 @@ namespace {
 
 const tk::Catalog& catalog() {
   static const tk::Catalog c =
-      tk::load_descriptor("domain = \"l\"\nimport = [\"base\", \"list\", \"math\", \"control\", \"signal\", \"dashboard\"]\n", rig::registry());
+      tk::load_descriptor("domain = \"l\"\nimport = [\"base\", \"list\", \"math\", \"control\", \"signal\", \"board\"]\n", rig::registry());
   return c;
 }
 
@@ -61,9 +61,9 @@ json wire(const std::string& a, const std::string& ap, const std::string& b, con
 
 std::string run(const json& graph, Out& out, core::RunSettings::Mode mode = core::RunSettings::Mode::Once,
                 double duration = 1, const tk::Catalog& cat = catalog()) {
-  const core::Backend backend{.engine = "test", .catalog = &cat,
+  const core::Station station{.engine = "test", .catalog = &cat,
                               .run = {.mode = mode, .dt = 0.01, .duration = duration, .emit_every = 1, .real_time = false}};
-  return core::run("r", graph, nullptr, backend, out.emit(), nullptr, {});
+  return core::run("r", graph, nullptr, station, out.emit(), nullptr, {});
 }
 
 // A block of the catalog made with these params and text, in its form.
@@ -264,7 +264,7 @@ TEST_CASE("elementwise math maps over a list; Aggregate collects it; Display and
   CHECK_THAT(sized.error(), ContainsSubstring("has 5 values, expected 2"));
 }
 
-TEST_CASE("a list of points on the Dashboard: a Display counts it, a Graph in a run-once draws y over x") {
+TEST_CASE("a list of points on the Board: a Display counts it, a Graph in a run-once draws y over x") {
   const json g = {{"nodes",
                    {node("x", "range", {{"start", -1}, {"stop", 1}, {"count", 5}}), node("y", "function", {{"f", "x^2"}}),
                     node("p", "points"), node("c", "list_length", {{"form", "points"}}), node("mid", "aggregate", {{"form", "points"}, {"op", "mean"}}),
@@ -315,7 +315,7 @@ TEST_CASE("an elementwise block on a list that changes length: stateless lanes f
 
 TEST_CASE("a descriptor uses list templates with units and runs a graph of lists") {
   const tk::Catalog cat = tk::load_descriptor(R"(domain = "parametric"
-import = ["list", "math", "dashboard"]
+import = ["list", "math", "board"]
 
 [[blocks]]
 use = "list/range"
@@ -352,7 +352,7 @@ edges = [{ from = ["s", "y"], to = ["p", "x"] }, { from = ["s", "y"], to = ["p",
 
   // Units go along a list wire: metres into a port in radians are refused.
   const tk::Catalog wrong = tk::load_descriptor(R"(domain = "parametric"
-import = ["list", "dashboard"]
+import = ["list", "board"]
 [[blocks]]
 use = "list/range"
 type = "angles"

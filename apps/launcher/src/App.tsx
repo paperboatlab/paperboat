@@ -24,10 +24,10 @@ import {
   appDisplayTitle,
   buildToolkitBlockCards,
   completeInput,
-  ppkDisplayName,
+  pstDisplayName,
   splitCommandWords,
   type AppInfo,
-  type BackendInfo,
+  type StationInfo,
   type BlockCardInfo,
   type BlockKind,
   type Channel,
@@ -37,8 +37,8 @@ import {
   type ToolkitInfo,
 } from "./model";
 
-type LauncherPage = "apps" | "backends" | "toolkits" | "console";
-type ModalKind = null | "palette" | "ppk" | "folder" | "new-backend" | "custom-toolkit" | "about";
+type LauncherPage = "apps" | "stations" | "toolkits" | "cli";
+type ModalKind = null | "palette" | "pst" | "folder" | "new-station" | "custom-toolkit" | "about";
 type MenuId = "file" | "edit" | "view" | "model" | "run";
 type MenuCommand = Parameters<typeof AppBar>[0]["commands"][number];
 
@@ -50,9 +50,9 @@ interface PageMeta {
 
 const LAUNCHER_PAGES: PageMeta[] = [
   { id: "apps", label: "Apps", hint: "Paperboat, Squero Studio OM & MX, and running sessions" },
-  { id: "backends", label: "Backends", hint: "Run, build, check, and package backends (.ppk)" },
+  { id: "stations", label: "Stations", hint: "Run, build, check, and package stations (.pst)" },
   { id: "toolkits", label: "Toolkits", hint: "Engine toolkits and block catalog cards" },
-  { id: "console", label: "Console", hint: "Interactive paperboat CLI and live logs" },
+  { id: "cli", label: "Paperboat CLI", hint: "Interactive Paperboat CLI and live logs" },
 ];
 
 const CHANNEL_OPTIONS: { value: Channel; label: string; hint: string }[] = [
@@ -61,7 +61,7 @@ const CHANNEL_OPTIONS: { value: Channel; label: string; hint: string }[] = [
   { value: "dev", label: "dev", hint: "Latest development branch (dev)" },
 ];
 
-const BACKEND_FILTER_OPTIONS: { value: "all" | "builtin" | "example" | "installed"; label: string }[] = [
+const STATION_FILTER_OPTIONS: { value: "all" | "builtin" | "example" | "installed"; label: string }[] = [
   { value: "all", label: "all" },
   { value: "builtin", label: "builtin" },
   { value: "example", label: "example" },
@@ -75,7 +75,7 @@ const BLOCK_KIND_OPTIONS: { value: "all" | BlockKind; label: string }[] = [
   { value: "board", label: "board" },
 ];
 
-interface BackendRunOpts {
+interface StationRunOpts {
   port: number;
   noBuild: boolean;
   clean: boolean;
@@ -95,11 +95,11 @@ const reduceMotion = () =>
 const GLIDE = "top var(--slide), bottom var(--slide), left var(--slide), right var(--slide)";
 const PAD = 8;
 
-const isPrebuiltBackend = (b: { source?: string; dir: string }): boolean =>
-  b.source === "builtin" && /[/\\]paperboat-workbench(?:\.exe)?$/i.test(b.dir);
+const isPrebuiltStation = (b: { source?: string; dir: string }): boolean =>
+  b.source === "builtin" && /[/\\]paperboat-scratchpad(?:\.exe)?$/i.test(b.dir);
 
-const backendFolder = (b: { source?: string; dir: string }): string =>
-  isPrebuiltBackend(b) ? b.dir.replace(/[/\\][^/\\]+$/, "") || b.dir : b.dir;
+const stationFolder = (b: { source?: string; dir: string }): string =>
+  isPrebuiltStation(b) ? b.dir.replace(/[/\\][^/\\]+$/, "") || b.dir : b.dir;
 
 function LauncherPageIcon({ page }: { page: LauncherPage }) {
   return (
@@ -111,7 +111,7 @@ function LauncherPageIcon({ page }: { page: LauncherPage }) {
           <rect x="2" y="10" width="6" height="6" rx="1" />
           <rect x="10" y="10" width="6" height="6" rx="1" />
         </>
-      ) : page === "backends" ? (
+      ) : page === "stations" ? (
         <>
           <path d="M9 2l6 3.5v7L9 16l-6-3.5v-7z" />
           <path d="M3 5.5L9 9l6-3.5M9 9v7" />
@@ -251,11 +251,11 @@ export function App() {
   const [modal, setModal] = useState<ModalKind>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Backends state
-  const [selectedBackend, setSelectedBackend] = useState("workbench");
-  const [backendFilter, setBackendFilter] = useState<"all" | "builtin" | "example" | "installed">("all");
-  const [backendQuery, setBackendQuery] = useState("");
-  const [runOpts, setRunOpts] = useState<Record<string, BackendRunOpts>>({});
+  // Stations state
+  const [selectedStation, setSelectedStation] = useState("scratchpad");
+  const [stationFilter, setStationFilter] = useState<"all" | "builtin" | "example" | "installed">("all");
+  const [stationQuery, setStationQuery] = useState("");
+  const [runOpts, setRunOpts] = useState<Record<string, StationRunOpts>>({});
   const [showRunOptions, setShowRunOptions] = useState(false);
   const [newVarText, setNewVarText] = useState("");
 
@@ -284,9 +284,9 @@ export function App() {
   const [histIdx, setHistIdx] = useState(-1);
 
   // Modal fields
-  const [ppkPath, setPpkPath] = useState("");
-  const [ppkPort, setPpkPort] = useState(8792);
-  const [ppkDir, setPpkDir] = useState("");
+  const [pstPath, setPstPath] = useState("");
+  const [pstPort, setPstPort] = useState(8792);
+  const [pstDir, setPstDir] = useState("");
   const [folderPath, setFolderPath] = useState("");
   const [nbName, setNbName] = useState("my-rig");
   const [nbLang, setNbLang] = useState<"cpp" | "python" | "julia">("cpp");
@@ -324,10 +324,10 @@ export function App() {
         setTasks(list);
         void refreshState();
       },
-      onOpenPpk: (filePath) => {
-        setPpkPath(filePath);
-        setPage("backends");
-        setModal("ppk");
+      onOpenPst: (filePath) => {
+        setPstPath(filePath);
+        setPage("stations");
+        setModal("pst");
       },
     });
     return unsub;
@@ -339,10 +339,10 @@ export function App() {
       e.preventDefault();
       const file = e.dataTransfer?.files?.[0] as (File & { path?: string }) | undefined;
       const filePath = file?.path || file?.name || "";
-      if (filePath.toLowerCase().endsWith(".ppk")) {
-        setPpkPath(filePath);
-        setPage("backends");
-        setModal("ppk");
+      if (filePath.toLowerCase().endsWith(".pst")) {
+        setPstPath(filePath);
+        setPage("stations");
+        setModal("pst");
       }
     };
     window.addEventListener("dragover", onDragOver);
@@ -403,7 +403,7 @@ export function App() {
   }, [tasks]);
 
   useEffect(() => {
-    if (page === "console") consoleEndRef.current?.scrollIntoView({ block: "end" });
+    if (page === "cli") consoleEndRef.current?.scrollIntoView({ block: "end" });
   }, [logs.length, page]);
 
   useEffect(() => {
@@ -413,10 +413,10 @@ export function App() {
         setModal((m) => (m === "palette" ? null : "palette"));
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
         e.preventDefault();
-        setModal("ppk");
+        setModal("pst");
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        setModal("new-backend");
+        setModal("new-station");
       } else if (e.altKey && !e.ctrlKey && !e.metaKey) {
         const idx = Number(e.key) - 1;
         if (idx >= 0 && idx < LAUNCHER_PAGES.length) {
@@ -501,40 +501,40 @@ export function App() {
   const busy = runningTasks.length > 0;
   const activeTask = runningTasks[0];
 
-  const backends = snap?.backends ?? [];
+  const stations = snap?.stations ?? [];
   const apps = snap?.apps ?? [];
   const toolkits = snap?.toolkits ?? [];
   const running = snap?.running ?? [];
   const statusItems = snap?.status ?? [];
   const commands = snap?.commands ?? [];
-  const webRunning = running.find((r) => r.kind === "app" && r.name === "paperboat");
+  const webRunning = running.find((r) => r.kind === "paperboat" && r.name === "paperboat");
   const installedAppsCount = 1 + apps.filter((a) => a.installed || a.checkout).length;
   const installedToolkitsCount = toolkits.filter((t) => !t.builtin && t.installed).length;
 
   const optsFor = useCallback(
-    (b: BackendInfo): BackendRunOpts =>
+    (b: StationInfo): StationRunOpts =>
       runOpts[b.dir] ?? { port: b.port || 8765, noBuild: false, clean: false, time: false, verbose: false, vars: [] },
     [runOpts],
   );
   const patchOpts = useCallback(
-    (b: BackendInfo, patch: Partial<BackendRunOpts>) =>
+    (b: StationInfo, patch: Partial<StationRunOpts>) =>
       setRunOpts((prev) => ({ ...prev, [b.dir]: { ...optsFor(b), ...patch } })),
     [optsFor],
   );
 
-  const filteredBackends = useMemo(() => {
-    const q = backendQuery.trim().toLowerCase();
-    return backends.filter(
+  const filteredStations = useMemo(() => {
+    const q = stationQuery.trim().toLowerCase();
+    return stations.filter(
       (b) =>
-        (backendFilter === "all" || b.source === backendFilter) &&
+        (stationFilter === "all" || b.source === stationFilter) &&
         (!q || `${b.name} ${b.description} ${b.language}`.toLowerCase().includes(q)),
     );
-  }, [backends, backendFilter, backendQuery]);
+  }, [stations, stationFilter, stationQuery]);
 
-  const curBackend =
-    backends.find((b) => b.name === selectedBackend || b.dir === selectedBackend) ??
-    filteredBackends[0] ??
-    backends[0];
+  const curStation =
+    stations.find((b) => b.name === selectedStation || b.dir === selectedStation) ??
+    filteredStations[0] ??
+    stations[0];
   const curToolkit =
     toolkits.find((t) => t.name === selectedToolkit) ??
     toolkits.find((t) => !t.builtin) ??
@@ -559,15 +559,15 @@ export function App() {
   }, [allBlockCards, blockKindFilter, blockQuery]);
 
   const latestCheckTask = useMemo(() => {
-    if (!curBackend) return undefined;
+    if (!curStation) return undefined;
     return [...tasks]
       .reverse()
-      .find((t) => t.args[0] === "check" && (t.args[1] === curBackend.dir || t.args[1] === curBackend.name));
-  }, [tasks, curBackend]);
+      .find((t) => t.args[0] === "check" && (t.args[1] === curStation.dir || t.args[1] === curStation.name));
+  }, [tasks, curStation]);
 
   const completion = useMemo(
-    () => completeInput(cmdText, commands, backends, apps, toolkits),
-    [cmdText, commands, backends, apps, toolkits],
+    () => completeInput(cmdText, commands, stations, apps, toolkits),
+    [cmdText, commands, stations, apps, toolkits],
   );
 
   const printConsoleHelp = useCallback(() => {
@@ -616,8 +616,8 @@ export function App() {
     [refreshState],
   );
 
-  const handleBackendRun = useCallback(
-    (b: BackendInfo) => {
+  const handleStationRun = useCallback(
+    (b: StationInfo) => {
       const o = optsFor(b);
       const args = ["run", b.dir, "--port", String(o.port)];
       if (o.noBuild) args.push("--no-build");
@@ -625,25 +625,25 @@ export function App() {
       if (o.time) args.push("--time");
       if (o.verbose) args.push("--verbose");
       for (const v of o.vars) args.push("--var", v);
-      void runCmd(args, `run ${b.name}`, "job", `backend:${b.dir}`);
+      void runCmd(args, `run ${b.name}`, "job", `station:${b.dir}`);
     },
     [optsFor, runCmd],
   );
 
   const handleQuickStart = () => {
-    const val = quickTarget || (backends[0] ? `backend:${backends[0].dir}` : "");
+    const val = quickTarget || (stations[0] ? `station:${stations[0].dir}` : "");
     if (!val) return;
     const [kind, ...rest] = val.split(":");
     const target = rest.join(":");
-    if (kind === "backend") {
-      const b = backends.find((x) => x.dir === target);
-      if (b) handleBackendRun(b);
+    if (kind === "station") {
+      const b = stations.find((x) => x.dir === target);
+      if (b) handleStationRun(b);
     } else {
-      void runCmd(["start", target, "--daemon"], `start ${target}`, "job", `app:${target}`);
+      void runCmd(["squero", "start", target, "--daemon"], `start ${target}`, "job", `app:${target}`);
     }
   };
 
-  const handlePick = useCallback(async (kind: "ppk" | "ppj" | "dir", onPicked: (path: string) => void) => {
+  const handlePick = useCallback(async (kind: "pst" | "psf" | "dir", onPicked: (path: string) => void) => {
     try {
       const r = await api.pickFile(kind);
       if (!r.cancelled && r.path) onPicked(r.path);
@@ -702,7 +702,7 @@ export function App() {
           run: () =>
             webRunning
               ? void api.openExternalUrl(webRunning.url)
-              : void runCmd(["app", "start", "--port", String(webPort), "--daemon"], "launch paperboat", "job", "app:paperboat"),
+              : void runCmd(["web", "start", "--port", String(webPort), "--daemon"], "launch paperboat", "job", "app:paperboat"),
         },
         ...apps.map((a) => ({
           id: `apps.launch.${a.name}`,
@@ -712,28 +712,28 @@ export function App() {
           meta: `:${a.port}`,
           enabled: a.installed || a.checkout,
           why: `Install ${appDisplayTitle(a.name)} first`,
-          run: () => void runCmd(["start", a.name, "--daemon"], `launch ${appDisplayTitle(a.name)}`, "job", `app:${a.name}`),
+          run: () => void runCmd(["squero", "start", a.name, "--daemon"], `launch ${appDisplayTitle(a.name)}`, "job", `app:${a.name}`),
         })),
         {
           id: "apps.check.updates",
           label: "Check for updates",
           menu: "file",
-          group: "pkg",
+          group: "squero",
           run: () => void runCmd(["update", "--check", "--channel", channel], "check updates", "task", "app:paperboat"),
         },
         {
           id: "apps.update.all",
           label: "Update all installed apps",
           menu: "file",
-          group: "pkg",
-          run: () => void runCmd(["pkg", "update", "--all"], "update all apps", "task", "app:paperboat"),
+          group: "squero",
+          run: () => void runCmd(["squero", "update", "--all"], "update all apps", "task", "app:paperboat"),
         },
         {
           id: "apps.build.web",
           label: "Rebuild Paperboat web assets",
           menu: "file",
-          group: "pkg",
-          run: () => void runCmd(["app", "build"], "build web app", "task", "app:paperboat"),
+          group: "squero",
+          run: () => void runCmd(["web", "build"], "build web app", "task", "app:paperboat"),
         },
         ...CHANNEL_OPTIONS.map((c) => ({
           id: `apps.channel.${c.value}`,
@@ -744,18 +744,18 @@ export function App() {
           run: () => void handleChannelChange(c.value),
         })),
         {
-          id: "sessions.start.workbench",
-          label: "Start workbench backend",
+          id: "sessions.start.scratchpad",
+          label: "Start scratchpad station",
           menu: "run",
           group: "start",
           run: () => {
-            const wb = backends.find((b) => b.name === "workbench") ?? backends[0];
-            if (wb) handleBackendRun(wb);
+            const wb = stations.find((b) => b.name === "scratchpad") ?? stations[0];
+            if (wb) handleStationRun(wb);
           },
         },
         {
           id: "sessions.examples.start",
-          label: "Start example backends",
+          label: "Start example stations",
           menu: "run",
           group: "start",
           run: () => void runCmd(["examples", "start"], "examples start", "job"),
@@ -783,44 +783,44 @@ export function App() {
       };
     }
 
-    if (page === "backends") {
-      const b = curBackend;
+    if (page === "stations") {
+      const b = curStation;
       const o = b ? optsFor(b) : null;
       const liveProc = b
-        ? running.find((r) => r.kind === "backend" && (r.name === b.name || r.port === (o?.port ?? b.port)))
+        ? running.find((r) => r.kind === "station" && (r.name === b.name || r.port === (o?.port ?? b.port)))
         : undefined;
-      const fbKey = b ? `backend:${b.dir}` : undefined;
+      const fbKey = b ? `station:${b.dir}` : undefined;
 
       const cmds: MenuCommand[] = [
         {
-          id: "be.open.ppk",
-          label: "Open .ppk package…",
+          id: "be.open.pst",
+          label: "Open .pst package…",
           menu: "file",
           group: "open",
           shortcut: "Ctrl+O",
-          run: () => setModal("ppk"),
+          run: () => setModal("pst"),
         },
         {
           id: "be.open.folder",
-          label: "Open backend folder…",
+          label: "Open station folder…",
           menu: "file",
           group: "open",
           run: () => setModal("folder"),
         },
         {
-          id: "be.open.ppj",
-          label: "Open .ppj project…",
+          id: "be.open.psf",
+          label: "Open .psf project…",
           menu: "file",
           group: "open",
-          run: () => void handlePick("ppj", (p) => void runCmd(["open", p], `open ${p}`, "job")),
+          run: () => void handlePick("psf", (p) => void runCmd(["open", p], `open ${p}`, "job")),
         },
         {
           id: "be.new",
-          label: "New backend project…",
+          label: "New station project…",
           menu: "file",
           group: "create",
           shortcut: "Ctrl+N",
-          run: () => setModal("new-backend"),
+          run: () => setModal("new-station"),
         },
         {
           id: "be.fetch.examples",
@@ -836,15 +836,15 @@ export function App() {
                 label: `Reveal ${b.name} in file manager`,
                 menu: "file" as MenuId,
                 group: "reveal",
-                run: () => void api.openFolderPath(backendFolder(b)),
+                run: () => void api.openFolderPath(stationFolder(b)),
               },
               {
                 id: "be.build",
                 label: b.language === "cpp" ? `Build ${b.name}` : `Install ${b.name} dependencies`,
                 menu: "model" as MenuId,
                 group: "build",
-                enabled: !isPrebuiltBackend(b),
-                why: "Prebuilt workbench binary — source build not needed",
+                enabled: !isPrebuiltStation(b),
+                why: "Prebuilt scratchpad binary — source build not needed",
                 run: () =>
                   void runCmd(
                     b.language === "cpp" ? ["build", b.dir] : ["deps", "install", b.dir],
@@ -860,8 +860,8 @@ export function App() {
                       label: `Rebuild ${b.name} (--clean)`,
                       menu: "model" as MenuId,
                       group: "build",
-                      enabled: !isPrebuiltBackend(b),
-                      why: "Prebuilt workbench binary — source build not needed",
+                      enabled: !isPrebuiltStation(b),
+                      why: "Prebuilt scratchpad binary — source build not needed",
                       run: () => void runCmd(["rebuild", b.dir], `rebuild ${b.name}`, "task", fbKey),
                     },
                   ]
@@ -871,8 +871,8 @@ export function App() {
                 label: "Run 4-stage verification (check)",
                 menu: "model" as MenuId,
                 group: "verify",
-                enabled: !isPrebuiltBackend(b),
-                why: "Verification applies to backend project folders",
+                enabled: !isPrebuiltStation(b),
+                why: "Verification applies to station project folders",
                 run: () => void runCmd(["check", b.dir, "--json-stream"], `check ${b.name}`, "task", fbKey),
               },
               {
@@ -880,17 +880,17 @@ export function App() {
                 label: "Run fast check (--fast)",
                 menu: "model" as MenuId,
                 group: "verify",
-                enabled: !isPrebuiltBackend(b),
-                why: "Verification applies to backend project folders",
+                enabled: !isPrebuiltStation(b),
+                why: "Verification applies to station project folders",
                 run: () => void runCmd(["check", b.dir, "--fast", "--json-stream"], `check --fast ${b.name}`, "task", fbKey),
               },
               {
                 id: "be.pack",
-                label: "Pack .ppk archive",
+                label: "Pack .pst archive",
                 menu: "model" as MenuId,
                 group: "pack",
-                enabled: !isPrebuiltBackend(b),
-                why: "Prebuilt workbench is bundled with Paperboat",
+                enabled: !isPrebuiltStation(b),
+                why: "Prebuilt scratchpad is bundled with Paperboat",
                 run: () => void runCmd(["pack", b.dir, "--json-stream"], `pack ${b.name}`, "task", fbKey),
               },
               {
@@ -899,7 +899,7 @@ export function App() {
                 menu: "run" as MenuId,
                 group: "lifecycle",
                 meta: `:${o?.port ?? b.port}`,
-                run: () => handleBackendRun(b),
+                run: () => handleStationRun(b),
               },
               {
                 id: "be.run.open",
@@ -907,11 +907,11 @@ export function App() {
                 menu: "run" as MenuId,
                 group: "lifecycle",
                 enabled: Boolean(liveProc),
-                why: "Start the backend first",
+                why: "Start the station first",
                 run: () =>
                   liveProc &&
                   void api.openExternalUrl(
-                    `http://localhost:${webRunning?.port ?? webPort}/?backend=${encodeURIComponent(liveProc.url)}`,
+                    `http://localhost:${webRunning?.port ?? webPort}/?station=${encodeURIComponent(liveProc.url)}`,
                   ),
               },
               {
@@ -920,7 +920,7 @@ export function App() {
                 menu: "run" as MenuId,
                 group: "lifecycle",
                 enabled: Boolean(liveProc),
-                why: "Backend is not running",
+                why: "Station is not running",
                 run: () => void runCmd(["restart", b.name], `restart ${b.name}`, "task", fbKey),
               },
               {
@@ -929,7 +929,7 @@ export function App() {
                 menu: "run" as MenuId,
                 group: "lifecycle",
                 enabled: Boolean(liveProc),
-                why: "Backend is not running",
+                why: "Station is not running",
                 run: () => void runCmd(["stop", b.name], `stop ${b.name}`, "task", fbKey),
               },
               {
@@ -971,7 +971,7 @@ export function App() {
       return {
         sectionCommands: cmds,
         sectionMenuLabels: {
-          file: "Backend",
+          file: "Station",
           model: "Build",
           run: "Run",
           view: "View",
@@ -1061,7 +1061,7 @@ export function App() {
       };
     }
 
-    // page === "console"
+    // page === "cli"
     const cmds: MenuCommand[] = [
       {
         id: "cli.list",
@@ -1076,16 +1076,16 @@ export function App() {
         label: "paperboat status",
         menu: "file",
         group: "inspect",
-        meta: "backend build status",
+        meta: "station build status",
         run: () => void runCmd(["status"], "paperboat status"),
       },
       {
-        id: "cli.pkg.list",
-        label: "paperboat pkg list",
+        id: "cli.squero.list",
+        label: "paperboat squero list",
         menu: "file",
         group: "inspect",
-        meta: "installed apps",
-        run: () => void runCmd(["pkg", "list"], "paperboat pkg list"),
+        meta: "installed squero apps",
+        run: () => void runCmd(["squero", "list"], "paperboat squero list"),
       },
       {
         id: "cli.toolkit.list",
@@ -1096,12 +1096,12 @@ export function App() {
         run: () => void runCmd(["toolkit", "list"], "paperboat toolkit list"),
       },
       {
-        id: "cli.backends",
-        label: "paperboat backends",
+        id: "cli.stations",
+        label: "paperboat stations",
         menu: "file",
         group: "inspect",
-        meta: "available backends",
-        run: () => void runCmd(["backends"], "paperboat backends"),
+        meta: "available stations",
+        run: () => void runCmd(["stations"], "paperboat stations"),
       },
       {
         id: "console.help",
@@ -1149,7 +1149,7 @@ export function App() {
         edit: "Console",
         view: "View",
       } as Partial<Record<MenuId, string>>,
-      sectionProjectLabel: `console · ${logs.length} lines`,
+      sectionProjectLabel: `cli · ${logs.length} lines`,
     };
   }, [
     page,
@@ -1157,13 +1157,13 @@ export function App() {
     webPort,
     apps,
     channel,
-    backends,
+    stations,
     running,
     installedAppsCount,
-    curBackend,
+    curStation,
     optsFor,
     patchOpts,
-    handleBackendRun,
+    handleStationRun,
     handleChannelChange,
     handlePick,
     curToolkit,
@@ -1182,7 +1182,7 @@ export function App() {
   const pageIndex = Math.max(0, LAUNCHER_PAGES.findIndex((p) => p.id === page));
   const railBadges: Partial<Record<LauncherPage, { text: string; live?: boolean }>> = {
     apps: running.length > 0 ? { text: String(running.length), live: true } : { text: `${installedAppsCount}/3` },
-    backends: { text: String(backends.length) },
+    stations: { text: String(stations.length) },
     toolkits: { text: String(installedToolkitsCount) },
   };
 
@@ -1206,7 +1206,7 @@ export function App() {
           <span className="inline-feedback-text">{fb.text}</span>
         </div>
         <div style={{ display: "inline-flex", gap: 4, flex: "none" }}>
-          <button type="button" className="key small" onClick={() => setPage("console")}>Logs</button>
+          <button type="button" className="key small" onClick={() => setPage("cli")}>Logs</button>
           {fb.status === "busy" && fb.taskId > 0 ? (
             <button type="button" className="key small" onClick={() => void api.stopTask(fb.taskId)}>Cancel</button>
           ) : (
@@ -1231,13 +1231,13 @@ export function App() {
         </button>
       );
     }
-    if (page === "backends") {
+    if (page === "stations") {
       return (
         <>
-          <button type="button" className="key small run" onClick={() => setModal("ppk")}>
-            Open .ppk…
+          <button type="button" className="key small run" onClick={() => setModal("pst")}>
+            Open .pst…
           </button>
-          <button type="button" className="key small" onClick={() => setModal("new-backend")}>
+          <button type="button" className="key small" onClick={() => setModal("new-station")}>
             + New
           </button>
         </>
@@ -1273,13 +1273,13 @@ export function App() {
         />
       );
     }
-    if (page === "backends") {
+    if (page === "stations") {
       return (
         <Switch
           label="Source"
-          value={backendFilter}
-          onChange={setBackendFilter}
-          options={BACKEND_FILTER_OPTIONS}
+          value={stationFilter}
+          onChange={setStationFilter}
+          options={STATION_FILTER_OPTIONS}
         />
       );
     }
@@ -1294,7 +1294,7 @@ export function App() {
       );
     }
     return null;
-  }, [page, channel, handleChannelChange, backendFilter, blockKindFilter]);
+  }, [page, channel, handleChannelChange, stationFilter, blockKindFilter]);
 
   return (
     <div className="app mode-navigator">
@@ -1351,7 +1351,7 @@ export function App() {
                 type="button"
                 className="key small"
                 disabled={busy}
-                onClick={() => void runCmd(["pkg", "update", "--all"], "update all apps", "task", "app:paperboat")}
+                onClick={() => void runCmd(["squero", "update", "--all"], "update all apps", "task", "app:paperboat")}
               >
                 Update all
               </button>
@@ -1382,7 +1382,7 @@ export function App() {
                   </div>
 
                   <p className="app-card-desc">
-                    Station, Flow, and Board workbench for building, running, and inspecting C++, Python, and Julia backends.
+                    Station, Flow, and Board scratchpad for building, running, and inspecting C++, Python, and Julia stations.
                   </p>
 
                   <div className="app-card-meta">
@@ -1407,7 +1407,7 @@ export function App() {
                           <button
                             type="button"
                             className="key small"
-                            onClick={() => void runCmd(["app", "stop", "--port", String(webRunning.port)], "stop paperboat", "task", "app:paperboat")}
+                            onClick={() => void runCmd(["web", "stop", "--port", String(webRunning.port)], "stop paperboat", "task", "app:paperboat")}
                           >
                             Stop
                           </button>
@@ -1416,7 +1416,7 @@ export function App() {
                         <button
                           type="button"
                           className="key small run"
-                          onClick={() => void runCmd(["app", "start", "--port", String(webPort), "--daemon"], "launch paperboat", "job", "app:paperboat")}
+                          onClick={() => void runCmd(["web", "start", "--port", String(webPort), "--daemon"], "launch paperboat", "job", "app:paperboat")}
                         >
                           ▶ Launch
                         </button>
@@ -1499,7 +1499,7 @@ export function App() {
                               disabled={isBusy}
                               onClick={() =>
                                 void runCmd(
-                                  ["pkg", "install", picked ? `${app.name}@${picked}` : app.name],
+                                  ["squero", "install", picked ? `${app.name}@${picked}` : app.name],
                                   `install ${appDisplayTitle(app.name)}`,
                                   "task",
                                   fbKey,
@@ -1520,7 +1520,7 @@ export function App() {
                               <button
                                 type="button"
                                 className="key small"
-                                onClick={() => void runCmd(["stop", app.name], `stop ${appDisplayTitle(app.name)}`, "task", fbKey)}
+                                onClick={() => void runCmd(["squero", "stop", app.name], `stop ${appDisplayTitle(app.name)}`, "task", fbKey)}
                               >
                                 Stop
                               </button>
@@ -1529,7 +1529,7 @@ export function App() {
                             <button
                               type="button"
                               className="key small run"
-                              onClick={() => void runCmd(["start", app.name, "--daemon"], `launch ${appDisplayTitle(app.name)}`, "job", fbKey)}
+                              onClick={() => void runCmd(["squero", "start", app.name, "--daemon"], `launch ${appDisplayTitle(app.name)}`, "job", fbKey)}
                             >
                               ▶ Launch
                             </button>
@@ -1542,7 +1542,7 @@ export function App() {
                               type="button"
                               className="key small"
                               disabled={isBusy}
-                              onClick={() => void runCmd(["pkg", "update", app.name], `update ${appDisplayTitle(app.name)}`, "task", fbKey)}
+                              onClick={() => void runCmd(["squero", "update", app.name], `update ${appDisplayTitle(app.name)}`, "task", fbKey)}
                             >
                               {isBusy ? "Updating…" : "Update"}
                             </button>
@@ -1552,7 +1552,7 @@ export function App() {
                                 className="key small subtle-danger"
                                 disabled={isBusy}
                                 title={`Uninstall ${appDisplayTitle(app.name)}`}
-                                onClick={() => void runCmd(["pkg", "uninstall", app.name], `uninstall ${appDisplayTitle(app.name)}`, "task", fbKey)}
+                                onClick={() => void runCmd(["squero", "uninstall", app.name], `uninstall ${appDisplayTitle(app.name)}`, "task", fbKey)}
                               >
                                 Uninstall
                               </button>
@@ -1580,8 +1580,8 @@ export function App() {
                       onChange={(e) => setQuickTarget(e.target.value)}
                       style={{ height: 24 }}
                     >
-                      {backends.map((b) => (
-                        <option key={b.dir} value={`backend:${b.dir}`}>
+                      {stations.map((b) => (
+                        <option key={b.dir} value={`station:${b.dir}`}>
                           {b.name} ({b.language} · :{b.port})
                         </option>
                       ))}
@@ -1616,12 +1616,12 @@ export function App() {
                             <span className={`dot ${s.state === "failed" ? "failed" : "building"}`} style={{ marginRight: 6 }} />
                             {s.state}
                           </span>
-                          <span className="tag">backend</span>
+                          <span className="tag">station</span>
                           <b>{s.name}</b>
                           <span>:{s.port}</span>
                           <span className="lbl">{s.stage || s.error || s.url}</span>
                           <div className="session-actions">
-                            <button type="button" className="key small" onClick={() => setPage("console")}>Logs</button>
+                            <button type="button" className="key small" onClick={() => setPage("cli")}>Logs</button>
                           </div>
                         </div>
                       ))}
@@ -1636,13 +1636,13 @@ export function App() {
                         <span>:{r.port}</span>
                         <span className="lbl">{r.url}</span>
                         <div className="session-actions">
-                          {r.kind === "backend" ? (
+                          {r.kind === "station" ? (
                             <button
                               type="button"
                               className="key small run"
                               onClick={() =>
                                 void api.openExternalUrl(
-                                  `http://localhost:${webRunning?.port ?? webPort}/?backend=${encodeURIComponent(r.url)}`,
+                                  `http://localhost:${webRunning?.port ?? webPort}/?station=${encodeURIComponent(r.url)}`,
                                 )
                               }
                             >
@@ -1662,7 +1662,9 @@ export function App() {
                             className="key small"
                             onClick={() =>
                               void runCmd(
-                                ["restart", r.kind === "app" && r.name === "paperboat" ? "" : r.name].filter(Boolean),
+                                r.kind === "squero"
+                                  ? ["squero", "restart", r.name]
+                                  : ["restart", r.kind === "paperboat" && r.name === "paperboat" ? "" : r.name].filter(Boolean),
                                 `restart ${r.name}`,
                               )
                             }
@@ -1674,7 +1676,9 @@ export function App() {
                             className="key small subtle-danger"
                             onClick={() =>
                               void runCmd(
-                                ["stop", r.kind === "app" && r.name === "paperboat" ? "" : r.name].filter(Boolean),
+                                r.kind === "squero"
+                                  ? ["squero", "stop", r.name]
+                                  : ["stop", r.kind === "paperboat" && r.name === "paperboat" ? "" : r.name].filter(Boolean),
                                 `stop ${r.name}`,
                               )
                             }
@@ -1687,7 +1691,7 @@ export function App() {
                   </div>
                 ) : (
                   <div style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "var(--size-xs)" }}>
-                    Launch an app above, or pick any backend on the right to start a live session.
+                    Launch an app above, or pick any station on the right to start a live session.
                   </div>
                 )}
               </div>
@@ -1695,45 +1699,45 @@ export function App() {
           </section>
 
           {/* =====================================================================
-              PAGE 1: BACKENDS WORKBENCH
+              PAGE 1: STATIONS SCRATCHPAD
              ===================================================================== */}
           <section
-            className={`panel${page === "backends" ? " current" : ""}`}
-            inert={page !== "backends"}
-            aria-label="Backends"
+            className={`panel${page === "stations" ? " current" : ""}`}
+            inert={page !== "stations"}
+            aria-label="Stations"
             style={{ "--i": 1, "--at": pageIndex } as CSSProperties}
           >
             <header className="panel-head">
-              <h2>Backends</h2>
-              <span className="panel-info lbl">{filteredBackends.length} of {backends.length} shown</span>
+              <h2>Stations</h2>
+              <span className="panel-info lbl">{filteredStations.length} of {stations.length} shown</span>
             </header>
 
             <div className="panel-body">
-              <div className="workbench">
-                {/* Left Sidebar: Filterable Backend List */}
-                <aside className="wb-sidebar" aria-label="Backend list">
+              <div className="scratchpad">
+                {/* Left Sidebar: Filterable Station List */}
+                <aside className="wb-sidebar" aria-label="Station list">
                   <div className="well wb-search">
                     <span className="lbl">/</span>
                     <input
                       type="text"
-                      placeholder="Filter backends…"
-                      value={backendQuery}
-                      onChange={(e) => setBackendQuery(e.target.value)}
+                      placeholder="Filter stations…"
+                      value={stationQuery}
+                      onChange={(e) => setStationQuery(e.target.value)}
                     />
                   </div>
 
                   <div className="wb-list">
-                    {filteredBackends.map((b) => {
+                    {filteredStations.map((b) => {
                       const live = running.some(
-                        (r) => r.kind === "backend" && (r.name === b.name || r.port === b.port),
+                        (r) => r.kind === "station" && (r.name === b.name || r.port === b.port),
                       );
-                      const active = curBackend?.dir === b.dir;
+                      const active = curStation?.dir === b.dir;
                       return (
                         <button
                           key={b.dir}
                           type="button"
                           className={`wb-item${active ? " current" : ""}`}
-                          onClick={() => setSelectedBackend(b.dir)}
+                          onClick={() => setSelectedStation(b.dir)}
                         >
                           <div className="wb-item-top">
                             <span className={`dot${live ? " live" : ""}`} />
@@ -1755,9 +1759,9 @@ export function App() {
                     <button
                       type="button"
                       className="key small"
-                      onClick={() => void handlePick("ppj", (p) => void runCmd(["open", p], `open ${p}`, "job"))}
+                      onClick={() => void handlePick("psf", (p) => void runCmd(["open", p], `open ${p}`, "job"))}
                     >
-                      Open .ppj…
+                      Open .psf…
                     </button>
                     <button
                       type="button"
@@ -1770,14 +1774,14 @@ export function App() {
                 </aside>
 
                 {/* Right Main Inspector: Unified Instrument Sheet */}
-                {curBackend && (
+                {curStation && (
                   <div className="wb-main">
                     {(() => {
-                      const o = optsFor(curBackend);
+                      const o = optsFor(curStation);
                       const liveProc = running.find(
-                        (r) => r.kind === "backend" && (r.name === curBackend.name || r.port === o.port),
+                        (r) => r.kind === "station" && (r.name === curStation.name || r.port === o.port),
                       );
-                      const fbKey = `backend:${curBackend.dir}`;
+                      const fbKey = `station:${curStation.dir}`;
                       return (
                         <>
                           <div className="sheet-card">
@@ -1785,24 +1789,24 @@ export function App() {
                             <div className="sheet-band">
                               <div className="sheet-title-row">
                                 <span className={`dot${liveProc ? " live" : ""}`} />
-                                <h3 className="sheet-title">{curBackend.name}</h3>
-                                <span className="badge-pill ink">{curBackend.language}</span>
-                                <span className="badge-pill">{curBackend.source}</span>
+                                <h3 className="sheet-title">{curStation.name}</h3>
+                                <span className="badge-pill ink">{curStation.language}</span>
+                                <span className="badge-pill">{curStation.source}</span>
                                 <div style={{ flex: 1 }} />
                                 <button
                                   type="button"
                                   className="key small"
-                                  onClick={() => void api.openFolderPath(backendFolder(curBackend))}
+                                  onClick={() => void api.openFolderPath(stationFolder(curStation))}
                                 >
                                   Open folder
                                 </button>
-                                {curBackend.source === "installed" && (
+                                {curStation.source === "installed" && (
                                   <button
                                     type="button"
                                     className="key small subtle-danger"
                                     onClick={() =>
                                       void api
-                                        .removeBackendDir(curBackend.dir)
+                                        .removeStationDir(curStation.dir)
                                         .then(() => refreshState())
                                         .catch((e) => setErrorMsg(String((e as Error).message || e)))
                                     }
@@ -1812,9 +1816,9 @@ export function App() {
                                 )}
                               </div>
                               <p className="sheet-desc">
-                                {curBackend.description || "Paperboat backend project."}
+                                {curStation.description || "Paperboat station project."}
                               </p>
-                              <div className="tag">{curBackend.dir}</div>
+                              <div className="tag">{curStation.dir}</div>
                             </div>
 
                             {/* Second Band: Unified Run Bar */}
@@ -1827,7 +1831,7 @@ export function App() {
                                       className="key run"
                                       onClick={() =>
                                         void api.openExternalUrl(
-                                          `http://localhost:${webRunning?.port ?? webPort}/?backend=${encodeURIComponent(liveProc.url)}`,
+                                          `http://localhost:${webRunning?.port ?? webPort}/?station=${encodeURIComponent(liveProc.url)}`,
                                         )
                                       }
                                     >
@@ -1836,14 +1840,14 @@ export function App() {
                                     <button
                                       type="button"
                                       className="key small"
-                                      onClick={() => void runCmd(["restart", curBackend.name], `restart ${curBackend.name}`, "task", fbKey)}
+                                      onClick={() => void runCmd(["restart", curStation.name], `restart ${curStation.name}`, "task", fbKey)}
                                     >
                                       Restart
                                     </button>
                                     <button
                                       type="button"
                                       className="key small subtle-danger"
-                                      onClick={() => void runCmd(["stop", curBackend.name], `stop ${curBackend.name}`, "task", fbKey)}
+                                      onClick={() => void runCmd(["stop", curStation.name], `stop ${curStation.name}`, "task", fbKey)}
                                     >
                                       Stop
                                     </button>
@@ -1852,7 +1856,7 @@ export function App() {
                                   <button
                                     type="button"
                                     className="key run"
-                                    onClick={() => handleBackendRun(curBackend)}
+                                    onClick={() => handleStationRun(curStation)}
                                   >
                                     ▶ Run
                                   </button>
@@ -1862,9 +1866,9 @@ export function App() {
                                   <span>port</span>
                                   <input
                                     type="number"
-                                    aria-label="Backend port"
+                                    aria-label="Station port"
                                     value={o.port}
-                                    onChange={(e) => patchOpts(curBackend, { port: Number(e.target.value) || 8765 })}
+                                    onChange={(e) => patchOpts(curStation, { port: Number(e.target.value) || 8765 })}
                                     style={{ width: "8ch" }}
                                   />
                                 </div>
@@ -1879,19 +1883,19 @@ export function App() {
                                 </button>
 
                                 <span className="tag" style={{ marginLeft: "auto" }}>
-                                  {liveProc ? `live at ${liveProc.url}` : `paperboat run ${curBackend.name}`}
+                                  {liveProc ? `live at ${liveProc.url}` : `paperboat run ${curStation.name}`}
                                 </span>
                               </div>
 
                               {showRunOptions && (
                                 <div className="be-run-drawer">
-                                  {!isPrebuiltBackend(curBackend) && (
+                                  {!isPrebuiltStation(curStation) && (
                                     <>
                                       <label className={`flag-toggle${o.noBuild ? " on" : ""}`}>
                                         <input
                                           type="checkbox"
                                           checked={o.noBuild}
-                                          onChange={(e) => patchOpts(curBackend, { noBuild: e.target.checked })}
+                                          onChange={(e) => patchOpts(curStation, { noBuild: e.target.checked })}
                                         />
                                         --no-build
                                       </label>
@@ -1899,7 +1903,7 @@ export function App() {
                                         <input
                                           type="checkbox"
                                           checked={o.clean}
-                                          onChange={(e) => patchOpts(curBackend, { clean: e.target.checked })}
+                                          onChange={(e) => patchOpts(curStation, { clean: e.target.checked })}
                                         />
                                         --clean
                                       </label>
@@ -1909,7 +1913,7 @@ export function App() {
                                     <input
                                       type="checkbox"
                                       checked={o.time}
-                                      onChange={(e) => patchOpts(curBackend, { time: e.target.checked })}
+                                      onChange={(e) => patchOpts(curStation, { time: e.target.checked })}
                                     />
                                     --time
                                   </label>
@@ -1917,7 +1921,7 @@ export function App() {
                                     <input
                                       type="checkbox"
                                       checked={o.verbose}
-                                      onChange={(e) => patchOpts(curBackend, { verbose: e.target.checked })}
+                                      onChange={(e) => patchOpts(curStation, { verbose: e.target.checked })}
                                     />
                                     --verbose
                                   </label>
@@ -1930,7 +1934,7 @@ export function App() {
                                         <button
                                           type="button"
                                           style={{ border: 0, background: "none", padding: 0, cursor: "pointer" }}
-                                          onClick={() => patchOpts(curBackend, { vars: o.vars.filter((_, k) => k !== i) })}
+                                          onClick={() => patchOpts(curStation, { vars: o.vars.filter((_, k) => k !== i) })}
                                         >
                                           ×
                                         </button>
@@ -1945,7 +1949,7 @@ export function App() {
                                       onChange={(e) => setNewVarText(e.target.value)}
                                       onKeyDown={(e) => {
                                         if (e.key === "Enter" && newVarText.includes("=")) {
-                                          patchOpts(curBackend, { vars: [...o.vars, newVarText.trim()] });
+                                          patchOpts(curStation, { vars: [...o.vars, newVarText.trim()] });
                                           setNewVarText("");
                                         }
                                       }}
@@ -1959,14 +1963,14 @@ export function App() {
                           </div>
 
                           {/* Structured 2-Column Build/Package & Verification Grid */}
-                          {isPrebuiltBackend(curBackend) ? (
+                          {isPrebuiltStation(curStation) ? (
                             <div className="workflow-box">
                               <div className="workflow-head">
-                                <h3>Bundled Workbench</h3>
+                                <h3>Bundled Scratchpad</h3>
                                 <span className="tag">Prebuilt binary</span>
                               </div>
                               <p className="sheet-desc">
-                                Built-in standard toolkits host (Flow &amp; Dashboard) plus installed toolkit plugins.
+                                Built-in standard toolkits host (Flow &amp; Board) plus installed toolkit plugins.
                                 Starts automatically when you launch Paperboat, or run it standalone above.
                               </p>
                             </div>
@@ -1975,25 +1979,25 @@ export function App() {
                             <div className="workflow-box">
                               <div className="workflow-head">
                                 <h3>Build &amp; Package</h3>
-                                <span className="tag">{curBackend.language === "cpp" ? "CMake + C++20" : curBackend.language}</span>
+                                <span className="tag">{curStation.language === "cpp" ? "CMake + C++20" : curStation.language}</span>
                               </div>
                               <p className="sheet-desc">
-                                Compile the backend or bundle it into a single portable <code>.ppk</code> package.
+                                Compile the station or bundle it into a single portable <code>.pst</code> package.
                               </p>
                               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: "auto" }}>
-                                {curBackend.language === "cpp" ? (
+                                {curStation.language === "cpp" ? (
                                   <>
                                     <button
                                       type="button"
                                       className="key small run"
-                                      onClick={() => void runCmd(["build", curBackend.dir], `build ${curBackend.name}`, "task", fbKey)}
+                                      onClick={() => void runCmd(["build", curStation.dir], `build ${curStation.name}`, "task", fbKey)}
                                     >
                                       Build
                                     </button>
                                     <button
                                       type="button"
                                       className="key small"
-                                      onClick={() => void runCmd(["rebuild", curBackend.dir], `rebuild ${curBackend.name}`, "task", fbKey)}
+                                      onClick={() => void runCmd(["rebuild", curStation.dir], `rebuild ${curStation.name}`, "task", fbKey)}
                                     >
                                       Rebuild (--clean)
                                     </button>
@@ -2002,7 +2006,7 @@ export function App() {
                                   <button
                                     type="button"
                                     className="key small run"
-                                    onClick={() => void runCmd(["deps", "install", curBackend.dir], `deps install ${curBackend.name}`, "task", fbKey)}
+                                    onClick={() => void runCmd(["deps", "install", curStation.dir], `deps install ${curStation.name}`, "task", fbKey)}
                                   >
                                     Install dependencies
                                   </button>
@@ -2010,9 +2014,9 @@ export function App() {
                                 <button
                                   type="button"
                                   className="key small"
-                                  onClick={() => void runCmd(["pack", curBackend.dir, "--json-stream"], `pack ${curBackend.name}`, "task", fbKey)}
+                                  onClick={() => void runCmd(["pack", curStation.dir, "--json-stream"], `pack ${curStation.name}`, "task", fbKey)}
                                 >
-                                  Pack .ppk
+                                  Pack .pst
                                 </button>
                               </div>
                             </div>
@@ -2024,14 +2028,14 @@ export function App() {
                                   <button
                                     type="button"
                                     className="key small run"
-                                    onClick={() => void runCmd(["check", curBackend.dir, "--json-stream"], `check ${curBackend.name}`, "task", fbKey)}
+                                    onClick={() => void runCmd(["check", curStation.dir, "--json-stream"], `check ${curStation.name}`, "task", fbKey)}
                                   >
                                     Run check
                                   </button>
                                   <button
                                     type="button"
                                     className="key small"
-                                    onClick={() => void runCmd(["check", curBackend.dir, "--fast", "--json-stream"], `check --fast ${curBackend.name}`, "task", fbKey)}
+                                    onClick={() => void runCmd(["check", curStation.dir, "--fast", "--json-stream"], `check --fast ${curStation.name}`, "task", fbKey)}
                                   >
                                     Fast
                                   </button>
@@ -2107,7 +2111,7 @@ export function App() {
             </header>
 
             <div className="panel-body">
-              <div className="workbench">
+              <div className="scratchpad">
                 {/* Left Sidebar: Toolkit List */}
                 <aside className="wb-sidebar" aria-label="Toolkit list">
                   <div className="wb-list">
@@ -2269,16 +2273,16 @@ export function App() {
           </section>
 
           {/* =====================================================================
-              PAGE 3: INTERACTIVE CONSOLE
+              PAGE 3: INTERACTIVE PAPERBOAT CLI
              ===================================================================== */}
           <section
-            className={`panel${page === "console" ? " current" : ""}`}
-            inert={page !== "console"}
-            aria-label="Console"
+            className={`panel${page === "cli" ? " current" : ""}`}
+            inert={page !== "cli"}
+            aria-label="Paperboat CLI"
             style={{ "--i": 3, "--at": pageIndex } as CSSProperties}
           >
             <header className="panel-head">
-              <h2>Console</h2>
+              <h2>Paperboat CLI</h2>
               <span className="panel-info lbl">
                 Tab completes · → accepts suggestion · ↑↓ history
               </span>
@@ -2322,7 +2326,7 @@ export function App() {
                       className="prompt-input"
                       type="text"
                       value={cmdText}
-                      placeholder="Type any paperboat command (start, pkg list, check, toolkit list, help)…"
+                      placeholder="Type any paperboat command (start, squero list, check, toolkit list, help)…"
                       onChange={(e) => {
                         setCmdText(e.target.value);
                         setCompIdx(0);
@@ -2435,28 +2439,28 @@ export function App() {
             </section>
           ) : (
             <div className="modal-dialog" role="dialog">
-              {modal === "ppk" && (
+              {modal === "pst" && (
                 <>
                   <header className="modal-head">
-                    <h3>Open Backend (.ppk)</h3>
+                    <h3>Open Station (.pst)</h3>
                     <span className="sp" />
                     <button type="button" className="modal-close" onClick={() => setModal(null)}>×</button>
                   </header>
                   <div className="modal-body-pad">
                     <p className="sheet-desc">
-                      Run a packaged <code>.ppk</code> backend directly or install it into your local backends store.
+                      Run a packaged <code>.pst</code> station directly or install it into your local stations store.
                     </p>
                     <div className="field-row">
-                      <span className="field-label">Package (.ppk)</span>
+                      <span className="field-label">Package (.pst)</span>
                       <div style={{ display: "flex", gap: 6 }}>
                         <div className="well well-field" style={{ flex: 1 }}>
                           <input
-                            value={ppkPath}
-                            onChange={(e) => setPpkPath(e.target.value)}
-                            placeholder="/path/to/backend.ppk"
+                            value={pstPath}
+                            onChange={(e) => setPstPath(e.target.value)}
+                            placeholder="/path/to/station.pst"
                           />
                         </div>
-                        <button type="button" className="key small" onClick={() => void handlePick("ppk", setPpkPath)}>
+                        <button type="button" className="key small" onClick={() => void handlePick("pst", setPstPath)}>
                           Browse…
                         </button>
                       </div>
@@ -2466,8 +2470,8 @@ export function App() {
                       <div className="well well-field">
                         <input
                           type="number"
-                          value={ppkPort}
-                          onChange={(e) => setPpkPort(Number(e.target.value) || 8792)}
+                          value={pstPort}
+                          onChange={(e) => setPstPort(Number(e.target.value) || 8792)}
                         />
                       </div>
                     </div>
@@ -2475,9 +2479,9 @@ export function App() {
                       <span className="field-label">Install dir</span>
                       <div className="well well-field">
                         <input
-                          value={ppkDir}
-                          onChange={(e) => setPpkDir(e.target.value)}
-                          placeholder="default (~/.local/share/paperboat/backends/)"
+                          value={pstDir}
+                          onChange={(e) => setPstDir(e.target.value)}
+                          placeholder="default (~/.local/share/paperboat/stations/)"
                         />
                       </div>
                     </div>
@@ -2489,28 +2493,28 @@ export function App() {
                     <button
                       type="button"
                       className="key small"
-                      disabled={!ppkPath.trim()}
+                      disabled={!pstPath.trim()}
                       onClick={() => {
-                        const p = ppkPath.trim();
+                        const p = pstPath.trim();
                         const args = ["unpack", p, "--json-stream"];
-                        if (ppkDir.trim()) args.push("--dir", ppkDir.trim());
+                        if (pstDir.trim()) args.push("--dir", pstDir.trim());
                         setModal(null);
-                        void runCmd(args, `unpack ${ppkDisplayName(p)}`);
+                        void runCmd(args, `unpack ${pstDisplayName(p)}`);
                       }}
                     >
-                      Install to backends
+                      Install to stations
                     </button>
                     <button
                       type="button"
                       className="key small run"
-                      disabled={!ppkPath.trim()}
+                      disabled={!pstPath.trim()}
                       onClick={() => {
-                        const p = ppkPath.trim();
+                        const p = pstPath.trim();
                         setModal(null);
-                        void runCmd(["run", p, "--port", String(ppkPort)], `run ${ppkDisplayName(p)}`, "job");
+                        void runCmd(["run", p, "--port", String(pstPort)], `run ${pstDisplayName(p)}`, "job");
                       }}
                     >
-                      ▶ Run .ppk
+                      ▶ Run .pst
                     </button>
                   </div>
                 </>
@@ -2519,7 +2523,7 @@ export function App() {
               {modal === "folder" && (
                 <>
                   <header className="modal-head">
-                    <h3>Open Backend Folder</h3>
+                    <h3>Open Station Folder</h3>
                     <span className="sp" />
                     <button type="button" className="modal-close" onClick={() => setModal(null)}>×</button>
                   </header>
@@ -2531,7 +2535,7 @@ export function App() {
                           <input
                             value={folderPath}
                             onChange={(e) => setFolderPath(e.target.value)}
-                            placeholder="/path/to/backend"
+                            placeholder="/path/to/station"
                           />
                         </div>
                         <button type="button" className="key small" onClick={() => void handlePick("dir", setFolderPath)}>
@@ -2558,10 +2562,10 @@ export function App() {
                 </>
               )}
 
-              {modal === "new-backend" && (
+              {modal === "new-station" && (
                 <>
                   <header className="modal-head">
-                    <h3>New Backend Project</h3>
+                    <h3>New Station</h3>
                     <span className="sp" />
                     <button type="button" className="modal-close" onClick={() => setModal(null)}>×</button>
                   </header>
@@ -2609,7 +2613,7 @@ export function App() {
                         void runCmd(args, `new ${nbName.trim()}`);
                       }}
                     >
-                      Create backend
+                      Create station
                     </button>
                   </div>
                 </>

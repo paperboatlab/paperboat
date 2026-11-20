@@ -1,10 +1,10 @@
-Testing a backend
+Testing a station
 =================
 
 ``--run``
 ---------
 
-Every backend has the engine's command line: ``--port N`` (serve there) and ``--run`` (run
+Every station has the engine's command line: ``--port N`` (serve there) and ``--run`` (run
 the starter graph on the starter station once, as fast as it can, print every protocol
 message as one JSON line, and exit 0 when the run is done, 1 when it failed). C++:
 :cpp:func:`paperboat::core::main`; Python: :py:func:`paperboat.serve`.
@@ -12,7 +12,7 @@ message as one JSON line, and exit 0 when the run is done, 1 when it failed). C+
 Golden results
 --------------
 
-``expected.json`` next to a backend's descriptor says what its starter run must produce;
+``expected.json`` next to a station's descriptor says what its starter run must produce;
 ``protocol/golden.py`` (``npm run golden``) runs every example with ``--run`` and compares.
 
 .. code-block:: json
@@ -32,9 +32,9 @@ result fails here.
 Protocol conformance
 --------------------
 
-``protocol/smoke_test.py --port N`` (``npm run smoke -- N``) checks any running backend
+``protocol/smoke_test.py --port N`` (``npm run smoke -- N``) checks any running station
 without knowing its domain: the handshake, the starter run, an algebraic loop (solved, or failed naming a block), a block
-the backend doesn't have (must fail and be named), a cancel. Every message either way is
+the station doesn't have (must fail and be named), a cancel. Every message either way is
 checked against the JSON Schema (``protocol/schema/paperboat-0.schema.json``).
 
 Unit tests

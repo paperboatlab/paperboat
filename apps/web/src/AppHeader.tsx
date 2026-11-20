@@ -1,5 +1,5 @@
 // The app's top bar: the menus and the project's name, then the shared BarEnd (the same as the
-// Squero Studios'): Toolkits and Console, the view mode, the UI lock, which backend, the theme.
+// Squero Studios'): Toolkits and Console, the view mode, the UI lock, which station, the theme.
 
 import type { EngineState } from "./engine";
 import type { Command } from "./commands";
@@ -25,13 +25,13 @@ type Props = {
   solver?: string;
   projectTitle: string;
   dirty: boolean;
-  /** Double-click the name in the bar: the project's title and the next .ppj name. */
+  /** Double-click the name in the bar: the project's title and the next .psf name. */
   onRenameProject?: (name: string) => void;
   installToolkit: (name: string, version?: string) => void;
   uninstallToolkit: (name: string) => void;
   /** Toolkit operations asked for and not yet acknowledged, so the row says "installing…" at once. */
   requestedToolkits: Record<string, string>;
-  restartBackend: () => void;
+  restartStation: () => void;
   toolkitVersions: (name: string) => void;
   errors: number;
   consoleShown: boolean;
@@ -48,12 +48,12 @@ type Props = {
   projectLock: LockConfig | null;
   locked: boolean;
   onLock: () => void;
-  onBackend: () => void;
+  onStation: () => void;
   themeChoice: Theme;
   setThemeChoice: (t: Theme) => void;
 };
 
-export function AppHeader({ state, running, commands, solver, projectTitle, dirty, onRenameProject, installToolkit, uninstallToolkit, requestedToolkits, restartBackend, toolkitVersions, errors, consoleShown, onConsole, consoleRef, aboutShown, onAbout, helpShown, onHelp, mode, setMode, allowedModes, projectLock, locked, onLock, onBackend, themeChoice, setThemeChoice }: Props) {
+export function AppHeader({ state, running, commands, solver, projectTitle, dirty, onRenameProject, installToolkit, uninstallToolkit, requestedToolkits, restartStation, toolkitVersions, errors, consoleShown, onConsole, consoleRef, aboutShown, onAbout, helpShown, onHelp, mode, setMode, allowedModes, projectLock, locked, onLock, onStation, themeChoice, setThemeChoice }: Props) {
   return (
     <AppBar
       brand={<Wordmark running={running} />}
@@ -70,10 +70,10 @@ export function AppHeader({ state, running, commands, solver, projectTitle, dirt
             connected={state.connection === "open"}
             requested={requestedToolkits}
             version={state.version}
-            backend={state.engine}
+            station={state.engine}
             onInstall={installToolkit}
             onUninstall={uninstallToolkit}
-            onRestart={restartBackend}
+            onRestart={restartStation}
             onVersions={toolkitVersions}
           />
           <button
@@ -108,8 +108,8 @@ export function AppHeader({ state, running, commands, solver, projectTitle, dirt
             label={state.connection === "open" ? state.engine : state.connection}
             labels={[state.engine, "connecting", "closed"]}
             tone={CONN_TONE[state.connection]}
-            title="Which backend: File > Backend…"
-            onClick={onBackend}
+            title="Which station: File > Station…"
+            onClick={onStation}
           />
         </>}
         theme={themeChoice}

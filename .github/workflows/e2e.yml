@@ -1,5 +1,5 @@
-# The web app end to end: Vite in headless Chromium against a real engine backend
-# (engine/tests/sdk-backend). One workflow per check, so it has its own README badge.
+# The web app end to end: Vite in headless Chromium against a real engine station
+# (engine/tests/sdk-station). One workflow per check, so it has its own README badge.
 # @paperboat/shared is the sibling paperboat-shared repo, so both are checked out side by side.
 name: e2e
 
@@ -33,7 +33,7 @@ jobs:
     env:
       CXX: g++-14
       CC: gcc-14
-      CMAKE_GENERATOR: Ninja  # also for the backend, which `paperboat build` configures
+      CMAKE_GENERATOR: Ninja  # also for the station, which `paperboat build` configures
       CCACHE_DIR: ${{ github.workspace }}/paperboat/.ccache
       CCACHE_COMPILERCHECK: content
       CMAKE_CXX_COMPILER_LAUNCHER: ccache
@@ -69,8 +69,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build the console
         run: cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Debug -DPAPERBOAT_BUILD_TESTS=OFF && cmake --build engine/build --target paperboat
-      - name: Build the sdk-backend
-        run: ./bin/paperboat build engine/tests/sdk-backend
+      - name: Build the sdk-station
+        run: ./bin/paperboat build engine/tests/sdk-station
       - name: End-to-end tests
         run: npm run e2e
       - uses: actions/upload-artifact@v4
@@ -111,8 +111,8 @@ jobs:
         run: npx playwright install chromium
       - name: Build the console
         run: cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Debug -DPAPERBOAT_BUILD_TESTS=OFF && cmake --build engine/build --target paperboat
-      - name: Build the sdk-backend
-        run: ./bin/paperboat build engine/tests/sdk-backend
+      - name: Build the sdk-station
+        run: ./bin/paperboat build engine/tests/sdk-station
       - name: End-to-end tests
         run: npm run e2e
       - uses: actions/upload-artifact@v4

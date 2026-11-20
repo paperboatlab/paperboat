@@ -25,7 +25,7 @@ FAILS: B broke two sync gates required by CLAUDE.md:
   python3 docs/gen_tokens.py --check   -> source still apps/web/src/tokens.css (now a shim)
   and packages/shared/src/protocol.ts hand-adds the §3/§4 types, so regenerating drops them.
 Minor (accepted): B copied + left re-export shims instead of git mv (history not kept);
-  Dashboard.tsx not extracted (new 20-line DashboardShell stub, web Dashboard untouched)."""
+  Board.tsx not extracted (new 20-line BoardShell stub, web Board untouched)."""
 integration = [
   "commit lane A on epic160/lane-a-w1",
   "merge epic160/lane-a-w1 and epic160/lane-b-w1 into dev",
@@ -56,12 +56,12 @@ studio 34/34; gen_ts / gen_tokens current; engine build clean, paperboat_tests 2
 Live (headless Chromium, squero-om on a DCMotor.mo copy, B's panels on A's real StudioApi):
 top bar `squero studio Om ... omc 1.27.0 · ready`; dock `balanced · 76 / 76`; popover on l shows
 L bound to top-level L = 0.05 H and port + Probe rows; Alt+V sheet shows Station props, entry
-pills (in v, out w, out phi), linked block preview; dock Export backend wrote a full backend
+pills (in v, out w, out phi), linked block preview; dock Export station wrote a full station
 (`ode · ODE: no events, no torn systems, no external functions`).
 Fixed on dev (8a19b77), found only by the live run:
   dock re-ran checkModel forever (api identity changes on each status push; effect keyed on api)
   top-level SI-typed parameters (Modelica.Units.SI.*) drew as canvas parts (store skipped Real only)
-  export folder `dcmotor-cpp` vs generator `dc-motor-cpp` (now mirrors backend_name, test pins it)
+  export folder `dcmotor-cpp` vs generator `dc-motor-cpp` (now mirrors station_name, test pins it)
 Left for Wave 4 A: popover row `i.start =` shows an empty value (nested modifier read)."""
 
 [waves.4]
@@ -95,16 +95,16 @@ contracts = ["§1", "§3", "§4", "§6", "§8"]
 prompt = "specs/prompts/wave4_lane_a.md"
 branch = "epic160/lane-a-w4"
 blocker = ""
-notes = """Authored in Studio (headless Chromium, scripts in apps/studio/test/e2e/): placed 10 parts, wired 10 connections, + Input v, + Probe w/phi, Look tab 2x1 plate (motor, shaft, load, M), Export backend. Balance 76/76, ode path.
+notes = """Authored in Studio (headless Chromium, scripts in apps/studio/test/e2e/): placed 10 parts, wired 10 connections, + Input v, + Probe w/phi, Look tab 2x1 plate (motor, shaft, load, M), Export station. Balance 76/76, ode path.
 Done by hand in the .mo (Studio gaps): top-level `parameter` declarations and the R/L/k/J/c/d bindings and fixed starts (popover lists only already-set modifiers, so no row to `=` bind); unit/comment on v,w,phi; armature current `Real i = L1.i annotation(__paperboat(probe=true))` (no probe on a non-port variable).
 Studio bugs fixed (my paths): entry names were u/y and duplicated (two probes both `y`): now named for the port (v, w, phi), numbered when taken; Look tab port placement never reached the .mo: setIcon now writes each entry's iconTransformation (iconPortExprs). Export folder is relative to the server cwd: run squero-om from examples/.
 Wave 2 Watch resolved: check's static load cannot see objects registered in C++; core `--catalog` prints the real block/object types and check now reports `36 blocks, 1 station objects`, no warning.
 Open-loop vs omc (v = 1 step, dassl 1e-12): w, phi, i at t = 0.48, 1, 2 differ by <= 4.1e-8 (w 1.813489682 vs 1.813489667 at 0.48; 2.005362445 vs 2.005362455 at 1; 1.999998609 both at 2).
 PID tuned kp=1 ki=3: no overshoot (ki=4 overshot 6.8%), settles ~2.3 s; expected.json pins w=1.5, v=0.75, i~7e-11.
 Links paperboat::core only (builtins live there); ldd shows no OpenModelica library. Smoke on a cold build takes ~200 s (cmake build inside check), 11 s warm.
-dc-motor-cpp deleted; no test used its .mo (backend_name tests are string-only).
+dc-motor-cpp deleted; no test used its .mo (station_name tests are string-only).
 GUIDELINES.md / ARCHITECTURE.md updated in the main tree (gitignored)."""
-modified_files = ["examples/dc-drive-cpp/**", "examples/dc-motor-cpp (deleted)", "engine/core/include/paperboat/core/backend.hpp", "engine/core/src/main.cpp", "engine/core/src/backend_manager.cpp", "apps/studio/src/store/{exprs,plans,index}.ts", "apps/studio/test/a-store.test.ts", "apps/studio/test/e2e/**", "docs/api/tutorials.rst", "specs/evidence/wave4-a/*.png"]
+modified_files = ["examples/dc-drive-cpp/**", "examples/dc-motor-cpp (deleted)", "engine/core/include/paperboat/core/server.hpp", "engine/core/src/main.cpp", "engine/core/src/station_manager.cpp", "apps/studio/src/store/{exprs,plans,index}.ts", "apps/studio/test/a-store.test.ts", "apps/studio/test/e2e/**", "docs/api/tutorials.rst", "specs/evidence/wave4-a/*.png"]
 verification = """engine build 0 warnings, paperboat_tests all pass (2087 assertions / 151 cases); typecheck, build, build:studio ok; studio 35/35, web 97/97, shared 11/11; npm run docs (sphinx -W) clean; gen_tokens and gen_ts --check current; paperboat check examples/dc-drive-cpp: manifest, catalog (36 blocks, 1 object), smoke, golden all ok; protocol/golden.py examples/dc-drive-cpp PASS; open-loop numbers above; Flow screenshots specs/evidence/wave4-a/flow-{light,dark}.png."""
 
 [lanes.B]
@@ -168,8 +168,8 @@ protocol/README.md"""
 # Model routing (contracts rev 2): lane A = Anthropic only, lane B = Google only.
 [routing]
 wave2 = { a = { model = "sonnet-5.5", effort = "medium", task = "view.icon renderer + first-class ports in @paperboat/shared" }, b = { model = "argon-4", effort = "high", task = ".mo loader, extends resolver, iconTransformation + Icon(graphics) quantisers, engine passthrough" } }
-wave3 = { a = { model = "sonnet-5.5", effort = "high", task = "apps/studio: library tree, acausal canvas, split view + Simulate" }, b = { model = "argon-4", effort = "medium", task = "component popover, interface sheet + Look tab, dock balance + Export backend" } }
-wave4 = { a = { model = "sonnet-5.5", effort = "medium", task = "E2E golden dc_drive-cpp with control/pid + dashboard/graph" }, b = { model = "flash-3.8", effort = "low", task = "DESIGN.md, protocol/README.md, cross-repo CI workflows" } }
+wave3 = { a = { model = "sonnet-5.5", effort = "high", task = "apps/studio: library tree, acausal canvas, split view + Simulate" }, b = { model = "argon-4", effort = "medium", task = "component popover, interface sheet + Look tab, dock balance + Export station" } }
+wave4 = { a = { model = "sonnet-5.5", effort = "medium", task = "E2E golden dc_drive-cpp with control/pid + board/graph" }, b = { model = "flash-3.8", effort = "low", task = "DESIGN.md, protocol/README.md, cross-repo CI workflows" } }
 
 # Cross-lane asks. Append only; orchestrator resolves.
 # [[requests]]
@@ -181,7 +181,7 @@ wave4 = { a = { model = "sonnet-5.5", effort = "medium", task = "E2E golden dc_d
 [[requests]]
 from = "A"
 to = "orchestrator"
-what = "(done in d00e932, Wave 2 A) protocol/schema/paperboat-0.schema.json: add `builtin: boolean` to $defs.ToolkitStatus. Pre-existing since 3a2a978 (#157): the engine sends it in hello/catalog toolkits and smoke rejects it, so `paperboat check`/`npm run smoke` fail for every backend on dev."
+what = "(done in d00e932, Wave 2 A) protocol/schema/paperboat-0.schema.json: add `builtin: boolean` to $defs.ToolkitStatus. Pre-existing since 3a2a978 (#157): the engine sends it in hello/catalog toolkits and smoke rejects it, so `paperboat check`/`npm run smoke` fail for every station on dev."
 state = "done"
 
 [[requests]]
@@ -235,5 +235,5 @@ state = "open"
 [[requests]]
 from = "A"
 to = "B"
-what = "dock (src/dock/dock.ts): default export folder resolves against the Studio server's cwd; consider showing the resolved absolute path under the field so Export backend does not silently land inside modelica/."
+what = "dock (src/dock/dock.ts): default export folder resolves against the Studio server's cwd; consider showing the resolved absolute path under the field so Export station does not silently land inside modelica/."
 state = "open"

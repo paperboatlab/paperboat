@@ -9,7 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/core/cache.hpp"
 #include "paperboat/core/executor.hpp"
 #include "rig.hpp"
@@ -77,7 +77,7 @@ const tk::Catalog& catalog() {
     return r;
   }();
   static const tk::Catalog c = tk::load_descriptor(R"(domain = "rig"
-import = ["base", "math", "signal", "dashboard"]
+import = ["base", "math", "signal", "board"]
 )", registry);
   return c;
 }
@@ -91,9 +91,9 @@ json wire(const std::string& from, const std::string& out, const std::string& to
 
 std::vector<json> run(const json& graph, core::RunSettings settings, core::RunCache* cache = nullptr) {
   settings.real_time = false;
-  const core::Backend backend{.engine = "test", .catalog = &catalog(), .run = settings};
+  const core::Station station{.engine = "test", .catalog = &catalog(), .run = settings};
   std::vector<json> out;
-  const auto status = core::run("r", graph, nullptr, backend, [&](const json& m) { out.push_back(m); }, nullptr, {}, nullptr,
+  const auto status = core::run("r", graph, nullptr, station, [&](const json& m) { out.push_back(m); }, nullptr, {}, nullptr,
                                 nullptr, nullptr, nullptr, cache);
   REQUIRE(status == "done");
   return out;

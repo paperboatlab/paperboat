@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The Paperboat console. `paperboat` (no command) execs this on a terminal, with
+// The Paperboat CLI. `paperboat` (no command) execs this on a terminal, with
 // PAPERBOAT_BIN set to itself; `paperboat run|toolkit|top` open it on a picker or panel.
 // Full screen (the alternate buffer), so the mark can move and the shell is restored on exit.
 //   node apps/cli/dist/main.js [run|toolkit|top]
@@ -9,7 +9,7 @@ import {render} from 'ink';
 import {App} from './ui.tsx';
 
 if (!process.stdin.isTTY || !process.stdout.isTTY) {
-  console.error('the Paperboat console needs a terminal; use `paperboat <command>` in scripts');
+  console.error('the Paperboat CLI needs a terminal; use `paperboat <command>` in scripts');
   process.exit(2);
 }
 

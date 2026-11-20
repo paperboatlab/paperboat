@@ -1,8 +1,8 @@
 // A subsystem's or story's ports as blocks: In and Out, placed, wired and renamed inside it like
 // any block (the `group` package of the block browser). Each is a port of the group's block
 // outside, named by its `name` (else In 1, Out 2… in the order they stand, top to bottom).
-// They are the UI's own: a backend never sees them. The graph a run gets has each taken out
-// and the wires through it joined end to end, as groups themselves reach backends flat.
+// They are the UI's own: a station never sees them. The graph a run gets has each taken out
+// and the wires through it joined end to end, as groups themselves reach stations flat.
 
 import type { BlockDef } from "./protocol";
 import { connect, freeId, isBlock, makeNode, type BlockNode, type FlowNode, type Wire } from "./flowModel.ts";

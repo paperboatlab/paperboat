@@ -4,18 +4,18 @@ Python API
 .. py:module:: paperboat
 
 ``paperboat`` binds the C++ engine (``paperboat._engine``, nanobind). The engine does
-everything a backend does; Python provides only the domain's own code, as subclasses of
+everything a station does; Python provides only the domain's own code, as subclasses of
 the classes below. **A class's attributes define it** (what the UI shows), **its methods
-are what the engine calls**. The classes a backend passes become the domain's package
+are what the engine calls**. The classes a station passes become the domain's package
 (named after the descriptor's ``domain``), so the palette has them without the descriptor
 listing them.
 
 Install: nothing to do with a paperboat package (.tar.gz, .zip): it ships the
 module in ``lib/paperboat/python`` and ``paperboat run`` / ``check`` put it on ``PYTHONPATH`` for
-the backend process. To ``import paperboat`` in a process the CLI did not start (an IDE, a
+the station process. To ``import paperboat`` in a process the CLI did not start (an IDE, a
 service), install the wheel instead. It is
 built for CPython 3.11 and, through the stable ABI (abi3), for every CPython from 3.12 on; the
-interpreter is the backend's ``.venv``, else ``$PAPERBOAT_PYTHON``, else ``python3``. Elsewhere:
+interpreter is the station's ``.venv``, else ``$PAPERBOAT_PYTHON``, else ``python3``. Elsewhere:
 ``pip install`` a release wheel, or ``pip install ./python`` (or ``npm run build:python`` and
 ``PYTHONPATH=python`` while developing). Never implement a framework feature here: add it to the
 engine and bind it.
@@ -88,8 +88,8 @@ API Quick Reference
      - :py:class:`Handle`
      - Opaque data handle passed across flow wires.
    * -
-     - :py:class:`Backend`
-     - Programmatically defined domain backend.
+     - :py:class:`Station`
+     - Programmatically defined domain station.
    * -
      - :py:func:`serve`
      - Launch the WebSocket/HTTP server on a designated port.
@@ -191,7 +191,7 @@ Blocks
 
       ``True`` for a block whose outputs depend on nothing but its params, its inputs and the
       variables it reads through ``ctx.variable()`` (no clock, keys, ``ctx.state``,
-      randomness, files or side effects). A backend with ``mode="once"`` then reuses its
+      randomness, files or side effects). A station with ``mode="once"`` then reuses its
       outputs from the last run while none of those changed. Default ``None``: called every
       run.
 
@@ -247,7 +247,7 @@ Blocks
 
 .. py:class:: Monitor(params)
 
-   A :py:class:`Block` that shows its input on the Dashboard. ``kind = "monitor"``,
+   A :py:class:`Block` that shows its input on the Board. ``kind = "monitor"``,
    ``inputs = ["in"]``.
 
    .. py:attribute:: instrument
@@ -480,7 +480,7 @@ Domain state
 .. py:class:: DomainState
 
    What a domain's blocks share during a run. The engine makes one per run (from
-   :py:attr:`Backend.state`), steps it after each clocked pass and draws it.
+   :py:attr:`Station.state`), steps it after each clocked pass and draws it.
 
    .. py:method:: entities() -> list[dict]
 
@@ -570,7 +570,7 @@ What a block sees
 Serving
 -------
 
-.. py:class:: Backend
+.. py:class:: Station
 
    .. py:attribute:: engine
       :type: str
@@ -622,7 +622,7 @@ Serving
    .. py:attribute:: port
       :type: int
 
-.. py:function:: serve(backend)
+.. py:function:: serve(station)
 
    The engine's command line: serve on ``--port N`` until Ctrl+C, or with ``--run`` run the
    starter once headless, print each protocol message as a JSON line and exit (0 when

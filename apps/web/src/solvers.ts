@@ -18,7 +18,7 @@ export const SOLVER_LABELS: Record<Solver, string> = {
 /** A solver's short label, as a menu names it: "RK4 (Classic)" → "RK4". */
 export const solverShort = (s: Solver) => SOLVER_LABELS[s].replace(/ \(.*\)$/, "");
 
-/** The solvers the backend announced in hello.run (all of them when it said nothing). */
+/** The solvers the station announced in hello.run (all of them when it said nothing). */
 export function availableSolvers(defaults: RunSettings): Solver[] {
   const listed = defaults.solvers;
   return listed ? SOLVERS.filter((s) => listed.includes(s)) : SOLVERS;

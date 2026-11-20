@@ -51,7 +51,7 @@ bool wait_for(const std::function<bool()>& done, std::chrono::milliseconds limit
   return true;
 }
 
-// A long-lived process that is not our child, as a backend is not the child of the `paperboat stop` that ends it
+// A long-lived process that is not our child, as a station is not the child of the `paperboat stop` that ends it
 // (a zombie child would still look alive). `own_group`: it leads a process group of its own. Returns its pid.
 int daemon_sleeper(bool own_group) {
 #ifdef _WIN32

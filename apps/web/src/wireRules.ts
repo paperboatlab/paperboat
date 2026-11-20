@@ -44,7 +44,7 @@ export function wireRules(nodes: FlowNode[], connectors: Connectors, portBlocks 
     if (c.targetHandle === GHOST_IN || c.sourceHandle === GHOST_OUT) {
       const [other, handle, side] = c.targetHandle === GHOST_IN ? [a, c.sourceHandle, "outputs" as const] : [b, c.targetHandle, "inputs" as const];
       const end = portDef(other, handle, side);
-      if (!portBlocks) return "this backend has no In and Out blocks (the engine's group package)";
+      if (!portBlocks) return "this station has no In and Out blocks (the engine's group package)";
       return !end ? "that port is not there" : end.type === "step" ? "a step wire joins a story's in and next, not a new port" : null;
     }
     const [ea, eb] = [wireEnd(a, c.sourceHandle, "outputs", connectors), wireEnd(b, c.targetHandle, "inputs", connectors)];

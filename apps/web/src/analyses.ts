@@ -2,7 +2,7 @@
 // outside any run and any flow. The app owns the entry points (a subsystem's "analyse", the
 // Analyse commands on a selection) and the drawer that asks and shows; a toolkit's web part
 // registers the panel that draws its result, and its engine side registers the computation.
-// An analysis is offered only when both are there: the backend's catalog lists it and a
+// An analysis is offered only when both are there: the station's catalog lists it and a
 // toolkit's web part registered its panel.
 import type { ComponentType } from "react";
 import type { FlowNode, Wire } from "./flowModel";

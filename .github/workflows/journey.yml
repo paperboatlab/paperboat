@@ -1,5 +1,5 @@
 # A user's first hour, on every OS: scripts/journey.py drives a built checkout through the CLI.
-# 1 bin/paperboat runs; 2 `paperboat start` serves the web app and starts the workbench; 3 an example
+# 1 bin/paperboat runs; 2 `paperboat start` serves the web app and starts the scratchpad; 3 an example
 # checks, starts and passes the smoke test; 4 an optional toolkit installs; 5 its example checks.
 # The Squero apps (squero-studio-om, squero-studio-mx) check their own `paperboat start` in their repos.
 name: journey
@@ -15,7 +15,7 @@ on:
       - "engine/toolkit/src/installer.cpp"
       - "engine/toolkit/src/apps.cpp"
       - "engine/toolkit/include/paperboat/toolkit/apps.hpp"
-      - "engine/workbench/**"
+      - "engine/scratchpad/**"
       - "apps/cli/**"
       - "python/**"
       - "protocol/smoke_test.py"

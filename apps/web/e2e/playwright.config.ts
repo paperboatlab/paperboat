@@ -1,16 +1,16 @@
-// End-to-end tests: the web app (Vite dev server) driven in headless Chromium against a real engine backend
-// (engine/tests/sdk-backend). Run with `npm run e2e` (root) or `npm run e2e -w @paperboat/web`.
+// End-to-end tests: the web app (Vite dev server) driven in headless Chromium against a real engine station
+// (engine/tests/sdk-station). Run with `npm run e2e` (root) or `npm run e2e -w @paperboat/web`.
 // Needs the engine configured in engine/build (bin/paperboat builds its CLI from there) and a C++ toolchain:
-// the backend is built with `paperboat build` on the first run (a few minutes), then reused.
+// the station is built with `paperboat build` on the first run (a few minutes), then reused.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
-import { BACKEND_PORT, WEB_PORT } from "./env";
+import { STATION_PORT, WEB_PORT } from "./env";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const web = path.resolve(here, "..");
 const root = path.resolve(web, "../..");
-const backend = path.join(root, "engine/tests/sdk-backend");
+const station = path.join(root, "engine/tests/sdk-station");
 const sh = (p: string) => `'${p.replace(/'/g, `'\\''`)}'`; // single-quoted for the POSIX shell: spaces, $ and backticks are literal
 
 if (process.platform === "win32")
@@ -22,7 +22,7 @@ export default defineConfig({
   timeout: 60_000,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: 1, // one backend: its runs are shared state
+  workers: 1, // one station: its runs are shared state
   reporter: process.env.CI ? [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${WEB_PORT}`,
@@ -32,10 +32,10 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      name: "backend",
-      // Build when stale (a no-op otherwise), then exec the backend itself, so stopping the server stops it.
-      command: `${sh(path.join(root, "bin/paperboat"))} build ${sh(backend)} && exec ${sh(path.join(backend, "build/paperboat-sdk-backend"))} --port ${BACKEND_PORT}`,
-      port: BACKEND_PORT,
+      name: "station",
+      // Build when stale (a no-op otherwise), then exec the station itself, so stopping the server stops it.
+      command: `${sh(path.join(root, "bin/paperboat"))} build ${sh(station)} && exec ${sh(path.join(station, "build/paperboat-sdk-station"))} --port ${STATION_PORT}`,
+      port: STATION_PORT,
       timeout: 15 * 60_000, // the first build compiles the engine core
       reuseExistingServer: false,
       stdout: "pipe",

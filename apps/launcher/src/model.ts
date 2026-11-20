@@ -5,7 +5,7 @@
 export type Channel = "release" | "beta" | "dev";
 
 export interface RunningItem {
-  kind: "backend" | "app";
+  kind: "station" | "paperboat" | "squero";
   name: string;
   port: number;
   pid: number;
@@ -16,7 +16,7 @@ export interface RunningItem {
   started_at?: number;
 }
 
-export interface BackendStatusItem {
+export interface StationStatusItem {
   name: string;
   state: "building" | "starting" | "running" | "failed";
   stage?: string;
@@ -26,7 +26,7 @@ export interface BackendStatusItem {
   error?: string;
 }
 
-export interface BackendInfo {
+export interface StationInfo {
   name: string;
   language: string;
   port: number;
@@ -45,7 +45,7 @@ export interface AppInfo {
   deps: string[];
   dep_ranges?: Record<string, string>;
   built_with?: Record<string, string>;
-  kind: "program" | "library";
+  kind: "squero" | "library";
   launch: string;
   port: number;
   missingPrerequisites?: string;
@@ -125,8 +125,8 @@ export interface LauncherStateSnapshot {
   installType: string;
   homeDir: string;
   running: RunningItem[];
-  status: BackendStatusItem[];
-  backends: BackendInfo[];
+  status: StationStatusItem[];
+  stations: StationInfo[];
   apps: AppInfo[];
   toolkits: ToolkitInfo[];
   commands: CommandSpec[];
@@ -184,7 +184,7 @@ export function fuzzyMatch(query: string, text: string): { score: number; match:
 export function completeInput(
   line: string,
   commands: CommandSpec[],
-  backends: BackendInfo[],
+  stations: StationInfo[],
   apps: AppInfo[],
   toolkits: ToolkitInfo[],
 ): { candidates: Candidate[]; ghost: string; word: string } {
@@ -210,12 +210,12 @@ export function completeInput(
         for (const f of cmd.flags) pool.push({ value: f, detail: "flag" });
       } else if (cmd.subcommands.length > 0 && index === 1) {
         for (const s of cmd.subcommands) pool.push({ value: s, detail: `${cmd.name} subcommand` });
-      } else if (cmd.arg === "backend" || cmd.arg === "target") {
-        for (const b of backends) pool.push({ value: b.name, detail: `${b.language} · :${b.port}` });
-        for (const a of apps) pool.push({ value: a.name, detail: `app · :${a.port}` });
+      } else if (cmd.arg === "station" || cmd.arg === "target") {
+        for (const b of stations) pool.push({ value: b.name, detail: `${b.language} · :${b.port}` });
+        for (const a of apps) pool.push({ value: a.name, detail: `squero · :${a.port}` });
       } else if (cmd.arg === "toolkit") {
         for (const t of toolkits) pool.push({ value: t.name, detail: t.builtin ? "built-in" : t.installed ? "installed" : "available" });
-      } else if (cmd.name === "pkg") {
+      } else if (cmd.name === "squero") {
         for (const a of apps) pool.push({ value: a.name, detail: a.installed ? a.version : "not installed" });
       }
     }
@@ -232,9 +232,9 @@ export function completeInput(
   return { candidates: candidates.slice(0, 10), ghost, word };
 }
 
-export function ppkDisplayName(filePath: string): string {
+export function pstDisplayName(filePath: string): string {
   const base = filePath.replace(/\\/g, "/").split("/").pop() || filePath;
-  return base.replace(/\.ppk$/i, "").replace(/-[0-9]+\.[0-9]+.*$/, "") || "backend";
+  return base.replace(/\.pst$/i, "").replace(/-[0-9]+\.[0-9]+.*$/, "") || "station";
 }
 
 export function appDisplayTitle(name: string): string {
@@ -285,7 +285,7 @@ export function buildToolkitBlockCards(
   inspectData?: {
     flow_blocks?: Array<{ type: string; label: string; description: string }>;
     station_blocks?: Array<{ type: string; label: string; description: string }>;
-    dashboard_instruments?: Array<{ type: string; label: string; instrument?: string; description: string }>;
+    board_instruments?: Array<{ type: string; label: string; instrument?: string; description: string }>;
   } | null,
   fallbackNames?: string[],
 ): BlockCardInfo[] {
@@ -307,7 +307,7 @@ export function buildToolkitBlockCards(
 
   for (const b of inspectData?.flow_blocks ?? []) push(b, "flow");
   for (const b of inspectData?.station_blocks ?? []) push(b, "station");
-  for (const b of inspectData?.dashboard_instruments ?? []) push(b, "board");
+  for (const b of inspectData?.board_instruments ?? []) push(b, "board");
 
   if (cards.length === 0 && fallbackNames?.length) {
     for (const raw of fallbackNames) {

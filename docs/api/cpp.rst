@@ -1,7 +1,7 @@
 C++ API
 =======
 
-A C++ backend includes one header, ``<paperboat/sdk.hpp>``, which brings everything below
+A C++ station includes one header, ``<paperboat/sdk.hpp>``, which brings everything below
 into namespace ``paperboat`` (``paperboat::Block``, ``paperboat::define_block``,
 ``paperboat::main``…). Headers it doesn't include may change. Link ``paperboat::core``.
 
@@ -10,7 +10,7 @@ into namespace ``paperboat`` (``paperboat::Block``, ``paperboat::define_block``,
 The SDK
 -------
 
-A backend builds against the engine in one of two ways:
+A station builds against the engine in one of two ways:
 
 * **From a checkout**: ``add_subdirectory(<paperboat>/engine paperboat EXCLUDE_FROM_ALL)``.
 * **From an installed package**: ``find_package(Paperboat 0.1 CONFIG REQUIRED)``. The SDK is the
@@ -20,7 +20,7 @@ A backend builds against the engine in one of two ways:
   ``paperboat::toolkit_<name>``.
 
 Either way the targets are ``paperboat::core`` (links ``paperboat::toolkit``) and ``paperboat::warnings``
-(the engine's warning flags). The version check is ``SameMinorVersion``: a backend that asks for 0.1
+(the engine's warning flags). The version check is ``SameMinorVersion``: a station that asks for 0.1
 needs a 0.1.x SDK. On Windows the SDK uses the static runtime (``/MT``); its config sets
 ``CMAKE_MSVC_RUNTIME_LIBRARY`` to match unless you set it.
 
@@ -114,7 +114,7 @@ API Quick Reference
      - Reads and validates ``descriptor.toml`` against the registry.
    * -
      - :cpp:func:`main`
-     - Standard CLI entrypoint launching backend server processes.
+     - Standard CLI entrypoint launching station server processes.
    * -
      - :cpp:func:`serve`
      - High-performance WebSocket and HTTP server loop.
@@ -240,7 +240,7 @@ initializers may leave any out.
 
    .. cpp:enumerator:: Monitor
 
-      Shows a value on the Dashboard as an instrument.
+      Shows a value on the Board as an instrument.
 
 .. cpp:struct:: BlockDef
 
@@ -672,7 +672,7 @@ What runs
 .. cpp:class:: DomainState
 
    What a domain's blocks share during a run (a game, a document, a physical system).
-   The engine makes one per run (``Backend::state``), hands it to blocks in
+   The engine makes one per run (``Station::state``), hands it to blocks in
    ``Context::state``, steps it after each clocked pass and draws it.
 
    .. cpp:function:: virtual std::vector<Entity> entities() const
@@ -822,7 +822,7 @@ Solvers
 .. cpp:struct:: solve::Defaults
 
    The run's solver: ``name`` (``"rk4"``) and ``options``, from ``graph.run``'s settings (the
-   Run menu's solver and Solver settings) over the backend's (``backend.toml`` ``[run]``). A run
+   Run menu's solver and Solver settings) over the station's (``station.toml`` ``[run]``). A run
    sets them on its own thread before it makes its blocks and objects.
 
 .. cpp:function:: void solve::set_defaults(Defaults defaults)
@@ -1056,7 +1056,7 @@ Registering
 
 .. cpp:function:: const Registry &builtins()
 
-   Every built-in template (packages ``base``, ``signal``, ``math``, ``dashboard``,
+   Every built-in template (packages ``base``, ``signal``, ``math``, ``board``,
    ``step``). Copy it and add the domain's own; optional external toolkits such
    as ``control`` (``paperboat-toolkit-control``), ``opencv`` (``paperboat-toolkit-opencv``)
    and ``optimization`` (``paperboat-toolkit-optimization``) register with
@@ -1077,7 +1077,7 @@ shared library named ``libpaperboat_plugin_<name>`` with one line of C++:
    PAPERBOAT_TOOLKIT_PLUGIN(paperboat::toolkit::opencv::register_opencv)
 
 The engine build makes one for every toolkit under ``engine/toolkit/<name>``. A host calls
-``paperboat::toolkit::load_plugins(registry)`` after ``builtins()``; the CLI and the workbench do. It
+``paperboat::toolkit::load_plugins(registry)`` after ``builtins()``; the CLI and the scratchpad do. It
 searches ``$PAPERBOAT_TOOLKIT_PATH``, ``$PAPERBOAT_HOME/toolkits``, the running binary's build tree and
 an installed ``lib/paperboat/plugins``, skips a package the registry already has, and refuses a plugin
 built for another paperboat version or C++ standard library (``PAPERBOAT_PLUGIN_ABI``) with a message
@@ -1154,9 +1154,9 @@ Serving
    ``base`` with a ``graph.run``'s ``settings`` on top (any but ``mode``). Throws
    ``std::invalid_argument`` for a value out of range; a run with one fails before it starts.
 
-.. cpp:struct:: Backend
+.. cpp:struct:: Station
 
-   What a backend is made of.
+   What a station is made of.
 
    .. cpp:member:: std::string engine
 
@@ -1176,25 +1176,25 @@ Serving
 
    .. cpp:member:: std::function<std::unique_ptr<Executor>(const Graph&, const RunSettings&)> executor
 
-      Optional: a run style of the backend's own for this graph (return ``nullptr`` to leave
-      it to :cpp:func:`default_executor`). Most backends leave it empty.
+      Optional: a run style of the station's own for this graph (return ``nullptr`` to leave
+      it to :cpp:func:`default_executor`). Most stations leave it empty.
 
-.. cpp:function:: int main(const Backend &backend, int argc, char **argv, int default_port)
+.. cpp:function:: int main(const Station &station, int argc, char **argv, int default_port)
 
-   What a backend's ``main()`` returns: ``--port N`` serves the protocol (and a web
+   What a station's ``main()`` returns: ``--port N`` serves the protocol (and a web
    station) there until the process ends; ``--run`` runs the starter once, headless, and
    prints every message as a JSON line (exit 0 when done, 1 when failed).
 
-.. cpp:function:: int serve(const Backend &backend, int port)
+.. cpp:function:: int serve(const Station &station, int port)
 
-.. cpp:function:: std::string run_starter(const Backend &backend, std::ostream &out)
+.. cpp:function:: std::string run_starter(const Station &station, std::ostream &out)
 
 .. cpp:class:: Server
 
    The server, started and stopped by its owner (a host with its own main loop, such as
    the Python bindings): ``start()`` returns ``""`` when listening, else why not; ``stop()``.
 
-.. cpp:function:: std::string run(const std::string &id, const json &graph, const json &station, const Backend &backend, const Emit &emit, const KeysNow &keys, const std::stop_token &stop)
+.. cpp:function:: std::string run(const std::string &id, const json &graph, const json &station, const Station &cfg, const Emit &emit, const KeysNow &keys, const std::stop_token &stop)
 
    One run, without sockets: every event goes to ``emit``. Returns ``"done"``, ``"failed"``
    or ``"cancelled"``. For tests (with ``real_time = false``). Its last parameters (optional)
@@ -1225,8 +1225,8 @@ Serving
 Run styles
 ----------
 
-``<paperboat/core/executor.hpp>``. A backend needn't know about these: the core picks the
-executor for each graph (:cpp:func:`default_executor`). They are for a backend whose runs
+``<paperboat/core/executor.hpp>``. A station needn't know about these: the core picks the
+executor for each graph (:cpp:func:`default_executor`). They are for a station whose runs
 fit none of the three, such as an event-driven one or an external solver. Its executor
 drives the same :cpp:class:`Run`, so blocks, monitors, the station and the UI work as
 always.

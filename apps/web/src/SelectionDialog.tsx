@@ -93,7 +93,7 @@ export function SelectionDialog({ pickedNodes, pickedBlocks, pickedWires, picked
         </button>
       </div>
       {kept > 0 && (
-        <span className="lbl kept" title="Linked blocks come from the backend's own graph">
+        <span className="lbl kept" title="Linked blocks come from the station's own graph">
           {kept} linked {kept === 1 ? "block stays" : "blocks stay"}
         </span>
       )}

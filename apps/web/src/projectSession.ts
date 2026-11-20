@@ -1,10 +1,10 @@
 // Projects (#82): the whole session as one file. Its title and file, whether it is saved, opening
-// (with one Undo), saving, recent projects, a project dropped on the window or sent by the backend,
+// (with one Undo), saving, recent projects, a project dropped on the window or sent by the station,
 // and the autosave offered back after a reload. What a project holds is put in place by `load`.
 
 import { useEffect, useRef, useState } from "react";
 import type { EngineState } from "./engine";
-import type { DashboardLayout, FlowType, Project, RunSettings, ServerMsg, Station, Variables } from "./protocol";
+import type { BoardLayout, FlowType, RunSettings, ServerMsg, Station, StationFlow, Variables } from "./protocol";
 import { addRecent, ago, buildProject, clearAutosave, loadAutosave, loadRecent, parseProject, projectFileName, projectName, saveAutosave, saveRecent, stringify, type Stored } from "./project";
 import { draggingFiles, droppedText, pickText, saveText, type FileHandle } from "./projectFiles";
 import type { NoticeSpec } from "./ProjectUI";
@@ -18,7 +18,7 @@ export type ProjectParts = {
   edges: Wire[];
   station: Station | null;
   variables: Variables;
-  dashSaved: DashboardLayout | undefined;
+  dashSaved: BoardLayout | undefined;
   runSettings: RunSettings;
   projectLock: LockConfig | null;
   /** The Flow sheet's flow type, if one was chosen (#9). */
@@ -30,11 +30,11 @@ export function useProjectSession(
   subscribe: (f: (m: ServerMsg) => void) => () => void,
   log: (level: "info" | "warn" | "error", text: string) => void,
   { nodes, edges, station, variables, dashSaved, runSettings, projectLock, flowChoice }: ProjectParts,
-  load: (p: Project) => void,
+  load: (p: StationFlow) => void,
 ) {
-  // A project is the Flow, the Station, the variables, the Dashboard layout and the run settings. `projectKey` is
+  // A project is the Flow, the Station, the variables, the Board layout and the run settings. `projectKey` is
   // that, as text, a moment after the last change; it is "unsaved" while it differs from `baseline`, which is
-  // what the backend started with, or what was last saved or opened.
+  // what the station started with, or what was last saved or opened.
   const [projectTitle, setProjectTitle] = useState("Untitled");
   /** The name last loaded or saved; a rename is unsaved until the next save. */
   const [savedTitle, setSavedTitle] = useState("Untitled");
@@ -46,17 +46,17 @@ export function useProjectSession(
   const [restoreChecked, setRestoreChecked] = useState(false);
   const [baseline, setBaseline] = useState<string | null>(null);
   const [projectKey, setProjectKey] = useState("");
-  const snapshot = (): Project =>
+  const snapshot = (): StationFlow =>
     buildProject({
-      backend: state.engine,
+      station: state.engine,
       flow: toFlow(nodes, edges, flowChoice),
-      station,
+      station_objects: station,
       variables,
-      dashboard: dashSaved,
+      board: dashSaved,
       run: runSettings,
       ui: projectLock ? { lock: projectLock } : undefined,
     });
-  const latestProject = useRef<Project | null>(null);
+  const latestProject = useRef<StationFlow | null>(null);
   const dirty = baseline !== null && projectKey !== "" && (projectKey !== baseline || projectTitle !== savedTitle);
   const live = useRef({ snapshot, projectTitle, baseline, dirty, state });
   live.current = { snapshot, projectTitle, baseline, dirty, state };
@@ -70,7 +70,7 @@ export function useProjectSession(
     }, 250);
     return () => window.clearTimeout(t);
   }, [nodes, edges, station, variables, dashSaved, runSettings, projectLock, flowChoice, state.engine]); // eslint-disable-line react-hooks/exhaustive-deps -- `snapshot` reads exactly these
-  // Another backend: a new, unnamed project.
+  // Another station: a new, unnamed project.
   useEffect(() => {
     setProjectTitle("Untitled");
     setSavedTitle("Untitled");
@@ -79,7 +79,7 @@ export function useProjectSession(
     setRestoreChecked(false);
     setLastSession(undefined);
   }, [state.engine]);
-  // The backend loaded its starter again: with nothing changed, clean is whatever that settles to.
+  // The station loaded its starter again: with nothing changed, clean is whatever that settles to.
   useEffect(() => {
     if (!live.current.dirty) setBaseline(null);
   }, [state.loaded]);
@@ -93,24 +93,24 @@ export function useProjectSession(
   }, [projectTitle, dirty]);
 
   /** Put a project in place of what is open. `rebase`: what counts as unsaved against (null: what is loaded). */
-  const applyProject = (p: Project, name: string, rebase: string | null = null) => {
+  const applyProject = (p: StationFlow, name: string, rebase: string | null = null) => {
     load(p);
     setProjectTitle(name);
     setSavedTitle(name);
     setBaseline(rebase);
   };
-  // The backend can send an initial project on connect (#126).
+  // The station can send an initial flow on connect (#126).
   useEffect(
     () =>
       subscribe((m) => {
-        if (m.type === "project.load") {
-          const name = m.name || projectName(m.project.backend || "project");
-          applyProject(m.project, name);
+        if (m.type === "psf.load") {
+          const name = m.name || projectName(m.psf.station || "flow");
+          applyProject(m.psf, name);
         }
       }),
     [subscribe, state.blocks, state.station],
   );
-  const remember = (p: Project, name: string) =>
+  const remember = (p: StationFlow, name: string) =>
     setRecent((prev) => {
       const next = addRecent(prev, { name, savedAt: Date.now(), project: p });
       saveRecent(next);
@@ -121,10 +121,10 @@ export function useProjectSession(
     log("error", `${title}: ${msg}`);
   };
 
-  /** Open a project, after a word if it comes from another backend or replaces unsaved changes; one Undo brings back what was open. */
-  const openProject = (p: Project, name: string) => {
+  /** Open a flow, after a word if it comes from another station or replaces unsaved changes; one Undo brings back what was open. */
+  const openProject = (p: StationFlow, name: string) => {
     const warnings: string[] = [];
-    if (p.backend !== state.engine) warnings.push(`This project was made on “${p.backend}” and you are connected to “${state.engine}”. Blocks this backend lacks stay as lost blocks, with their params and wires.`);
+    if (p.station !== state.engine) warnings.push(`This project was made on “${p.station}” and you are connected to “${state.engine}”. Blocks this station lacks stay as lost blocks, with their params and wires.`);
     if (live.current.dirty) warnings.push("The open project has unsaved changes. Opening replaces them; Undo brings them back.");
     const go = () => {
       const { snapshot: before, projectTitle: beforeTitle, baseline: beforeBase } = live.current;
@@ -175,7 +175,7 @@ export function useProjectSession(
       fail("Can't save", e);
     }
   };
-  // A rename is a project change: next Save writes the new .ppj name (and asks for it, since
+  // A rename is a project change: next Save writes the new .psf name (and asks for it, since
   // an existing file handle still points at the old file).
   const renameProject = (name: string) => {
     const next = name.trim();
@@ -217,11 +217,11 @@ export function useProjectSession(
       text: [`“${s.name}”, ${ago(s.savedAt, Date.now())}, had changes that weren't saved.`],
       actions: [
         { label: "Restore", primary: true, run: () => restore(s) },
-        { label: "Discard", run: () => (clearAutosave(s.project.backend), setLastSession(undefined)) },
+        { label: "Discard", run: () => (clearAutosave(s.project.station), setLastSession(undefined)) },
         { label: "Not now" },
       ],
     });
-  }, [baseline, restoreChecked, state.engine]); // eslint-disable-line react-hooks/exhaustive-deps -- once per backend
+  }, [baseline, restoreChecked, state.engine]); // eslint-disable-line react-hooks/exhaustive-deps -- once per station
   useEffect(() => {
     if (!restoreChecked || !state.engine || baseline === null || !latestProject.current) return;
     if (dirty) saveAutosave(state.engine, { name: projectTitle, savedAt: Date.now(), project: latestProject.current });

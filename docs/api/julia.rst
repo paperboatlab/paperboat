@@ -1,9 +1,9 @@
-Julia backends
+Julia stations
 ==============
 
-A backend's domain code can be Julia. The engine (C++) still loads the descriptor, checks
+A station's domain code can be Julia. The engine (C++) still loads the descriptor, checks
 graphs, runs the toolkit's blocks and serves the protocol; `Paperboat.jl` only answers the
-engine's events, so a Julia backend has no second graph runner, solver or renderer.
+engine's events, so a Julia station has no second graph runner, solver or renderer.
 
 How it fits
 -----------
@@ -94,7 +94,7 @@ event                         answer
 ``enter`` / ``tick``          a Step's arrival and its port to leave by
 ``read`` / ``entities``       a station object's outputs and shapes
 ``derivatives``               ``{"dx": [...]}``
-``state_entities`` / …        a domain state, when the backend declares one
+``state_entities`` / …        a domain state, when the station declares one
 ============================  ==========================================
 
 Values travel as JSON: numbers, text, lists of numbers, and tables (lists of rows). Opaque
@@ -110,5 +110,5 @@ Host library
 
    cmake --build engine/build --target paperboat_host
 
-A packaged backend ships ``Project.toml`` and ``Manifest.toml``; the environment itself
+A packaged station ships ``Project.toml`` and ``Manifest.toml``; the environment itself
 (``.julia/``) is not packed, the same rule as Python's ``.venv/``.

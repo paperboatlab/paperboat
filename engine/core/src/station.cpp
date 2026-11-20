@@ -10,8 +10,8 @@ namespace {
 constexpr double kLane = 1.2;  // m between station objects in depth, so they don't overlap
 }
 
-Station make_station(const json& station, const toolkit::Catalog& catalog) {
-  Station out;
+StationObjects make_station(const json& station, const toolkit::Catalog& catalog) {
+  StationObjects out;
   if (station.is_null()) return out;
   std::set<std::string> ids;
   for (const auto& o : station.at("objects")) {
@@ -28,7 +28,7 @@ Station make_station(const json& station, const toolkit::Catalog& catalog) {
         props[p.id] = number_param(given, p.id, p.default_value);
       } else {
         std::string text = given.value(p.id, p.default_text);
-        // A file is named relative to the descriptor, so a backend runs from anywhere.
+        // A file is named relative to the descriptor, so a station runs from anywhere.
         if (p.type == "file" && !text.empty() && std::filesystem::path(text).is_relative())
           text = (catalog.dir / text).string();
         props[p.id] = text;
@@ -73,7 +73,7 @@ json entity_json(const toolkit::Entity& e) {
   return out;
 }
 
-json scene_of(const Station& station) {
+json scene_of(const StationObjects& station) {
   json out = json::array();
   for (std::size_t i = 0; i < station.size(); ++i) {
     for (const auto& e : station[i].instance->entities(station[i].id, -kLane * static_cast<double>(i))) {

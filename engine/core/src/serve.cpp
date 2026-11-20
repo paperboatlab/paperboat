@@ -1,5 +1,5 @@
 // The transport: one Session per WebSocket connection, and plain HTTP on the same port for
-// a web station (the backend's own page, GUIDELINES §6.4) and its bridge script. The only
+// a web station (the station's own page, GUIDELINES §6.4) and its bridge script. The only
 // file that knows sockets.
 
 #include <chrono>
@@ -19,8 +19,8 @@
 
 #include "paperboat/toolkit/installer.hpp"
 #include "paperboat/toolkit/platform.hpp"
-#include "paperboat/core/backend.hpp"
-#include "paperboat/core/backend_manager.hpp"
+#include "paperboat/core/server.hpp"
+#include "paperboat/core/station_manager.hpp"
 
 namespace paperboat::core {
 
@@ -64,10 +64,10 @@ std::string decode(const std::string& uri) {
 
 // GET /paperboat/station.js: the bridge. GET /<page's folder>/…: a file of the web station,
 // only from inside that folder. Everything else is 404: the engine is not a file server.
-ix::HttpResponsePtr http(const Backend& backend, const ix::HttpRequestPtr& request) {
+ix::HttpResponsePtr http(const Station& station, const ix::HttpRequestPtr& request) {
   const std::string path = decode(request->uri.substr(0, request->uri.find('?')));
   if (path == "/paperboat/station.js") return respond(200, "text/javascript; charset=utf-8", kStationJs);
-  const auto& catalog = *backend.catalog;
+  const auto& catalog = *station.catalog;
   if (catalog.station_page.empty() || path.size() < 2) return respond(404, "text/plain", "not found\n");
   std::error_code ec;
   const fs::path root = fs::weakly_canonical(catalog.dir / fs::path(catalog.station_page).parent_path(), ec);
@@ -90,10 +90,10 @@ int serve_files(const fs::path& dir, int port, const std::string& host) {
   ix::HttpServer server(port, host);
   server.setOnConnectionCallback([&root](const ix::HttpRequestPtr& request, const std::shared_ptr<ix::ConnectionState>&) {
     std::string path = decode(request->uri.substr(0, request->uri.find('?')));
-    // The Backend dialog lists what is running, like `paperboat list --json` does.
-    if (path == "/__paperboat/backends") {
+    // The Station dialog lists what is running, like `paperboat list --json` does.
+    if (path == "/__paperboat/stations") {
       nlohmann::json out = nlohmann::json::array();
-      for (const auto& b : BackendManager::list_running_backends()) {
+      for (const auto& b : StationManager::list_running_stations()) {
         out.push_back({{"name", b.domain.empty() ? b.engine : b.domain},
                        {"engine", b.engine},
                        {"domain", b.domain},
@@ -102,9 +102,9 @@ int serve_files(const fs::path& dir, int port, const std::string& host) {
       }
       return respond(200, "application/json", out.dump());
     }
-    // What each backend is doing, starting ones included (pb#332), as `paperboat status --json` gives it:
-    // the wait screen polls it while its backend builds.
-    if (path == "/__paperboat/status") return respond(200, "application/json", BackendManager::status_json());
+    // What each station is doing, starting ones included (pb#332), as `paperboat status --json` gives it:
+    // the wait screen polls it while its station builds.
+    if (path == "/__paperboat/status") return respond(200, "application/json", StationManager::status_json());
     // Toolkits installed into a release (pb#353): the web parts `toolkit install` bundled, which the
     // app imports at startup, and their files.
     const std::string tk_prefix = "/__paperboat/toolkits";
@@ -159,8 +159,8 @@ int serve_files(const fs::path& dir, int port, const std::string& host) {
 }
 
 struct Server::State {
-  State(const Backend& b, int p) : backend(b), port(p), server(p, "127.0.0.1") {}
-  const Backend& backend;
+  State(const Station& b, int p) : station(b), port(p), server(p, "127.0.0.1") {}
+  const Station& station;
   int port;
   ix::HttpServer server;  // also upgrades WebSocket connections, on the same port
   std::mutex mutex;
@@ -195,7 +195,7 @@ struct Server::State {
   }
 };
 
-Server::Server(const Backend& backend, int port) : state_(std::make_unique<State>(backend, port)) {
+Server::Server(const Station& station, int port) : state_(std::make_unique<State>(station, port)) {
   ix::initNetSystem();
   auto& s = *state_;
   s.server.setOnConnectionCallback(
@@ -211,7 +211,7 @@ Server::Server(const Backend& backend, int port) : state_(std::make_unique<State
           response->headers["Access-Control-Allow-Origin"] = "*";
           return response;
         }
-        return http(s.backend, request);
+        return http(s.station, request);
       });
   s.server.setOnClientMessageCallback(
       [&s](std::shared_ptr<ix::ConnectionState> conn, ix::WebSocket& ws, const ix::WebSocketMessagePtr& msg) {
@@ -219,7 +219,7 @@ Server::Server(const Backend& backend, int port) : state_(std::make_unique<State
         if (msg->type == ix::WebSocketMessageType::Open) {
           // sendText is thread-safe in IXWebSocket, so runs can send from their own thread.
           auto session = std::make_unique<Session>(
-              s.backend, [&ws](const std::string& text) { ws.sendText(text); },
+              s.station, [&ws](const std::string& text) { ws.sendText(text); },
               [&s, id](const json& variables) { s.publish_remote(id, variables); });
           Session* created = nullptr;
           json remote_snapshot;
@@ -240,7 +240,7 @@ Server::Server(const Backend& backend, int port) : state_(std::make_unique<State
           }
           s.clear_remote(id);
           // A run's own send can be what finds the socket closed: this callback then runs on the
-          // run's thread, which can't join itself (that aborted the backend). Mute the session and
+          // run's thread, which can't join itself (that aborted the station). Mute the session and
           // let another thread stop and join it.
           if (gone && gone->on_own_thread()) {
             gone->close();
@@ -263,21 +263,21 @@ std::string Server::start() {
   if (auto [ok, error] = state_->server.listen(); !ok) return error;
   state_->server.start();
 
-  const auto* cat = state_->backend.catalog;
-  RunningBackend rb;
+  const auto* cat = state_->station.catalog;
+  RunningStation rb;
   rb.port = state_->port;
   rb.pid = platform::current_pid();
-  rb.engine = state_->backend.engine;
+  rb.engine = state_->station.engine;
   rb.domain = cat ? cat->domain : "";
   rb.cwd = std::filesystem::current_path();
-  rb.backend_dir = cat ? cat->dir : std::filesystem::path{};
+  rb.station_dir = cat ? cat->dir : std::filesystem::path{};
   rb.executable = "";
   rb.ws_url = "ws://localhost:" + std::to_string(state_->port);
   rb.started_at = 0;
-  BackendManager::register_running_backend(rb);
+  StationManager::register_running_station(rb);
 
   set_restart_handler([this] {
-    BackendManager::unregister_running_backend(state_->port);
+    StationManager::unregister_running_station(state_->port);
     state_->server.stop();
     exec_remembered_args();
   });
@@ -285,20 +285,20 @@ std::string Server::start() {
 }
 
 void Server::stop() {
-  BackendManager::unregister_running_backend(state_->port);
+  StationManager::unregister_running_station(state_->port);
   set_restart_handler(nullptr);
   state_->server.stop();
   std::lock_guard lock(state_->mutex);
   state_->sessions.clear();
 }
 
-int serve(const Backend& backend, int port) {
-  Server server(backend, port);
+int serve(const Station& station, int port) {
+  Server server(station, port);
   if (auto error = server.start(); !error.empty()) {
     std::cerr << "cannot listen on port " << port << ": " << error << '\n';
     return 1;
   }
-  std::cout << "paperboat backend (" << backend.engine << ") on ws://localhost:" << port << std::endl;
+  std::cout << "paperboat station (" << station.engine << ") on ws://localhost:" << port << std::endl;
   for (;;) std::this_thread::sleep_for(std::chrono::hours(1));
 }
 

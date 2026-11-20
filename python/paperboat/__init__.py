@@ -1,6 +1,6 @@
-"""Paperboat for Python: write a backend's domain code in Python on the C++ engine.
+"""Paperboat for Python: write a station's domain code in Python on the C++ engine.
 
-The engine (C++, bound as `paperboat._engine`) does everything a backend does: it loads
+The engine (C++, bound as `paperboat._engine`) does everything a station does: it loads
 the descriptor, checks and runs graphs (Signal flow on a clock, Step flow, run-once),
 runs the toolkit's blocks and serves the protocol. Python adds only the domain's own
 code, as subclasses of the classes below. A class's attributes define it (what the UI
@@ -19,7 +19,7 @@ shows); its methods are what the engine calls:
                 ctx.log("jump!")             # to the Console, tagged with this block
             return {}
 
-    paperboat.serve(paperboat.Backend(engine="runner", descriptor=…, blocks=[Jump, …],
+    paperboat.serve(paperboat.Station(engine="runner", descriptor=…, blocks=[Jump, …],
                                       state=Game, port=8768))
 
 The blocks become the domain's package (named after the descriptor's `domain`), so the
@@ -49,7 +49,7 @@ except ImportError as err:
 Vector = list[float]
 
 __all__ = [
-    "Backend", "Block", "Context", "DomainState", "Entity", "Generator", "Handle", "Linked", "Model", "Monitor", "ODE", "Param",
+    "Station", "Block", "Context", "DomainState", "Entity", "Generator", "Handle", "Linked", "Model", "Monitor", "ODE", "Param",
     "Port", "StationObject", "Step", "Timed", "Vector", "VectorComponent", "numbers_port", "ode", "points_port", "scene", "serve", "solve",
     "vector_port",
 ]
@@ -157,7 +157,7 @@ class Block:
     elementwise: bool = False
     # True for a block whose outputs depend on nothing but its params, its inputs and the
     # variables it reads through ctx.variable() (no clock, keys, ctx.state, randomness, files
-    # or other side effects): a backend with mode="once" then reuses its outputs from the last
+    # or other side effects): a station with mode="once" then reuses its outputs from the last
     # run while none of those changed (its node.state is then "done" with no "running"). None or
     # False: called every run.
     cacheable: bool | None = None
@@ -189,7 +189,7 @@ class Generator(Block):
 
 
 class Monitor(Block):
-    """Shows its input on the Dashboard as an instrument (graph, display, image). Override
+    """Shows its input on the Board as an instrument (graph, display, image). Override
     step() to show something else: return {"value": …}."""
 
     kind = "monitor"
@@ -414,7 +414,7 @@ class DomainState:
 
 
 @dataclass
-class Backend:
+class Station:
     engine: str                                  # the name in `hello`
     descriptor: Path                             # its descriptor.toml
     blocks: list[type] = field(default_factory=list)   # the domain's Block, Monitor and Step classes
@@ -428,32 +428,32 @@ class Backend:
     view: dict | None = None                     # the scene's camera hint, e.g. {"mode": "2d", …}
     connectors: dict | None = None               # Modelica connector definitions (§4), keyed by short name
     port: int = 8765
-    solver: str = ""                             # default solver: rk4 | rk45 | rk2 | euler | discrete | cvode | ida ("": backend.toml's, else rk4)
+    solver: str = ""                             # default solver: rk4 | rk45 | rk2 | euler | discrete | cvode | ida ("": station.toml's, else rk4)
 
 
-def serve(backend: Backend) -> None:
-    """The backend's command line (the engine's): serve on `--port N` until Ctrl+C, or with
+def serve(station: Station) -> None:
+    """The station's command line (the engine's): serve on `--port N` until Ctrl+C, or with
     `--run`, run the starter once headless, print each protocol message as a JSON line and
     exit (0 when the run is done)."""
     remember_args([sys.executable, *sys.argv])
     try:
-        port, run, variables, duration = options(sys.argv, backend.port)
+        port, run, variables, duration = options(sys.argv, station.port)
     except ValueError as err:
         print(err, file=sys.stderr)
         sys.exit(2)
-    hosted = make(backend.engine, str(backend.descriptor), list(backend.blocks), list(backend.objects), backend.state,
-                  backend.mode, backend.dt, backend.duration, backend.emit_every, backend.view, backend.speed, backend.solver,
-                  backend.connectors)
+    hosted = make(station.engine, str(station.descriptor), list(station.blocks), list(station.objects), station.state,
+                  station.mode, station.dt, station.duration, station.emit_every, station.view, station.speed, station.solver,
+                  station.connectors)
     if run:
         try:
             status = hosted.run_starter(variables, duration)
-        except ValueError as err:  # a --var the backend doesn't have
+        except ValueError as err:  # a --var the station doesn't have
             print(err, file=sys.stderr)
             sys.exit(2)
         sys.stdout.flush()
         os._exit(0 if status == "done" else 1)
     hosted.listen(port)
-    print(f"paperboat backend ({backend.engine}) on ws://localhost:{port}", flush=True)
+    print(f"paperboat station ({station.engine}) on ws://localhost:{port}", flush=True)
     try:
         while True:
             time.sleep(3600)

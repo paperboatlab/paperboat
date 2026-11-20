@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { availableSolvers, settingsForScope, SOLVERS } from "../src/solvers.ts";
 
-test("a backend that does not announce its solvers offers all of them", () => {
+test("a station that does not announce its solvers offers all of them", () => {
   assert.deepEqual(availableSolvers({}), SOLVERS);
 });
 

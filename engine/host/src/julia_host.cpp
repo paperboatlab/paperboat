@@ -1,4 +1,4 @@
-// A backend whose domain code lives in another runtime (Julia): the engine reads a JSON
+// A station whose domain code lives in another runtime (Julia): the engine reads a JSON
 // description of the block and station object types, then raises events the host answers on
 // its own thread. The engine runs on its worker threads; every call crosses to the host
 // through the pump below, so Julia is never entered from an engine thread.
@@ -24,7 +24,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
 #include "paperboat/toolkit/model.hpp"
 #include "paperboat/toolkit/registry.hpp"
@@ -204,7 +204,7 @@ struct Runtime {
   // The engine's objects outlive every run: the handle owns them.
   tk::Registry registry;
   tk::Catalog catalog;
-  core::Backend backend;
+  core::Station station;
   std::unique_ptr<core::Server> server;
   std::thread runner;
 
@@ -427,14 +427,14 @@ void add_block(tk::Registry& registry, Runtime& runtime, const std::string& doma
 }
 
 void add_object(tk::Registry& registry, Runtime& runtime, const std::string& domain, const json& item,
-                const std::string& backend_solver) {
+                const std::string& station_solver) {
   tk::StationTemplate t;
   t.def = object_def_from_json(item);
   t.name = domain + "/" + t.def.type;
   const std::string base = item.value("base", "object");
   const std::string type = t.def.type;
   if (base == "model") {
-    const std::string fallback = item.value("solver", backend_solver);
+    const std::string fallback = item.value("solver", station_solver);
     t.make = [&runtime, fallback, type](const tk::Values& props) -> std::unique_ptr<tk::StationObject> {
       const int id = runtime.ids.fetch_add(1);
       const json created = runtime.instance(id, props, {}, {{"type", type}, {"base", "model"}});
@@ -481,12 +481,12 @@ pb_host* pb_host_new(const char* config_text, int run_only) {
     }
 
     runtime->catalog = tk::load_descriptor_file(descriptor, runtime->registry);
-    runtime->backend.engine = config.value("engine", "julia");
-    runtime->backend.catalog = &runtime->catalog;
-    runtime->backend.view = config.contains("view") ? config["view"] : json(nullptr);
-    runtime->backend.initial_project = config.contains("project") ? config["project"] : json(nullptr);
-    runtime->backend.initial_project_name = config.value("project_name", "");
-    runtime->backend.run = {
+    runtime->station.engine = config.value("engine", "julia");
+    runtime->station.catalog = &runtime->catalog;
+    runtime->station.view = config.contains("view") ? config["view"] : json(nullptr);
+    runtime->station.initial_psf = config.contains("psf") ? config["psf"] : json(nullptr);
+    runtime->station.initial_psf_name = config.value("psf_name", "");
+    runtime->station.run = {
         .mode = config.value("mode", "clock") == "once" ? core::RunSettings::Mode::Once
                                                         : core::RunSettings::Mode::Clock,
         .dt = config.value("dt", 0.01),
@@ -500,19 +500,19 @@ pb_host* pb_host_new(const char* config_text, int run_only) {
     if (config.value("state", false)) {
       const int id = runtime->ids.fetch_add(1);
       runtime->invoke(id, "new", json::object());
-      runtime->backend.state = [runtime = runtime.get(), id]() -> std::unique_ptr<tk::DomainState> {
+      runtime->station.state = [runtime = runtime.get(), id]() -> std::unique_ptr<tk::DomainState> {
         return std::make_unique<HostState>(*runtime, id);
       };
     }
 
     if (run_only) {
       runtime->runner = std::thread([runtime = runtime.get()] {
-        const std::string status = core::run_starter(runtime->backend, std::cout);
+        const std::string status = core::run_starter(runtime->station, std::cout);
         if (status != "done") runtime->failed = true;
         runtime->finish();
       });
     } else {
-      runtime->server = std::make_unique<core::Server>(runtime->backend, config.value("port", 0));
+      runtime->server = std::make_unique<core::Server>(runtime->station, config.value("port", 0));
       const std::string error = runtime->server->start();
       if (!error.empty()) throw std::runtime_error("cannot listen: " + error);
     }

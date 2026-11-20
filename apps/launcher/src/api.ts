@@ -12,7 +12,7 @@ export interface InspectResult {
   installed: boolean;
   station_blocks?: Array<{ type: string; label: string; description: string }>;
   flow_blocks?: Array<{ type: string; label: string; description: string }>;
-  dashboard_instruments?: Array<{ type: string; label: string; instrument: string; description: string }>;
+  board_instruments?: Array<{ type: string; label: string; instrument: string; description: string }>;
 }
 
 interface ElectronBridge {
@@ -24,13 +24,13 @@ interface ElectronBridge {
   fetchVersions: (kind: "app" | "toolkit", name: string) => Promise<{ versions: string[] }>;
   inspectToolkit: (name: string) => Promise<InspectResult>;
   setChannel: (channel: Channel) => Promise<{ ok: boolean; channel: Channel }>;
-  removeBackendDir: (dir: string) => Promise<{ ok: boolean; error?: string }>;
-  pickFile: (kind: "ppk" | "ppj" | "dir") => Promise<{ ok: boolean; path: string; cancelled: boolean }>;
+  removeStationDir: (dir: string) => Promise<{ ok: boolean; error?: string }>;
+  pickFile: (kind: "pst" | "psf" | "dir") => Promise<{ ok: boolean; path: string; cancelled: boolean }>;
   openExternalUrl: (url: string) => Promise<{ ok: boolean }>;
   openFolderPath: (dir: string) => Promise<{ ok: boolean }>;
   onLog: (fn: (entry: LauncherLogLine) => void) => () => void;
   onTasks: (fn: (list: LauncherTask[]) => void) => () => void;
-  onOpenPpk: (fn: (filePath: string) => void) => () => void;
+  onOpenPst: (fn: (filePath: string) => void) => () => void;
 }
 
 const bridge = (): ElectronBridge | undefined =>
@@ -74,8 +74,8 @@ export const inspectToolkit = (name: string) =>
 export const setChannel = (channel: Channel) =>
   bridge()?.setChannel(channel) ?? postJson<{ ok: boolean; channel: Channel }>("/__launcher/channel", { channel });
 
-export const removeBackendDir = (dir: string) =>
-  bridge()?.removeBackendDir(dir) ?? postJson<{ ok: boolean; error?: string }>("/__launcher/remove-backend", { dir });
+export const removeStationDir = (dir: string) =>
+  bridge()?.removeStationDir(dir) ?? postJson<{ ok: boolean; error?: string }>("/__launcher/remove-station", { dir });
 
 export const openExternalUrl = (url: string) =>
   bridge()?.openExternalUrl(url) ?? postJson<{ ok: boolean }>("/__launcher/open-url", { url });
@@ -83,19 +83,19 @@ export const openExternalUrl = (url: string) =>
 export const openFolderPath = (path: string) =>
   bridge()?.openFolderPath(path) ?? postJson<{ ok: boolean }>("/__launcher/open-path", { path });
 
-export const pickFile = (kind: "ppk" | "ppj" | "dir") =>
+export const pickFile = (kind: "pst" | "psf" | "dir") =>
   bridge()?.pickFile(kind) ?? postJson<{ ok: boolean; path: string; cancelled: boolean }>("/__launcher/pick-file", { kind });
 
 export const subscribeElectron = (handlers: {
   onLog: (entry: LauncherLogLine) => void;
   onTasks: (list: LauncherTask[]) => void;
-  onOpenPpk: (filePath: string) => void;
+  onOpenPst: (filePath: string) => void;
 }): (() => void) => {
   const b = bridge();
   if (!b) return () => {};
   const u1 = b.onLog(handlers.onLog);
   const u2 = b.onTasks(handlers.onTasks);
-  const u3 = b.onOpenPpk(handlers.onOpenPpk);
+  const u3 = b.onOpenPst(handlers.onOpenPst);
   return () => {
     u1();
     u2();

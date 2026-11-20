@@ -352,7 +352,7 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
           multiSelectionKeyCode={["Control", "Meta"]}
           selectionKeyCode={["Control", "Meta"]} // Ctrl-drag on the canvas draws a box…
           selectionMode={SelectionMode.Partial} // …and picks every block it touches; a plain drag pans
-          panActivationKeyCode={null} // Space belongs to the backend (Key blocks)
+          panActivationKeyCode={null} // Space belongs to the station (Key blocks)
           onNodeDragStart={() => setBusy(true)}
           onNodeDragStop={() => setBusy(false)}
           onSelectionDragStart={() => setBusy(true)}

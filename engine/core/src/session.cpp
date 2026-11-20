@@ -7,8 +7,8 @@
 #include <optional>
 #include <thread>
 
-#include "paperboat/core/backend.hpp"
-#include "paperboat/core/backend_manager.hpp"
+#include "paperboat/core/server.hpp"
+#include "paperboat/core/station_manager.hpp"
 #include "paperboat/core/cache.hpp"
 #include "paperboat/core/record.hpp"
 
@@ -23,25 +23,25 @@
 namespace paperboat::core {
 
 struct Session::State {
-  State(const Backend& b, Send s, Session::Remote r)
-      : backend(b),
+  State(const Station& b, Send s, Session::Remote r)
+      : spec(b),
         send(std::move(s)),
         remote(std::move(r)),
-        station(!b.initial_project.is_null() && b.initial_project.contains("station")
-                    ? b.initial_project["station"]
+        station(!b.initial_psf.is_null() && b.initial_psf.contains("station")
+                    ? b.initial_psf["station"]
                     : (b.catalog->station.empty() ? json() : json::parse(b.catalog->station))),
-        variables(!b.initial_project.is_null() && b.initial_project.contains("variables")
-                      ? b.initial_project["variables"]
+        variables(!b.initial_psf.is_null() && b.initial_psf.contains("variables")
+                      ? b.initial_psf["variables"]
                       : (b.catalog->variables.empty() ? json::array() : json::parse(b.catalog->variables))) {}
 
-  const Backend& backend;
+  const Station& spec;
   Send send;
   Session::Remote remote;  // variables.set from a live client (MX): the server shares them
   std::mutex mutex;  // guards keys, station and variables: the socket thread writes, the run thread reads
   toolkit::KeySet keys;
   toolkit::KeySet pressed;  // pressed since the run last read the keys: a short tap still shows for one pass
   json station;
-  json variables;  // the list (#36): the backend's defaults until the UI sets its own
+  json variables;  // the list (#36): the station's defaults until the UI sets its own
   std::optional<json> tuned;  // the list the UI sent during a run (#75), until the run takes it
   std::optional<double> speed;  // the speed the UI asked for during a run (run.speed, #219), until the run takes it
   int runs = 0;
@@ -138,7 +138,7 @@ struct Session::State {
   void log(const std::string& level, const std::string& text) {
     emit({{"type", "log"}, {"level", level}, {"text", text}});
   }
-  // The build this backend runs from: the nearest folder above its executable with a CMakeCache.txt,
+  // The build this station runs from: the nearest folder above its executable with a CMakeCache.txt,
   // found at run time (no build-machine path is compiled in, pb#177).
   toolkit::HostBuild host_build() const {
     std::error_code ec;
@@ -148,7 +148,7 @@ struct Session::State {
     }
     return {};
   }
-  std::filesystem::path repo_root() const { return toolkit::find_repo_root(backend.catalog->dir); }
+  std::filesystem::path repo_root() const { return toolkit::find_repo_root(spec.catalog->dir); }
   json current_toolkits(std::string_view busy_name = {}, std::string_view busy_state = {}, bool fetch_versions = false) {
     std::string bname(busy_name);
     std::string bstate(busy_state);
@@ -157,7 +157,7 @@ struct Session::State {
       bname = busy_toolkit;
       bstate = busy_action;
     }
-    const auto list = toolkit::list_toolkits(repo_root(), backend.catalog->dir, fetch_versions);
+    const auto list = toolkit::list_toolkits(repo_root(), spec.catalog->dir, fetch_versions);
     return json::parse(toolkit::toolkits_json(list, bname, bstate));
   }
   void emit_toolkits(std::string_view busy_name = {}, std::string_view busy_state = {}, bool fetch_versions = false) {
@@ -169,26 +169,26 @@ struct Session::State {
   void show(const json& with_station, const json& with_variables, bool report = false) {
     const toolkit::Variables vars(with_variables);
     if (report) emit({{"type", "variables.values"}, {"values", vars.values()}});
-    const auto objects = make_station(toolkit::resolve_station(with_station, *backend.catalog, vars), *backend.catalog);
-    const auto state = backend.state ? backend.state() : nullptr;
-    emit(scene_message(objects, state.get(), backend.view));
+    const auto objects = make_station(toolkit::resolve_station(with_station, *spec.catalog, vars), *spec.catalog);
+    const auto state = spec.state ? spec.state() : nullptr;
+    emit(scene_message(objects, state.get(), spec.view));
   }
 };
 
-Session::Session(const Backend& backend, Send send, Remote remote)
-    : state_(std::make_unique<State>(backend, std::move(send), std::move(remote))) {
+Session::Session(const Station& station, Send send, Remote remote)
+    : state_(std::make_unique<State>(station, std::move(send), std::move(remote))) {
   auto& s = *state_;
-  const auto& catalog = *backend.catalog;
+  const auto& catalog = *station.catalog;
   json station_view = {{"view", catalog.station_view}};
   if (!catalog.station_page.empty()) station_view["page"] = "/" + catalog.station_page;  // on this port, over HTTP
   if (!catalog.station_visible) station_view["visible"] = false;
   if (catalog.station_view == "scene") station_view["orientation"] = catalog.station_orientation;
   json hello = {{"type", "hello"},
                 {"protocol", "paperboat/0"},
-                {"engine", backend.engine},
+                {"engine", station.engine},
                 {"version", PAPERBOAT_VERSION},
                 {"station", station_view},
-                {"run", settings_json(backend.run)},
+                {"run", settings_json(station.run)},
                 {"flows", catalog.flows}};  // the flow types a sheet may be (#9)
   const json toolkits = s.current_toolkits(/*busy_name=*/{}, /*busy_state=*/{}, /*fetch_versions=*/true);
   if (!toolkits.empty()) hello["toolkits"] = toolkits;
@@ -204,10 +204,10 @@ Session::Session(const Backend& backend, Send send, Remote remote)
   if (!s.variables.empty()) s.emit({{"type", "variables.load"}, {"variables", s.variables}});
   s.emit({{"type", "graph.load"}, {"graph", json::parse(catalog.graph)}});
   if (!s.station.is_null()) s.emit({{"type", "station.load"}, {"station", s.station}});
-  if (!backend.initial_project.is_null() && backend.initial_project.is_object()) {
-    s.emit({{"type", "project.load"},
-            {"name", backend.initial_project_name},
-            {"project", backend.initial_project}});
+  if (!station.initial_psf.is_null() && station.initial_psf.is_object()) {
+    s.emit({{"type", "psf.load"},
+            {"name", station.initial_psf_name},
+            {"psf", station.initial_psf}});
   }
 }
 
@@ -227,9 +227,9 @@ void Session::on_message(const std::string& text) {
   const json msg = json::parse(text, nullptr, /*allow_exceptions=*/false);
   const std::string type = msg.is_object() ? msg.value("type", "") : "";
   if (type == "graph.run") {
-    if (!s.backend.catalog->missing_imports.empty()) {
+    if (!s.spec.catalog->missing_imports.empty()) {
       std::string missing;
-      for (const auto& m : s.backend.catalog->missing_imports) missing += (missing.empty() ? "" : ", ") + m;
+      for (const auto& m : s.spec.catalog->missing_imports) missing += (missing.empty() ? "" : ", ") + m;
       s.log("error", "Cannot run: missing required toolkits (" + missing + "). Please install them first.");
       s.emit({{"type", "run.finished"}, {"run", "run-" + std::to_string(s.runs + 1)}, {"status", "failed"}});
       return;
@@ -282,12 +282,12 @@ void Session::on_message(const std::string& text) {
                       {"variables", variables},
                       {"settings", msg.value("settings", json::object())}};
       if (!station.is_null()) request["station"] = station;
-      try {  // what the run goes with: the backend's defaults, and graph.run's overrides
-        request["settings"] = settings_json(with_overrides(s.backend.run, msg.value("settings", json())));
+      try {  // what the run goes with: the station's defaults, and graph.run's overrides
+        request["settings"] = settings_json(with_overrides(s.spec.run, msg.value("settings", json())));
       } catch (...) {
         // an invalid setting fails the run; the record still says what was asked
       }
-      record.emplace(std::move(*meta), s.backend.engine, std::move(request), std::move(tools));
+      record.emplace(std::move(*meta), s.spec.engine, std::move(request), std::move(tools));
     }
     s.run = std::jthread([&s, id, number, graph = msg.value("graph", json::object()), station, variables, keys_now, tune_now,
                           speed_now, settings = msg.value("settings", json()), record = std::move(record)](std::stop_token stop) mutable {
@@ -314,7 +314,7 @@ void Session::on_message(const std::string& text) {
         }
         s.emit(m);
       };
-      core::run(id, graph, station, s.backend, emit, keys_now, stop, settings, variables, tune_now, speed_now, &s.cache);
+      core::run(id, graph, station, s.spec, emit, keys_now, stop, settings, variables, tune_now, speed_now, &s.cache);
     });
   } else if (type == "station.set") {
     // An edit on the Station page: check it, keep it, and show it.
@@ -373,7 +373,7 @@ void Session::on_message(const std::string& text) {
       station = s.station;
       variables = s.variables;
     }
-    s.emit(analyse(msg, s.backend, station, variables));
+    s.emit(analyse(msg, s.spec, station, variables));
   } else if (type == "run.cancel") {
     s.run.request_stop();
   } else if (type == "run.speed") {
@@ -399,14 +399,14 @@ void Session::on_message(const std::string& text) {
     } else {
       s.keys.erase(key);
     }
-  } else if (type == "backend.restart") {
-    s.log("info", "restarting backend…");
-    const auto dir = s.backend.catalog ? s.backend.catalog->dir : std::filesystem::path{};
+  } else if (type == "station.restart") {
+    s.log("info", "restarting station…");
+    const auto dir = s.spec.catalog ? s.spec.catalog->dir : std::filesystem::path{};
     std::thread([dir] {
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
       if (!dir.empty() && std::filesystem::is_regular_file(dir / "CMakeLists.txt")) {
         std::string err;
-        BackendManager::ensure_built(dir, false, false, &err);
+        StationManager::ensure_built(dir, false, false, &err);
       }
       restart_process();
     }).detach();

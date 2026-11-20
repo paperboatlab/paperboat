@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("Launcher UX: dynamic section-specific menus & top bar, theme controller, gliding animations, Apps feedback, Backends, and Toolkit block cards", async ({ page }) => {
+test("Launcher UX: dynamic section-specific menus & top bar, theme controller, gliding animations, Apps feedback, Stations, and Toolkit block cards", async ({ page }) => {
   await page.setViewportSize({ width: 1240, height: 800 });
   await page.goto("/");
 
@@ -40,16 +40,16 @@ test("Launcher UX: dynamic section-specific menus & top bar, theme controller, g
   await expect(themeBtn).toHaveAttribute("aria-label", "Theme: dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
-  // 4. BACKENDS SECTION: Dynamic menus ("Backend", "Build & Check", "Run (...)"), Source switch in top bar
-  await page.locator(".rail .rail-item", { hasText: "backends" }).click();
-  const backendsPanel = page.locator("section.panel[aria-label='Backends']");
-  await expect(backendsPanel).toHaveClass(/current/);
+  // 4. STATIONS SECTION: Dynamic menus ("Station", "Build & Check", "Run (...)"), Source switch in top bar
+  await page.locator(".rail .rail-item", { hasText: "stations" }).click();
+  const stationsPanel = page.locator("section.panel[aria-label='Stations']");
+  await expect(stationsPanel).toHaveClass(/current/);
   await page.waitForTimeout(320);
 
-  await expect(menubar.getByRole("menuitem", { name: "Backend" })).toBeVisible();
+  await expect(menubar.getByRole("menuitem", { name: "Station" })).toBeVisible();
   await expect(menubar.getByRole("menuitem", { name: "Build" })).toBeVisible();
   await expect(menubar.getByRole("menuitem", { name: "Run" })).toBeVisible();
-  await expect(topBar.locator(".bar-end").getByRole("button", { name: "Open .ppk…" })).toBeVisible();
+  await expect(topBar.locator(".bar-end").getByRole("button", { name: "Open .pst…" })).toBeVisible();
   await expect(topBar.locator(".bar-end .switch[aria-label='Source']")).toBeVisible();
 
   // Open the "Build" dropdown menu
@@ -57,9 +57,9 @@ test("Launcher UX: dynamic section-specific menus & top bar, theme controller, g
   await expect(topBar.locator(".menu")).toContainText("Run 4-stage verification (check)");
   await page.keyboard.press("Escape");
 
-  await backendsPanel.getByRole("button", { name: /Options/ }).click();
-  await expect(backendsPanel.locator(".be-run-drawer")).toBeVisible();
-  await page.screenshot({ path: "/tmp/launcher-backends-dark.png" });
+  await stationsPanel.getByRole("button", { name: /Options/ }).click();
+  await expect(stationsPanel.locator(".be-run-drawer")).toBeVisible();
+  await page.screenshot({ path: "/tmp/launcher-stations-dark.png" });
 
   // Switch back to light for Toolkits screenshot
   await themeBtn.click(); // auto

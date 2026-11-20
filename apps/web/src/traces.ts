@@ -138,7 +138,7 @@ export class TraceStore {
     return Number.isFinite(t0) && Number.isFinite(t1) ? [t0, t1] : null;
   }
 
-  /** The run's sample spacing: the middle of the gaps in its channels, else `fallback` (the backend's dt). */
+  /** The run's sample spacing: the middle of the gaps in its channels, else `fallback` (the station's dt). */
   step(fallback = 0.01): number {
     const gaps: number[] = [];
     for (const list of this.byNode.values())

@@ -1,7 +1,7 @@
 # paperboat (Python bindings)
 
 Python bindings for the [Paperboat](../README.md) C++20 engine (`paperboat._engine`, built with
-nanobind). Write a backend's domain blocks and state in Python while the C++ engine loads the
+nanobind). Write a station's domain blocks and state in Python while the C++ engine loads the
 descriptor, schedules the graph, runs built-in toolkit blocks and serves the `paperboat/0`
 protocol.
 
@@ -24,7 +24,7 @@ class MassSpring(paperboat.DomainState):
     def step(self, ctx): ...
     def entities(self): return [...]
 
-paperboat.serve(paperboat.Backend(
+paperboat.serve(paperboat.Station(
     engine="mass-spring",
     descriptor="descriptor.toml",
     blocks=[Force],

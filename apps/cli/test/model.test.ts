@@ -19,13 +19,13 @@ import {
 
 const sources: Sources = {
   commands: [
-    {name: 'run', summary: 'run', aliases: ['start'], subcommands: [], flags: ['--port', '--clean'], arg: 'backend'},
+    {name: 'run', summary: 'run', aliases: ['start'], subcommands: [], flags: ['--port', '--clean'], arg: 'station'},
     {name: 'restart', summary: 'restart', aliases: [], subcommands: [], flags: [], arg: 'target'},
     {name: 'app', summary: 'app', aliases: [], subcommands: ['start', 'stop', 'build'], flags: [], arg: ''},
     {name: 'toolkit', summary: 'toolkit', aliases: [], subcommands: ['install', 'list'], flags: [], arg: 'toolkit'},
   ],
   args: {
-    backend: [
+    station: [
       {value: 'cart-pole', detail: ''},
       {value: 'parts', detail: ''},
       {value: 'parametric', detail: ''},
@@ -88,25 +88,25 @@ test('edit moves, inserts and deletes around the cursor', () => {
 
 test('run takes a path: completion lists folders and packages, the job is named for it', () => {
   const dirs: Record<string, Array<{value: string; detail: string}>> = {
-    '.': [{value: 'examples/', detail: 'folder'}, {value: 'parts-0.1.0.ppk', detail: 'package'}],
+    '.': [{value: 'examples/', detail: 'folder'}, {value: 'parts-0.1.0.pst', detail: 'package'}],
     'examples/': [{value: 'cart-pole-cpp/', detail: 'folder'}, {value: 'chain-python/', detail: 'folder'}],
   };
   const withFs = {...sources, listDir: (d: string) => dirs[d] ?? []};
   assert.ok(isPath('./x') && isPath('a/b') && isPath('~') && !isPath('cart-pole'));
   assert.deepEqual(complete('run examples/c', withFs).candidates.map(c => c.value), ['examples/cart-pole-cpp/', 'examples/chain-python/']);
-  assert.deepEqual(complete('run ./', {...withFs, listDir: () => dirs['.']}).candidates.map(c => c.value), ['./examples/', './parts-0.1.0.ppk']);
+  assert.deepEqual(complete('run ./', {...withFs, listDir: () => dirs['.']}).candidates.map(c => c.value), ['./examples/', './parts-0.1.0.pst']);
   assert.equal(ghost('run examples/ca', [], withFs), 'rt-pole-cpp/');
   assert.equal(targetName('../x/cart-pole-cpp/'), 'cart-pole');
-  assert.equal(targetName('parts-0.1.0.ppk'), 'parts-0.1.0');
-  assert.equal(targetName('/srv/my-backend'), 'my-backend');
+  assert.equal(targetName('parts-0.1.0.pst'), 'parts-0.1.0');
+  assert.equal(targetName('/srv/my-station'), 'my-station');
 });
 
-test('multi-instance backend naming (<name>_<id>) allocates lowest free id and matches base', () => {
+test('multi-instance station naming (<name>_<id>) allocates lowest free id and matches base', () => {
   assert.equal(instanceName('cart-pole', 1), 'cart-pole_1');
   assert.deepEqual(parseInstanceName('cart-pole_1'), {base: 'cart-pole', id: 1});
   assert.deepEqual(parseInstanceName('cart-pole_12'), {base: 'cart-pole', id: 12});
   assert.deepEqual(parseInstanceName('cart-pole'), {base: 'cart-pole', id: null});
-  assert.deepEqual(parseInstanceName('my_backend_2'), {base: 'my_backend', id: 2});
+  assert.deepEqual(parseInstanceName('my_station_2'), {base: 'my_station', id: 2});
 
   assert.ok(isInstance('cart-pole', 'cart-pole'));
   assert.ok(isInstance('cart-pole_1', 'cart-pole'));
@@ -152,7 +152,7 @@ test('servicesBy and jobBy disambiguate <name>_<id> vs base name, and built-in t
     {
       id: 1,
       name: 'cart-pole_1',
-      kind: 'backend',
+      kind: 'station',
       args: ['run', 'cart-pole', '--port', '8765'],
       port: 8765,
       pid: 1001,
@@ -168,7 +168,7 @@ test('servicesBy and jobBy disambiguate <name>_<id> vs base name, and built-in t
     {
       id: 2,
       name: 'cart-pole_2',
-      kind: 'backend',
+      kind: 'station',
       args: ['run', 'cart-pole', '--port', '8766'],
       port: 8766,
       pid: 1002,

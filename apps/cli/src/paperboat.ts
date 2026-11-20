@@ -1,4 +1,4 @@
-// Run the C++ `paperboat` CLI: the console never does a backend's work itself, it asks this
+// Run the C++ `paperboat` CLI: the console never does a station's work itself, it asks this
 // binary (PAPERBOAT_BIN, set by the binary that launched the console) and renders the answer.
 
 import {spawn, type ChildProcess} from 'node:child_process';
@@ -12,7 +12,7 @@ const ENV = {...process.env, PAPERBOAT_NO_CONSOLE: '1'};
 export type OnLine = (line: string, stream: 'stdout' | 'stderr') => void;
 
 /** Start `paperboat <args>` with its lines going to `onLine`. `detached` gives it its own
- * process group, so Ctrl+C in the console never reaches a backend. */
+ * process group, so Ctrl+C in the console never reaches a station. */
 export function start(args: string[], onLine: OnLine, detached = false): ChildProcess {
   const child = spawn(BIN, args, {env: ENV, stdio: ['ignore', 'pipe', 'pipe'], detached});
   createInterface({input: child.stdout!}).on('line', l => onLine(l, 'stdout'));

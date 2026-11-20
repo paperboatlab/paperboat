@@ -1,4 +1,4 @@
-// The Paperboat unified CLI: build and start backends, list running backends,
+// The Paperboat unified CLI: build and start stations, list running stations,
 // manage the web application, orchestrate examples, and install/browse toolkits.
 
 #ifdef _WIN32
@@ -28,7 +28,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "paperboat/core/backend_manager.hpp"
+#include "paperboat/core/station_manager.hpp"
 #include "paperboat/core/process.hpp"
 #include "paperboat/toolkit/apps.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
@@ -94,52 +94,51 @@ void print_help() {
 Usage:
   paperboat <command> [arguments...]
 
-Start and stop (the web app, backends and programs):
-  start [target] [options]   Without a target: the web app (dev server, port 3047) and,
-                             in a checkout, the workbench backend (port 8765).
-                             A backend (folder, name or .ppk): build it and run it in the foreground.
-                             A program from apps.toml (e.g. squero-studio-om): run it.
-                               --port <N>      Listen port (backend 8765, web app 3047, squero-studio-om 59201)
-                               --daemon        Run in the background (the web app and programs)
-                               --host <H>      The web app's listen host (default 0.0.0.0)
-                             Backend only:
+Start and stop (Paperboat and stations):
+  start [station] [options]  Without a target: Paperboat (web UI on port 3047) and,
+                             in a checkout, the scratchpad station (port 8765).
+                             A station (folder, name or .pst): build it and run it in the foreground.
+                               --port <N>      Listen port (station 8765, web UI 3047)
+                               --daemon        Run in the background (Paperboat)
+                               --host <H>      The web UI's listen host (default 0.0.0.0)
+                             Station only:
                                --no-build      Skip the C++ build step
                                --clean         Clean the build directory first
                                --time          Print build and startup timing
                                --verbose       Verbose build output
                                --var <key=val> Set a default variable value
                                --record <dir>  Keep the run as <dir>/record.json (#277)
-  stop [target | --all]      Without a target: the web app. Otherwise a backend (port, name or folder) or a
-                             program. --all stops every running backend.
-  restart [target]           Restart the web app, or a backend or program
-  list, ps [--json]          Everything running, with a KIND column: backend or app
-  status [<backend|port>] [--json]
-                             What each backend is doing: building (prepare, configure, compile),
+  stop [target | --all]      Without a target: Paperboat. Otherwise a station (port, name or folder).
+                             --all stops every running station.
+  restart [target]           Restart Paperboat or a station
+  list, ps [--json]          Everything running, with a KIND column: station, paperboat or squero
+  status [<station|port>] [--json]
+                             What each station is doing: building (prepare, configure, compile),
                              starting (launched, not answering yet), failed (and why: kept a
                              minute), running. --json is what a wait screen polls
-  run [path | pkg.ppk]       Start a backend (the same options as start)
+  run [path | file.pst]      Start a station (the same options as start)
 
-Backends:
+Stations:
   new <name> [--cpp | --python | --julia] [--dir <path>]
-                             Scaffold a new backend in ./<name> (or --dir) that passes `check` as it is:
+                             Scaffold a new station in ./<name> (or --dir) that passes `check` as it is:
                              a block, a starter graph and its expected.json. C++ by default;
                              a Julia one needs `paperboat deps install` first.
-  backends [--json]          List the backends you can run (examples, installed)
-  build [path] [--clean]     Compile a C++ backend (Python and Julia ones have nothing to compile)
-  rebuild [path]             Clean and compile a C++ backend (build --clean)
-  open <file.ppj> [--run] [--port <N>] [--no-build] [--record <dir>]
-                             Open a saved project file with its backend (--run: headless);
+  stations [--json]          List the stations you can run (examples, installed)
+  build [path] [--clean]     Compile a C++ station (Python and Julia ones have nothing to compile)
+  rebuild [path]             Clean and compile a C++ station (build --clean)
+  open <file.psf> [--run] [--port <N>] [--no-build] [--record <dir>]
+                             Open a saved Station's flow (.psf) with its station (--run: headless);
                              --record keeps each run as <dir>/record.json
 
-Web app:
-  app start|stop|restart     The same as start, stop and restart without a target
-  app build                  Run the production frontend build
-  (start --daemon and app start --daemon keep it in the background; stop ends it)
+Paperboat Web UI:
+  web start|stop|restart     The same as start, stop and restart without a target
+  web build                  Run the production frontend build
+  (start --daemon and web start --daemon keep it in the background; stop ends it)
 
 Examples Orchestration:
-  examples start [--dir <P>] Launch all example backends (ports 8765-8773)
-  examples stop              Stop all example backends
-  examples status            Show status of example backends
+  examples start [--dir <P>] Launch all example stations (ports 8765-8773)
+  examples stop              Stop all example stations
+  examples status            Show status of example stations
 
 Toolkits:
   toolkit list [name] [--json]
@@ -155,9 +154,9 @@ Verification & Packaging:
   check [path] [--fast] [--json | --json-stream]
                              4-stage verification (manifest, catalog, smoke, golden)
   pack [path] [--out <pkg>] [--json-stream]
-                             Package backend into .ppk archive
+                             Package station into .pst archive
   unpack <pkg> [--dir <dir>] [--json-stream]
-                             Unpack and verify .ppk archive
+                             Unpack and verify .pst archive
                              --json-stream prints one JSON event per line as work goes
 )";
 #if defined(PAPERBOAT_HAS_OPTIMIZATION) || defined(PAPERBOAT_HAS_OPTIMIZE_CMD)
@@ -178,27 +177,28 @@ Updating:
                              a release version if not already present).
 
 Dependencies:
-  deps install [path]        Create the backend's isolated environment and install its
+  deps install [path]        Create the station's isolated environment and install its
                              requirements (Python: .venv + requirements.txt; Julia: .julia depot +
                              Project.toml). C++ dependencies stay with CMake/toolkits.
 
-Packages (apps from other repositories, see apps.toml):
-  pkg list [--json]          The programs and libraries, installed, a sibling checkout, or not (KIND column)
-  pkg install <name>[@<V>]   Clone a release (default: newest, else main) and build it. Deps resolve
-                             in their apps.toml range (paperboat-shared@0.1); one installed outside it
-                             fails the install, or with --force is reinstalled in range
-  pkg update <name|--all>    Install the newest release of an installed app (not a prerelease); a dep
-                             stays in the range of the apps that need it
-  pkg uninstall <name>       Remove an app
-  pkg versions <name>        Release versions on GitHub, prereleases too, newest first
-  pkg path <name>            The installed app's output folder
+Squero apps (from apps.toml):
+  squero list [--json]            The Squero apps and libraries, installed, a sibling checkout, or not (KIND)
+  squero install <name>[@<V>]     Clone a release (default: newest, else main) and build it. Deps resolve
+                                  in their apps.toml range (paperboat-shared@0.1); one installed outside it
+                                  fails the install, or with --force is reinstalled in range
+  squero update <name|--all>      Install the newest release of an installed Squero app or dep
+  squero uninstall <name>         Remove a Squero app or library
+  squero versions <name>          Release versions on GitHub, prereleases too, newest first
+  squero path <name>              The installed app's output folder
+  squero start|stop|restart <name> [--port <N>] [--daemon]
+                                  Start, stop or restart a Squero app
 
-Console & Launcher:
+Paperboat CLI & Launcher:
   launcher                   Open the Paperboat Launcher desktop app (if installed)
-  (no command)               Open the interactive console (apps/cli) on a terminal;
+  (no command)               Open the Paperboat CLI (apps/cli) on a terminal;
                              the basic prompt when it isn't built or PAPERBOAT_NO_CONSOLE is set
   repl                       The basic prompt
-  top                        The console's process dashboard
+  top                        Process overview in Paperboat CLI
   commands [--json]          The command table (for completion)
 
 General:
@@ -208,7 +208,6 @@ General:
 }
 
 int cmd_start(const std::vector<std::string_view>& args);
-std::optional<tk::AppEntry> find_program(std::string_view target);
 
 namespace {
 
@@ -266,14 +265,14 @@ int cmd_deps(const std::vector<std::string_view>& args) {
       return 2;
     }
   }
-  const fs::path dir = core::BackendManager::resolve_backend_dir(path.empty() ? fs::current_path() : fs::path(path));
+  const fs::path dir = core::StationManager::resolve_station_dir(path.empty() ? fs::current_path() : fs::path(path));
   if (!fs::is_directory(dir)) {
-    std::cerr << "error: backend directory not found: " << dir << "\n";
+    std::cerr << "error: station directory not found: " << dir << "\n";
     return 1;
   }
-  const core::BackendKind kind = core::BackendManager::detect_backend_kind(dir);
+  const core::StationKind kind = core::StationManager::detect_station_kind(dir);
   std::cout << "deps: " << dir.filename().string() << "\n";
-  if (kind == core::BackendKind::Python) {
+  if (kind == core::StationKind::Python) {
     const fs::path requirements = dir / "requirements.txt";
     const fs::path pyproject = dir / "pyproject.toml";
     if (!fs::is_regular_file(requirements) && !fs::is_regular_file(pyproject)) {
@@ -301,10 +300,10 @@ int cmd_deps(const std::vector<std::string_view>& args) {
     std::cout << "  [ok] Python environment ready: " << venv.string() << "\n";
     return 0;
   }
-  if (kind == core::BackendKind::Julia) {
+  if (kind == core::StationKind::Julia) {
     const fs::path project = dir / "Project.toml";
     if (!fs::is_regular_file(project)) {
-      std::cerr << "error: Julia backend needs Project.toml\n";
+      std::cerr << "error: Julia station needs Project.toml\n";
       return 1;
     }
     fs::path julia = fs::path(std::getenv("PAPERBOAT_JULIA") ? std::getenv("PAPERBOAT_JULIA") : "");
@@ -321,11 +320,11 @@ int cmd_deps(const std::vector<std::string_view>& args) {
                     {{"JULIA_PROJECT", project.string()}, {"JULIA_DEPOT_PATH", depot.string()},
                      {"JULIA_LOAD_PATH", "@:@stdlib"}, {"JULIA_NUM_THREADS", "1"}});
   }
-  if (kind == core::BackendKind::Cpp) {
+  if (kind == core::StationKind::Cpp) {
     std::cout << "  C++ dependencies are CMake packages or toolkits; see toolkit_requirements.toml\n";
     return 0;
   }
-  std::cerr << "error: cannot detect backend type in " << dir << "\n";
+  std::cerr << "error: cannot detect station type in " << dir << "\n";
   return 1;
 }
 
@@ -582,7 +581,7 @@ int cmd_optimize(const std::vector<std::string_view>& args) {
 #endif
 
 int cmd_run(const std::vector<std::string_view>& args) {
-  core::BackendRunOptions opts;
+  core::StationRunOptions opts;
   std::string path;
 
   for (std::size_t i = 0; i < args.size(); ++i) {
@@ -616,18 +615,17 @@ int cmd_run(const std::vector<std::string_view>& args) {
     }
   }
 
-  if (find_program(path)) return cmd_start(args);  // run squero-studio-om: a program, started as `start` does
-  if (path.empty() && core::BackendManager::detect_backend_kind(fs::current_path()) == core::BackendKind::Unknown) {
-    launch_console({"run"});  // the backend picker; returns only when the console can't open
+  if (path.empty() && core::StationManager::detect_station_kind(fs::current_path()) == core::StationKind::Unknown) {
+    launch_console({"run"});  // the station picker; returns only when the console can't open
   }
   opts.command = "paperboat run";
   for (auto a : args) opts.command += " " + std::string(a);
-  return core::BackendManager::run_backend(path, opts);
+  return core::StationManager::run_station(path, opts);
 }
 
 int cmd_open(const std::vector<std::string_view>& args) {
   std::string file_path;
-  core::BackendRunOptions opts;
+  core::StationRunOptions opts;
   bool run_headless = false;
   int port = 0;
 
@@ -653,7 +651,7 @@ int cmd_open(const std::vector<std::string_view>& args) {
   }
 
   if (file_path.empty()) {
-    std::cerr << "usage: paperboat open <file.ppj|file.paperboat.json> [--run] [--port <port>] [--no-build] [--record <dir>]\n";
+    std::cerr << "usage: paperboat open <file.psf|file.paperboat.json> [--run] [--port <port>] [--no-build] [--record <dir>]\n";
     return 2;
   }
 
@@ -680,8 +678,8 @@ int cmd_open(const std::vector<std::string_view>& args) {
     std::cerr << "error: unsupported project version " << proj["paperboat"] << " (this tool supports version 0)\n";
     return 1;
   }
-  if (!proj.contains("backend") || !proj["backend"].is_string()) {
-    std::cerr << "error: invalid project file: missing \"backend\" specification\n";
+  if (!proj.contains("station") || !proj["station"].is_string()) {
+    std::cerr << "error: invalid project file: missing \"station\" specification\n";
     return 1;
   }
   if (!proj.contains("flow") || !proj["flow"].is_object()) {
@@ -689,15 +687,15 @@ int cmd_open(const std::vector<std::string_view>& args) {
     return 1;
   }
 
-  const std::string backend_name = proj["backend"].get<std::string>();
-  const fs::path backend_dir = core::BackendManager::resolve_backend_dir(backend_name);
-  if (backend_dir.empty() || !fs::is_directory(backend_dir)) {
-    std::cerr << "error: backend \"" << backend_name << "\" not found\n";
+  const std::string station_name = proj["station"].get<std::string>();
+  const fs::path station_dir = core::StationManager::resolve_station_dir(station_name);
+  if (station_dir.empty() || !fs::is_directory(station_dir)) {
+    std::cerr << "error: station \"" << station_name << "\" not found\n";
     return 1;
   }
 
   // Check required toolkits
-  const auto manifest = core::BackendManager::load_manifest(backend_dir);
+  const auto manifest = core::StationManager::load_manifest(station_dir);
   const auto installed_toolkits = tk::list_toolkits();
   for (const auto& req : manifest.toolkits) {
     bool found = false;
@@ -714,18 +712,18 @@ int cmd_open(const std::vector<std::string_view>& args) {
   }
 
   opts.port = port;
-  opts.project_file = fs::canonical(p).string();
+  opts.psf_file = fs::canonical(p).string();
   opts.run = run_headless;
   opts.command = "paperboat open";
   for (auto a : args) opts.command += " " + std::string(a);
 
   if (run_headless) {
-    return core::BackendManager::run_backend(backend_dir, opts);
+    return core::StationManager::run_station(station_dir, opts);
   }
 
-  core::BackendManager::start_app();
-  std::cout << "[ok] opening project \"" << p.filename().string() << "\" with backend " << backend_name << '\n';
-  return core::BackendManager::run_backend(backend_dir, opts);
+  core::StationManager::start_app();
+  std::cout << "[ok] opening flow \"" << p.filename().string() << "\" with station " << station_name << '\n';
+  return core::StationManager::run_station(station_dir, opts);
 }
 
 int cmd_build(const std::vector<std::string_view>& args) {
@@ -735,19 +733,19 @@ int cmd_build(const std::vector<std::string_view>& args) {
     if (a == "--clean") clean = true;
     else if (!a.starts_with("-") && path.empty()) path = std::string(a);
   }
-  const fs::path dir = core::BackendManager::resolve_backend_dir(path);
-  const auto kind = core::BackendManager::detect_backend_kind(dir);
-  if (kind == core::BackendKind::Python) {  // the same steps for both: build, check, run
-    std::cout << "[ok] " << dir.filename().string() << " is a Python backend: nothing to compile\n";
+  const fs::path dir = core::StationManager::resolve_station_dir(path);
+  const auto kind = core::StationManager::detect_station_kind(dir);
+  if (kind == core::StationKind::Python) {  // the same steps for both: build, check, run
+    std::cout << "[ok] " << dir.filename().string() << " is a Python station: nothing to compile\n";
     return 0;
   }
-  if (kind != core::BackendKind::Cpp) {
-    std::cerr << "error: not a C++ backend: " << (path.empty() ? dir.string() : path) << '\n';
+  if (kind != core::StationKind::Cpp) {
+    std::cerr << "error: not a C++ station: " << (path.empty() ? dir.string() : path) << '\n';
     return 2;
   }
   std::string err;
   double elapsed = 0.0;
-  if (!core::BackendManager::ensure_built(dir, clean, /*verbose=*/true, &err, &elapsed)) {
+  if (!core::StationManager::ensure_built(dir, clean, /*verbose=*/true, &err, &elapsed)) {
     std::cerr << "error: build failed: " << err << '\n';
     return 1;
   }
@@ -774,19 +772,19 @@ std::string describe(const fs::path& dir) {
   return line;
 }
 
-int cmd_backends(const std::vector<std::string_view>& args) {
+int cmd_stations(const std::vector<std::string_view>& args) {
   bool json_out = false;
   for (auto a : args) {
     if (a == "--json") json_out = true;
   }
 
-  // Examples first (in their port order), then the user's installed backends; by name.
+  // Examples first (in their port order), then the user's installed stations; by name.
   std::map<std::string, json> found;
   std::vector<std::string> order;
   const auto add = [&](const fs::path& dir, std::string source, int fallback_port) {
-    const auto kind = core::BackendManager::detect_backend_kind(dir);
-    if (kind == core::BackendKind::Unknown) return;
-    const auto manifest = core::BackendManager::load_manifest(dir);
+    const auto kind = core::StationManager::detect_station_kind(dir);
+    if (kind == core::StationKind::Unknown) return;
+    const auto manifest = core::StationManager::load_manifest(dir);
     std::string name = manifest.has_manifest && !manifest.name.empty() ? manifest.name : dir.filename().string();
     for (std::string_view suffix : {"-cpp", "-python"}) {
       if (name.ends_with(suffix)) name.resize(name.size() - suffix.size());
@@ -795,30 +793,30 @@ int cmd_backends(const std::vector<std::string_view>& args) {
     order.push_back(name);
     found[name] = {
         {"name", name},
-        {"language", kind == core::BackendKind::Cpp ? "cpp" : "python"},
+        {"language", kind == core::StationKind::Cpp ? "cpp" : "python"},
         {"port", manifest.has_manifest && manifest.port > 0 ? manifest.port : fallback_port},
         {"dir", dir.string()},
-        {"description", name == "workbench" ? "Standard toolkits with no domain (Flow & Dashboard)" : describe(dir)},
+        {"description", name == "scratchpad" ? "Standard toolkits with no domain (Flow & Board)" : describe(dir)},
         {"source", std::move(source)},
     };
   };
   const fs::path root = tk::find_repo_root();
-  if (!root.empty() && fs::is_directory(root / "engine" / "workbench")) {
-    add(root / "engine" / "workbench", "builtin", 8765);
-  } else if (const fs::path wb = core::BackendManager::workbench_binary(root); !wb.empty()) {
-    order.push_back("workbench");
-    found["workbench"] = {
-        {"name", "workbench"},
+  if (!root.empty() && fs::is_directory(root / "engine" / "scratchpad")) {
+    add(root / "engine" / "scratchpad", "builtin", 8765);
+  } else if (const fs::path wb = core::StationManager::scratchpad_binary(root); !wb.empty()) {
+    order.push_back("scratchpad");
+    found["scratchpad"] = {
+        {"name", "scratchpad"},
         {"language", "cpp"},
         {"port", 8765},
         {"dir", wb.string()},
-        {"description", "Standard toolkits with no domain (Flow & Dashboard)"},
+        {"description", "Standard toolkits with no domain (Flow & Board)"},
         {"source", "builtin"},
     };
   }
-  for (const auto& ex : core::BackendManager::get_examples()) add(ex.dir, "example", ex.port);
+  for (const auto& ex : core::StationManager::get_examples()) add(ex.dir, "example", ex.port);
   std::error_code ec;
-  for (const auto& entry : fs::directory_iterator(core::BackendManager::user_backends_dir(), ec)) {
+  for (const auto& entry : fs::directory_iterator(core::StationManager::user_stations_dir(), ec)) {
     if (entry.is_directory()) add(entry.path(), "installed", 8765);
   }
 
@@ -829,7 +827,7 @@ int cmd_backends(const std::vector<std::string_view>& args) {
     return 0;
   }
   if (order.empty()) {
-    std::cout << "No backends found. Set PAPERBOAT_EXAMPLES_DIR or unpack a .ppk.\n";
+    std::cout << "No stations found. Set PAPERBOAT_EXAMPLES_DIR or unpack a .pst.\n";
     return 0;
   }
   std::cout << std::left << std::setw(20) << "NAME" << std::setw(9) << "TYPE" << std::setw(7) << "PORT"
@@ -851,18 +849,18 @@ std::string first_sentence(std::string text) {
 
 constexpr int kWebAppPort = 3047;
 
-// An app from apps.toml (squero-studio-om): `target` is the name, or the command that launches it (`squero`).
-// A path or a ./relative name is never one: that is a backend folder.
-std::optional<tk::AppEntry> find_program(std::string_view target) {
+// A Squero app (or library dep) from apps.toml: `target` is the name, or the command that launches it.
+// A path or a ./relative name is never one: that is a station folder.
+std::optional<tk::AppEntry> find_squero(std::string_view target) {
   if (target.empty() || target.starts_with('.') || target.find_first_of("/\\") != std::string_view::npos) return std::nullopt;
   for (auto& app : tk::list_apps())
     if (app.name == target || (!app.launch.empty() && app.launch == target)) return app;
   return std::nullopt;
 }
 
-// What is running, backends and apps alike; `kind` says which.
+// What is running, stations and squeros alike; `kind` says which.
 struct RunningItem {
-  std::string kind;  // "backend" | "app"
+  std::string kind;  // "station" | "paperboat" | "squero"
   std::string name;
   std::string detail;
   int port = 0;
@@ -873,19 +871,19 @@ struct RunningItem {
 
 std::vector<RunningItem> running_items() {
   std::vector<RunningItem> items;
-  for (const auto& b : core::BackendManager::list_running_backends()) {
-    items.push_back({"backend", b.domain.empty() ? "unknown" : b.domain, b.engine, b.port, b.pid, b.ws_url,
+  for (const auto& b : core::StationManager::list_running_stations()) {
+    items.push_back({"station", b.domain.empty() ? "unknown" : b.domain, b.engine, b.port, b.pid, b.ws_url,
                      {{"engine", b.engine}, {"domain", b.domain}, {"ws_url", b.ws_url}, {"cwd", b.cwd.string()},
-                      {"backend_dir", b.backend_dir.string()}, {"started_at", b.started_at}}});
+                      {"station_dir", b.station_dir.string()}, {"started_at", b.started_at}}});
   }
-  const auto app = [&](const std::string& name, const std::string& detail, int port) {
-    if (!core::BackendManager::is_port_listening(port)) return;
-    items.push_back({"app", name, detail, port, core::BackendManager::find_pid_by_port(port),
+  const auto running_web = [&](const std::string& kind, const std::string& name, const std::string& detail, int port) {
+    if (!core::StationManager::is_port_listening(port)) return;
+    items.push_back({kind, name, detail, port, core::StationManager::find_pid_by_port(port),
                      "http://localhost:" + std::to_string(port), {{"engine", ""}, {"domain", name}, {"ws_url", ""}}});
   };
-  app("paperboat", "the web app (dev server)", kWebAppPort);
+  running_web("paperboat", "paperboat", "the Paperboat web UI", kWebAppPort);
   for (const auto& a : tk::list_apps())
-    if (a.kind == "program" && a.port > 0) app(a.name, first_sentence(a.description), a.port);
+    if (a.kind == "squero" && a.port > 0) running_web("squero", a.name, first_sentence(a.description), a.port);
   return items;
 }
 
@@ -908,7 +906,7 @@ int cmd_list(const std::vector<std::string_view>& args) {
   }
 
   if (items.empty()) {
-    std::cout << "Nothing is running. `paperboat start` starts the web app; `paperboat start <backend|program>` the rest.\n";
+    std::cout << "Nothing is running. `paperboat start` starts Paperboat; `paperboat start <station>` a station; `paperboat squero start <name>` a Squero app.\n";
     return 0;
   }
 
@@ -921,7 +919,7 @@ int cmd_list(const std::vector<std::string_view>& args) {
   return 0;
 }
 
-// What each backend is doing, starting ones included (pb#332): building (prepare, configure,
+// What each station is doing, starting ones included (pb#332): building (prepare, configure,
 // compile), starting (waiting for it to answer), failed (with why), running. `--json` is the document
 // a wait screen polls, the same as the web host's /__paperboat/status.
 int cmd_status(const std::vector<std::string_view>& args) {
@@ -931,15 +929,15 @@ int cmd_status(const std::vector<std::string_view>& args) {
     if (a == "--json") json_out = true;
     else if (!a.starts_with("-")) target = std::string(a);
   }
-  const json doc = json::parse(core::BackendManager::status_json(target));
+  const json doc = json::parse(core::StationManager::status_json(target));
   if (json_out) {
     std::cout << doc.dump(2) << '\n';
     return 0;
   }
-  const auto& list = doc["backends"];
+  const auto& list = doc["stations"];
   if (list.empty()) {
-    std::cout << (target.empty() ? "No backend is starting or running." : "No backend \"" + target + "\" is starting or running.")
-              << " `paperboat start <backend>` starts one.\n";
+    std::cout << (target.empty() ? "No station is starting or running." : "No station \"" + target + "\" is starting or running.")
+              << " `paperboat start <station>` starts one.\n";
     return 0;
   }
   std::cout << std::left << std::setw(10) << "STATE" << std::setw(11) << "STAGE" << std::setw(7) << "PORT" << std::setw(24)
@@ -954,15 +952,15 @@ int cmd_status(const std::vector<std::string_view>& args) {
   return 0;
 }
 
-int cmd_app(const std::vector<std::string_view>& args);
-void start_workbench();
+int cmd_web(const std::vector<std::string_view>& args);
+void start_scratchpad();
 Command find_command(std::string_view name);
 
-// `start`, `stop` and `restart` with no target are for the main app (the web app); `app <verb>` is the same.
-int main_app(std::string_view verb, const std::vector<std::string_view>& args) {
+// `start`, `stop` and `restart` with no target are for Paperboat itself (`web` UI + scratchpad); `web <verb>` is the same.
+int main_web(std::string_view verb, const std::vector<std::string_view>& args) {
   std::vector<std::string_view> forwarded = {verb};
   forwarded.insert(forwarded.end(), args.begin(), args.end());
-  return cmd_app(forwarded);
+  return cmd_web(forwarded);
 }
 
 // The first argument that is not a flag or a flag's value: what `start`/`stop`/`restart` act on.
@@ -991,9 +989,9 @@ int port_of(const tk::AppEntry& app, const std::vector<std::string_view>& args) 
   return app.port;
 }
 
-int stop_program(tk::AppEntry app, const std::vector<std::string_view>& args = {}) {
+int stop_squero(tk::AppEntry app, const std::vector<std::string_view>& args = {}) {
   if (app.kind == "library") {
-    std::cerr << "error: " << app.name << " is a library, not a program\n";
+    std::cerr << "error: " << app.name << " is a library, not a squero app\n";
     return 1;
   }
   app.port = port_of(app, args);
@@ -1001,13 +999,13 @@ int stop_program(tk::AppEntry app, const std::vector<std::string_view>& args = {
     std::cerr << "error: " << app.name << " has no port in apps.toml, so paperboat can't find it to stop it\n";
     return 1;
   }
-  if (!core::BackendManager::is_port_listening(app.port)) {
+  if (!core::StationManager::is_port_listening(app.port)) {
     std::cout << app.name << " is not running\n";
     return 0;
   }
-  const int pid = core::BackendManager::find_pid_by_port(app.port);
-  core::BackendManager::free_port(app.port, 2000);
-  if (core::BackendManager::is_port_listening(app.port)) {
+  const int pid = core::StationManager::find_pid_by_port(app.port);
+  core::StationManager::free_port(app.port, 2000);
+  if (core::StationManager::is_port_listening(app.port)) {
     std::cerr << "error: could not stop " << app.name << " (pid " << pid << ", port " << app.port << ")\n";
     return 1;
   }
@@ -1064,8 +1062,8 @@ fs::path resolve_app_binary(const tk::AppEntry& app) {
   return {};
 }
 
-// Run a program in the foreground through its launch command, or --daemon: the same, detached, with a log.
-int start_program(const tk::AppEntry& app, std::vector<std::string_view> rest) {
+// Run a Squero app in the foreground through its launch command, or --daemon: detached, with a log.
+int start_squero(const tk::AppEntry& app, std::vector<std::string_view> rest) {
   if (app.launch.empty()) {
     std::cerr << "error: " << app.name << " has no launch command in apps.toml\n";
     return 1;
@@ -1075,7 +1073,7 @@ int start_program(const tk::AppEntry& app, std::vector<std::string_view> rest) {
   if (const Command launch = find_command(app.launch)) {
     if (!is_daemon) return launch(rest);
     rest.erase(daemon);
-    std::vector<std::string> argv = {platform::exe_path().string(), "start", app.name};
+    std::vector<std::string> argv = {platform::exe_path().string(), "squero", "start", app.name};
     for (auto a : rest) argv.emplace_back(a);
     const fs::path log = platform::shared_tmp_dir() / ("paperboat-" + app.name + ".log");
     const int pid = core::ProcessRunner::run_detached(argv, {}, {}, log);
@@ -1090,15 +1088,14 @@ int start_program(const tk::AppEntry& app, std::vector<std::string_view> rest) {
   const fs::path bin = resolve_app_binary(app);
   if (bin.empty()) {
     std::cerr << "error: cannot find " << app.launch << " for " << app.name
-              << " (run `paperboat pkg install " << app.name << "`)\n";
+              << " (run `paperboat squero install " << app.name << "`)\n";
     return 1;
   }
 
   if (is_daemon) rest.erase(daemon);
   std::vector<std::string> argv = {bin.string()};
   for (auto a : rest) argv.emplace_back(a);
-  // The app calls back into this paperboat (squero-mx: `paperboat list`, `paperboat optimize`) without
-  // having to find it, as the console does.
+  // The app calls back into this paperboat (`squero-studio-mx`: `paperboat list`, `paperboat optimize`).
   const std::vector<std::pair<std::string, std::string>> env = {{"PAPERBOAT_BIN", platform::exe_path().string()}};
 
   if (is_daemon) {
@@ -1120,53 +1117,39 @@ int start_program(const tk::AppEntry& app, std::vector<std::string_view> rest) {
 
 int cmd_restart(const std::vector<std::string_view>& args) {
   const std::string target = target_of(args);
-  if (target.empty()) return main_app("restart", args);
-  if (const auto app = find_program(target)) {
-    if (const int rc = stop_program(*app, args); rc != 0) return rc;
-    auto rest = without(args, target);
-    rest.emplace_back("--daemon");
-    return start_program(*app, rest);
-  }
-  core::BackendRunOptions opts;
+  if (target.empty()) return main_web("restart", args);
+  core::StationRunOptions opts;
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--port" && i + 1 < args.size()) {
       opts.port = std::stoi(std::string(args[++i]));
     }
   }
-  return core::BackendManager::restart_backend(target, opts) ? 0 : 1;
+  return core::StationManager::restart_station(target, opts) ? 0 : 1;
 }
 
 int cmd_stop(const std::vector<std::string_view>& args) {
   const bool all = std::ranges::find(args, std::string_view("--all")) != args.end();
   const std::string target = target_of(args);
-  if (!all && target.empty()) return main_app("stop", args);
-  if (const auto app = find_program(target)) return stop_program(*app, args);
-  return core::BackendManager::stop_backend(target, all) ? 0 : 1;
+  if (!all && target.empty()) return main_web("stop", args);
+  return core::StationManager::stop_station(target, all) ? 0 : 1;
 }
 
-// start: no target is the web app; a program from apps.toml (start squero-studio-om) runs that; anything else is a backend.
+// start: no target is Paperboat (web UI + scratchpad); otherwise a station. Squero apps use `paperboat squero start`.
 int cmd_start(const std::vector<std::string_view>& args) {
   const std::string target = target_of(args);
-  if (target.empty()) return main_app("start", args);
-  if (const auto app = find_program(target)) {
-    if (app->kind == "library") {
-      std::cerr << "error: " << app->name << " is a library, not a program\n";
-      return 1;
-    }
-    return start_program(*app, without(args, target));
-  }
+  if (target.empty()) return main_web("start", args);
   std::error_code ec;
-  if (!fs::exists(target, ec) && !fs::exists(core::BackendManager::resolve_backend_dir(target), ec)) {
-    std::cerr << "error: \"" << target << "\" is neither a backend nor a program\n"
-              << "  backends: `paperboat backends` (or a folder or .ppk)   programs: `paperboat pkg list`\n";
+  if (!fs::exists(target, ec) && !fs::exists(core::StationManager::resolve_station_dir(target), ec)) {
+    std::cerr << "error: \"" << target << "\" is not a station\n"
+              << "  stations: `paperboat stations` (or a folder or .pst)   squero apps: `paperboat squero start <name>`\n";
     return 1;
   }
   return cmd_run(args);
 }
 
-int cmd_app(const std::vector<std::string_view>& args) {
+int cmd_web(const std::vector<std::string_view>& args) {
   if (args.empty()) {
-    std::cerr << "usage: paperboat app <start|stop|restart|build> [options]\n";
+    std::cerr << "usage: paperboat web <start|stop|restart|build> [options]\n";
     return 2;
   }
   auto sub = args[0];
@@ -1185,15 +1168,15 @@ int cmd_app(const std::vector<std::string_view>& args) {
   }
 
   if (sub == "start") {
-    start_workbench();
-    return core::BackendManager::start_app(port, host, daemon) ? 0 : 1;
+    start_scratchpad();
+    return core::StationManager::start_app(port, host, daemon) ? 0 : 1;
   } else if (sub == "stop") {
-    return core::BackendManager::stop_app(port) ? 0 : 1;
+    return core::StationManager::stop_app(port) ? 0 : 1;
   } else if (sub == "restart") {
-    start_workbench();
-    return core::BackendManager::restart_app(port, host) ? 0 : 1;
+    start_scratchpad();
+    return core::StationManager::restart_app(port, host) ? 0 : 1;
   } else if (sub == "build") {
-    return core::BackendManager::build_app() ? 0 : 1;
+    return core::StationManager::build_app() ? 0 : 1;
   } else {
     std::cerr << "error: unknown app subcommand: " << sub << '\n';
     return 2;
@@ -1214,13 +1197,13 @@ int cmd_examples(const std::vector<std::string_view>& args) {
   }
 
   if (sub == "fetch") {
-    return core::BackendManager::fetch_examples() ? 0 : 1;
+    return core::StationManager::fetch_examples() ? 0 : 1;
   } else if (sub == "start") {
-    return core::BackendManager::start_examples(dir) ? 0 : 1;
+    return core::StationManager::start_examples(dir) ? 0 : 1;
   } else if (sub == "stop") {
-    return core::BackendManager::stop_examples() ? 0 : 1;
+    return core::StationManager::stop_examples() ? 0 : 1;
   } else if (sub == "status") {
-    auto list = core::BackendManager::status_examples(dir);
+    auto list = core::StationManager::status_examples(dir);
     std::cout << std::left << std::setw(8) << "PORT"
               << std::setw(26) << "NAME"
               << std::setw(10) << "TYPE"
@@ -1352,11 +1335,10 @@ int cmd_toolkit(const std::vector<std::string_view>& args) {
   return 0;
 }
 
-// paperboat pkg: the package manager for apps in other repositories (apps.toml). Same shape as
-// `toolkit`, but into a per-user store, and what's built is an app, not a toolkit of this engine.
-int cmd_pkg(const std::vector<std::string_view>& args) {
+// paperboat squero: manage and run Squero apps (apps.toml).
+int cmd_squero(const std::vector<std::string_view>& args) {
   if (args.empty()) {
-    std::cerr << "usage: paperboat pkg <list|install|update|uninstall|versions|path> [name[@version]] [--version V] [--all] [--force] [--json]\n";
+    std::cerr << "usage: paperboat squero <list|install|update|uninstall|versions|path|start|stop|restart> [name[@version]] [--version V] [--all] [--force] [--json]\n";
     return 2;
   }
   const auto sub = args[0];
@@ -1370,6 +1352,7 @@ int cmd_pkg(const std::vector<std::string_view>& args) {
     else if (args[i] == "--all") all = true;
     else if (args[i] == "--force") force = true;
     else if ((args[i] == "--version" || args[i] == "-v") && i + 1 < args.size()) version = std::string(args[++i]);
+    else if (args[i] == "--port" && i + 1 < args.size()) ++i;
     else if (!args[i].starts_with("-") && name.empty()) name = std::string(args[i]);
   }
   if (const auto at = name.find('@'); at != std::string::npos) {  // name@version
@@ -1409,7 +1392,7 @@ int cmd_pkg(const std::vector<std::string_view>& args) {
         if (now.empty()) line += "; it is not installed now";
         else if (now != built) line += "; " + now + " is installed now";
         if (!now.empty() && !tk::dep_satisfied(now, d, a.version))
-          line += ", outside the range: paperboat pkg install " + a.name + (a.version == "dev" ? "" : "@" + a.version) +
+          line += ", outside the range: paperboat squero install " + a.name + (a.version == "dev" ? "" : "@" + a.version) +
                   " --force";
         std::cout << std::string(44, ' ') << line << '\n';
       }
@@ -1423,14 +1406,31 @@ int cmd_pkg(const std::vector<std::string_view>& args) {
       const auto r = tk::install_app(a.name, {}, {}, [](std::string_view l, std::string_view t) {
         (l == "error" ? std::cerr : std::cout) << "[" << l << "] " << t << '\n';
       }, force);
-      if (!r.ok) std::cerr << "paperboat pkg: " << r.message << '\n';
+      if (!r.ok) std::cerr << "paperboat squero: " << r.message << '\n';
       failed += !r.ok;
     }
     return failed ? 1 : 0;
   }
   if (name.empty()) {
-    std::cerr << "error: app name required (e.g. `paperboat pkg " << sub << " squero-studio-om`)\n";
+    std::cerr << "error: squero app name required (e.g. `paperboat squero " << sub << " squero-studio-om`)\n";
     return 2;
+  }
+  if (sub == "start" || sub == "stop" || sub == "restart") {
+    const auto app = find_squero(name);
+    if (!app) {
+      std::cerr << "error: unknown squero app \"" << name << "\" (see `paperboat squero list`)\n";
+      return 1;
+    }
+    if (app->kind == "library") {
+      std::cerr << "error: " << app->name << " is a library, not a runnable squero app\n";
+      return 1;
+    }
+    auto rest = without(std::vector<std::string_view>(args.begin() + 1, args.end()), name);
+    if (sub == "start") return start_squero(*app, std::move(rest));
+    if (sub == "stop") return stop_squero(*app, rest);
+    if (const int rc = stop_squero(*app, rest); rc != 0) return rc;
+    rest.emplace_back("--daemon");
+    return start_squero(*app, std::move(rest));
   }
   if (sub == "versions") {
     const auto versions = tk::list_app_versions(name, {}, true);
@@ -1441,7 +1441,7 @@ int cmd_pkg(const std::vector<std::string_view>& args) {
   if (sub == "path") {
     const auto out = tk::app_output(name);
     if (out.empty()) {
-      std::cerr << "paperboat pkg: \"" << name << "\" is not installed (paperboat pkg install " << name << ")\n";
+      std::cerr << "paperboat squero: \"" << name << "\" is not installed (paperboat squero install " << name << ")\n";
       return 1;
     }
     std::cout << out.string() << '\n';
@@ -1454,10 +1454,10 @@ int cmd_pkg(const std::vector<std::string_view>& args) {
   if (sub == "install" || sub == "add" || sub == "update") res = tk::install_app(name, version, {}, log, force);
   else if (sub == "uninstall" || sub == "remove") res = tk::uninstall_app(name, {}, log);
   else {
-    std::cerr << "error: unknown pkg subcommand: " << sub << '\n';
+    std::cerr << "error: unknown squero subcommand: " << sub << '\n';
     return 2;
   }
-  if (!res.ok) std::cerr << "paperboat pkg: " << res.message << '\n';
+  if (!res.ok) std::cerr << "paperboat squero: " << res.message << '\n';
   return res.ok ? 0 : 1;
 }
 
@@ -1630,7 +1630,7 @@ int cmd_update(const std::vector<std::string_view>& args) {
     }
   }
 
-  if (pulled) std::cout << "updated; restart running backends and servers to use it\n";
+  if (pulled) std::cout << "updated; restart running stations and servers to use it\n";
   return failed ? 1 : 0;
 }
 
@@ -1714,7 +1714,7 @@ int cmd_check(const std::vector<std::string_view>& args) {
       emit(std::move(e));
     };
   }
-  auto res = core::BackendManager::check_backend(path, fast, progress);
+  auto res = core::StationManager::check_station(path, fast, progress);
   if (json_out || stream) {
     json steps_json = json::array();
     for (const auto& s : res.steps) steps_json.push_back(step_json(s));
@@ -1744,7 +1744,7 @@ int cmd_check(const std::vector<std::string_view>& args) {
     return res.ok ? 0 : 1;
   }
 
-  std::cout << "backend \"" << (res.name.empty() ? res.domain : res.name)
+  std::cout << "station \"" << (res.name.empty() ? res.domain : res.name)
             << "\" (" << (res.version.empty() ? "0.1.0" : res.version)
             << ", " << (res.language.empty() ? "unknown" : res.language);
   if (!res.solver.empty()) {
@@ -1771,11 +1771,11 @@ int cmd_check(const std::vector<std::string_view>& args) {
   }
 
   if (res.ok) {
-    std::cout << "[ok] backend verification passed ("
+    std::cout << "[ok] station verification passed ("
               << (fast ? "fast check" : "all steps") << ")\n";
     return 0;
   } else {
-    std::cerr << "[failed] backend verification failed:\n";
+    std::cerr << "[failed] station verification failed:\n";
     for (const auto& e : res.errors) {
       std::cerr << "  error: " << e << '\n';
     }
@@ -1806,15 +1806,15 @@ int cmd_pack(const std::vector<std::string_view>& args) {
   }
 
   if (stream) {
-    auto res = core::BackendManager::pack_backend(path, out_path, /*fast=*/true, progress_events());
+    auto res = core::StationManager::pack_station(path, out_path, /*fast=*/true, progress_events());
     emit({{"event", "result"}, {"ok", res.ok}, {"package", res.package_path.string()}, {"name", res.name},
           {"version", res.version}, {"files", res.file_count}, {"bytes", res.total_bytes}, {"sha256", res.sha256},
           {"errors", res.errors}});
     return res.ok ? 0 : 1;
   }
 
-  std::cout << "==> Packing backend " << (path.empty() ? "." : path) << "…\n";
-  auto res = core::BackendManager::pack_backend(path, out_path, /*fast=*/true);
+  std::cout << "==> Packing station " << (path.empty() ? "." : path) << "…\n";
+  auto res = core::StationManager::pack_station(path, out_path, /*fast=*/true);
   if (!res.ok) {
     std::cerr << "[failed] packing error:\n";
     for (const auto& e : res.errors) {
@@ -1850,19 +1850,19 @@ int cmd_unpack(const std::vector<std::string_view>& args) {
   }
 
   if (archive.empty()) {
-    std::cerr << "error: package archive path required (e.g. `paperboat unpack my-backend-0.1.0.ppk`)\n";
+    std::cerr << "error: package archive path required (e.g. `paperboat unpack my-station-0.1.0.pst`)\n";
     return 2;
   }
 
   if (stream) {
-    auto res = core::BackendManager::unpack_backend(archive, dest_dir, /*verify=*/true, progress_events());
+    auto res = core::StationManager::unpack_station(archive, dest_dir, /*verify=*/true, progress_events());
     emit({{"event", "result"}, {"ok", res.ok}, {"dir", res.destination_dir.string()}, {"name", res.name},
           {"version", res.version}, {"files", res.file_count}, {"errors", res.errors}});
     return res.ok ? 0 : 1;
   }
 
   std::cout << "==> Unpacking package " << archive << "…\n";
-  auto res = core::BackendManager::unpack_backend(archive, dest_dir, /*verify=*/true);
+  auto res = core::StationManager::unpack_station(archive, dest_dir, /*verify=*/true);
   if (!res.ok) {
     std::cerr << "[failed] unpack error:\n";
     for (const auto& e : res.errors) {
@@ -1873,7 +1873,7 @@ int cmd_unpack(const std::vector<std::string_view>& args) {
 
   std::cout << "[ok] package extracted to " << res.destination_dir.string()
             << " (" << res.file_count << " files verified)\n";
-  std::cout << "[ok] backend " << res.name << " v" << res.version << " is ready to run\n";
+  std::cout << "[ok] station " << res.name << " v" << res.version << " is ready to run\n";
   return 0;
 }
 
@@ -1881,8 +1881,8 @@ int cmd_commands(const std::vector<std::string_view>& args);
 int cmd_top(const std::vector<std::string_view>&);
 int cmd_launcher(const std::vector<std::string_view>& args);
 
-// What a command's free argument names, for completion: a backend, a toolkit, something
-// running (name or port), a .ppk file, or nothing.
+// What a command's free argument names, for completion: a station, a toolkit, something
+// running (name or port), a .pst file, or nothing.
 struct CommandSpec {
   std::string_view name;
   Command run;
@@ -1893,48 +1893,49 @@ struct CommandSpec {
   std::string_view arg = {};
 };
 
-// The subcommands the command line, the basic prompt and the console share (`commands --json`).
+// The subcommands the command line, the basic prompt and Paperboat CLI share (`commands --json`).
 const std::vector<CommandSpec>& command_table() {
   static const std::vector<CommandSpec> table = {
-      {"start", cmd_start, "Start the web app, or a backend or program (start [backend|program])", {}, {},
-       {"--port", "--host", "--daemon", "--no-build", "--clean", "--time", "--verbose", "--var", "--version"}, "target"},
-      {"stop", cmd_stop, "Stop the web app, or a backend or program (stop [backend|program])", {}, {}, {"--all", "--port"},
-       "target"},
-      {"restart", cmd_restart, "Restart the web app, or a backend or program", {}, {}, {"--port"}, "target"},
-      {"run", cmd_run, "Build and run a backend (or .ppk) in the foreground", {}, {},
-       {"--port", "--run", "--no-build", "--clean", "--time", "--verbose", "--var", "--record"}, "backend"},
-      {"open", cmd_open, "Open a saved project file (.ppj, .paperboat.json)", {}, {},
-       {"--run", "--port", "--no-build", "--record"}, "project"},
-      {"new", paperboat::cli::cmd_new, "Scaffold a new backend that passes check (C++, Python or Julia)", {}, {},
+      {"start", cmd_start, "Start Paperboat, or a station (start [station])", {}, {},
+       {"--port", "--host", "--daemon", "--no-build", "--clean", "--time", "--verbose", "--var", "--version"}, "station"},
+      {"stop", cmd_stop, "Stop Paperboat or a station (stop [station])", {}, {}, {"--all", "--port"},
+       "station"},
+      {"restart", cmd_restart, "Restart Paperboat or a station", {}, {}, {"--port"}, "station"},
+      {"run", cmd_run, "Build and run a station (or .pst) in the foreground", {}, {},
+       {"--port", "--run", "--no-build", "--clean", "--time", "--verbose", "--var", "--record"}, "station"},
+      {"open", cmd_open, "Open a saved Station's flow (.psf)", {}, {},
+       {"--run", "--port", "--no-build", "--record"}, "psf"},
+      {"new", paperboat::cli::cmd_new, "Scaffold a new station that passes check (C++, Python or Julia)", {}, {},
        {"--cpp", "--python", "--dir"}},
-      {"deps", cmd_deps, "Create a backend's isolated environment and install its dependencies", {},
-       {"install"}, {"--force"}, "backend"},
+      {"deps", cmd_deps, "Create a station's isolated environment and install its dependencies", {},
+       {"install"}, {"--force"}, "station"},
 #if defined(PAPERBOAT_HAS_OPTIMIZATION) || defined(PAPERBOAT_HAS_OPTIMIZE_CMD)
       {"optimize", cmd_optimize, "Solve a fmincon-shaped problem JSON (LP, QP or NLP)", {}, {},
        {"--json", "--grid"}, "problem"},
 #endif
-      {"build", cmd_build, "Compile a C++ backend", {}, {}, {"--clean"}, "backend"},
-      {"rebuild", cmd_rebuild, "Clean and compile a C++ backend", {}, {}, {}, "backend"},
-      {"backends", cmd_backends, "List the backends you can run", {}, {}, {"--json"}},
-      {"list", cmd_list, "List what is running, backends and apps (KIND)", {"ps"}, {}, {"--json"}},
-      {"status", cmd_status, "What each backend is doing: building (stage), starting, failed, running", {}, {}, {"--json"}, "backend|port"},
-      {"app", cmd_app, "The web app: start, stop, restart, build (start/stop/restart do the same)", {},
+      {"build", cmd_build, "Compile a C++ station", {}, {}, {"--clean"}, "station"},
+      {"rebuild", cmd_rebuild, "Clean and compile a C++ station", {}, {}, {}, "station"},
+      {"stations", cmd_stations, "List the stations you can run", {}, {}, {"--json"}},
+      {"list", cmd_list, "List what is running (stations, paperboat, squero)", {"ps"}, {}, {"--json"}},
+      {"status", cmd_status, "What each station is doing: building (stage), starting, failed, running", {}, {}, {"--json"}, "station|port"},
+      {"web", cmd_web, "Paperboat web UI: start, stop, restart, build", {},
        {"start", "stop", "restart", "build"}, {"--port", "--host", "--daemon"}},
-      {"examples", cmd_examples, "Run all example backends, or fetch them", {}, {"start", "stop", "status", "fetch"}, {"--dir"}},
+      {"examples", cmd_examples, "Run all example stations, or fetch them", {}, {"start", "stop", "status", "fetch"}, {"--dir"}},
       {"toolkit", cmd_toolkit, "Manage optional toolkits", {}, {"list", "install", "update", "uninstall", "versions"},
        {"--json", "--all", "--no-build", "--version"}, "toolkit"},
-      {"check", cmd_check, "Verify a backend (manifest, catalog, smoke, golden)", {}, {},
-       {"--fast", "--json", "--json-stream"}, "backend"},
-      {"pack", cmd_pack, "Package a backend as .ppk", {}, {}, {"--out", "--json-stream"}, "backend"},
-      {"unpack", cmd_unpack, "Unpack and verify a .ppk", {}, {}, {"--dir", "--json-stream"}, "ppk"},
+      {"check", cmd_check, "Verify a station (manifest, catalog, smoke, golden)", {}, {},
+       {"--fast", "--json", "--json-stream"}, "station"},
+      {"pack", cmd_pack, "Package a station as .pst", {}, {}, {"--out", "--json-stream"}, "station"},
+      {"unpack", cmd_unpack, "Unpack and verify a .pst", {}, {}, {"--dir", "--json-stream"}, "pst"},
       {"update", cmd_update, "Pull this repository and its app checkouts, rebuild", {}, {},
        {"--check", "--no-build", "--channel"}},
       {"use", cmd_use, "List or switch installed paperboat runtime versions", {}, {},
        {"--list", "--json"}, "version"},
-      {"pkg", cmd_pkg, "Apps from other repositories (package manager)", {},
-       {"list", "install", "update", "uninstall", "versions", "path"}, {"--json", "--all", "--version", "--force"}},
+      {"squero", cmd_squero, "Manage and run Squero apps from apps.toml", {},
+       {"list", "install", "update", "uninstall", "versions", "path", "start", "stop", "restart"},
+       {"--json", "--all", "--version", "--force", "--port", "--daemon"}},
       {"launcher", cmd_launcher, "Open the Paperboat Launcher desktop app", {"gui"}},
-      {"top", cmd_top, "Process dashboard (console)"},
+      {"top", cmd_top, "Process overview (Paperboat CLI)"},
       {"commands", cmd_commands, "The command table", {}, {}, {"--json"}},
   };
   return table;
@@ -1967,8 +1968,8 @@ int cmd_commands(const std::vector<std::string_view>& args) {
 
 int cmd_top(const std::vector<std::string_view>&) {
   launch_console({"top"});
-  std::cerr << "paperboat top needs the console on a terminal (npm run build:cli); `paperboat list` "
-               "shows the same backends\n";
+  std::cerr << "paperboat top needs Paperboat CLI on a terminal (npm run build:cli); `paperboat list` "
+               "shows the same stations\n";
   return 2;
 }
 
@@ -2034,7 +2035,7 @@ bool launch_console(const std::vector<std::string>& args) {
       if (root.empty() || !fs::is_directory(root / "apps" / "cli")) continue;
       script = fs::weakly_canonical(root / "apps" / "cli" / "dist" / "main.js", ec);
       if (!fs::is_regular_file(script)) {
-        std::cerr << "note: the console isn't built (npm install && npm run build:cli); using the basic prompt\n";
+        std::cerr << "note: Paperboat CLI isn't built (npm install && npm run build:cli); using the basic prompt\n";
         return false;
       }
       break;
@@ -2084,42 +2085,42 @@ void print_interactive_help() {
 }
 
 /**
- * The workbench is the default backend: built from `engine/workbench` in a checkout, or launched
- * from the installed `paperboat-workbench` binary beside `paperboat` in a package / desktop app.
+ * The scratchpad is the default station: built from `engine/scratchpad` in a checkout, or launched
+ * from the installed `paperboat-scratchpad` binary beside `paperboat` in a package / desktop app.
  */
-void start_workbench() {
+void start_scratchpad() {
   const fs::path root = tk::find_repo_root();
-  if (core::BackendManager::is_port_listening(8765)) return;
-  const fs::path wb_dir = (!root.empty() && fs::is_directory(root / "engine" / "workbench"))
-                              ? (root / "engine" / "workbench")
+  if (core::StationManager::is_port_listening(8765)) return;
+  const fs::path wb_dir = (!root.empty() && fs::is_directory(root / "engine" / "scratchpad"))
+                              ? (root / "engine" / "scratchpad")
                               : fs::path{};
   if (!wb_dir.empty()) {
     std::string err;
-    if (!core::BackendManager::ensure_built(wb_dir, false, false, &err)) return;
+    if (!core::StationManager::ensure_built(wb_dir, false, false, &err)) return;
   }
-  const fs::path bin = core::BackendManager::workbench_binary(root);
+  const fs::path bin = core::StationManager::scratchpad_binary(root);
   if (bin.empty()) return;
   const fs::path cwd = wb_dir.empty() ? bin.parent_path() : wb_dir;
-  const fs::path log_path = platform::shared_tmp_dir() / "backend-8765.log";
+  const fs::path log_path = platform::shared_tmp_dir() / "station-8765.log";
   const int pid = core::ProcessRunner::run_detached({bin.string(), "--port", "8765"}, cwd, {}, log_path);
   if (pid <= 0) return;
-  core::RunningBackend rb;
+  core::RunningStation rb;
   rb.port = 8765;
   rb.pid = pid;
-  rb.engine = "workbench";
-  rb.domain = "workbench";
+  rb.engine = "scratchpad";
+  rb.domain = "scratchpad";
   rb.cwd = cwd;
-  rb.backend_dir = wb_dir;
+  rb.station_dir = wb_dir;
   rb.executable = bin.string();
   rb.ws_url = "ws://localhost:8765";
   rb.started_at = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-  core::BackendManager::register_running_backend(rb);
-  std::cout << "  \033[32m●\033[0m workbench running on ws://localhost:8765 (PID " << pid << ")\n\n";
+  core::StationManager::register_running_station(rb);
+  std::cout << "  \033[32m●\033[0m scratchpad running on ws://localhost:8765 (PID " << pid << ")\n\n";
 }
 
 int run_interactive_prompt() {
   tui::render_banner(true);
-  start_workbench();
+  start_scratchpad();
   std::cout << "Interactive prompt. Type 'help' for commands, or 'exit' to quit.\n\n";
 
   std::string line;
@@ -2225,7 +2226,7 @@ std::optional<int> bootstrap(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  core::BackendManager::set_registry_extension(add_optional_packages);
+  core::StationManager::set_registry_extension(add_optional_packages);
   if (argc >= 2 && (std::string_view(argv[1]) == "--version" || std::string_view(argv[1]) == "-v" ||
                     std::string_view(argv[1]) == "--help" || std::string_view(argv[1]) == "-h")) {
     // answered by this binary, installed or not

@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld("paperboatLauncher", {
   fetchVersions: (kind, name) => ipcRenderer.invoke("launcher:versions", kind, name),
   inspectToolkit: (name) => ipcRenderer.invoke("launcher:inspect", name),
   setChannel: (channel) => ipcRenderer.invoke("launcher:channel", channel),
-  removeBackendDir: (dir) => ipcRenderer.invoke("launcher:removeBackend", dir),
+  removeStationDir: (dir) => ipcRenderer.invoke("launcher:removeStation", dir),
   pickFile: (kind) => ipcRenderer.invoke("launcher:pickFile", kind),
   openExternalUrl: (url) => ipcRenderer.invoke("launcher:openUrl", url),
   openFolderPath: (dir) => ipcRenderer.invoke("launcher:openPath", dir),
@@ -23,9 +23,9 @@ contextBridge.exposeInMainWorld("paperboatLauncher", {
     ipcRenderer.on("launcher:tasks", handler);
     return () => ipcRenderer.off("launcher:tasks", handler);
   },
-  onOpenPpk: (fn) => {
+  onOpenPst: (fn) => {
     const handler = (_ev, filePath) => fn(filePath);
-    ipcRenderer.on("launcher:open-ppk", handler);
-    return () => ipcRenderer.off("launcher:open-ppk", handler);
+    ipcRenderer.on("launcher:open-pst", handler);
+    return () => ipcRenderer.off("launcher:open-pst", handler);
   },
 });

@@ -36,7 +36,7 @@ fs::path walk_up(fs::path p) {
   p = fs::weakly_canonical(p, ec);
   while (!p.empty()) {
     if (has_repo_markers(p)) return p;
-    // A paperboat-examples checkout sits next to paperboat, not inside it: a backend's
+    // A paperboat-examples checkout sits next to paperboat, not inside it: a station's
     // descriptor or executable lives under <workspace>/paperboat-examples/NN-…, so the
     // repository root is a sibling, not an ancestor. Check it at every step.
     if (has_repo_markers(p / "paperboat")) return p / "paperboat";
@@ -182,7 +182,7 @@ ToolkitResult rebuild_host(const HostBuild& host, const fs::path& root, const To
   if (log) log("info", "reconfiguring build at " + bld.string() + "…");
   const std::string cmake = platform::cmake_command(bld);
   std::string last;
-  // Only a build folder (a running backend's): reconfigure it from its own cache.
+  // Only a build folder (a running station's): reconfigure it from its own cache.
   const std::vector<std::string> configure = src.empty() ? std::vector<std::string>{cmake, bld.string()}
                                                          : std::vector<std::string>{cmake, "-S", src.string(), "-B", bld.string()};
   if (run_cmd(configure, root, log, &last) != 0) {
@@ -191,7 +191,7 @@ ToolkitResult rebuild_host(const HostBuild& host, const fs::path& root, const To
   if (log) log("info", "building…");
   std::vector<std::string> build = {cmake, "--build", bld.string()};
 #ifdef _WIN32
-  // Programs of this build that are running (this paperboat.exe, the workbench the console
+  // Programs of this build that are running (this paperboat.exe, the scratchpad the console
   // started) cannot be overwritten on Windows, but they can be renamed: move them aside so the
   // link can write the new ones. Build the configuration this paperboat came from (Visual
   // Studio's default is Debug).
@@ -494,9 +494,9 @@ std::vector<ToolkitEntry> load_toolkits_manifest(const fs::path& manifest_path) 
   return parse_toolkits_manifest(buffer.str());
 }
 
-std::vector<std::string> load_toolkit_requirements(const fs::path& backend_dir,
+std::vector<std::string> load_toolkit_requirements(const fs::path& station_dir,
                                                    const std::vector<ToolkitEntry>& known) {
-  if (backend_dir.empty()) return {};
+  if (station_dir.empty()) return {};
   std::set<std::string> known_names;
   for (const auto& k : known) {
     if (!k.builtin) known_names.insert(k.name);
@@ -510,7 +510,7 @@ std::vector<std::string> load_toolkit_requirements(const fs::path& backend_dir,
   };
 
   for (const char* fname : {"toolkit_requirements.toml"}) {
-    const fs::path p = backend_dir / fname;
+    const fs::path p = station_dir / fname;
     if (!fs::is_regular_file(p)) continue;
     try {
       const auto doc = toml::parse_file(p.string());
@@ -530,7 +530,7 @@ std::vector<std::string> load_toolkit_requirements(const fs::path& backend_dir,
     }
   }
 
-  const fs::path desc = backend_dir / "descriptor.toml";
+  const fs::path desc = station_dir / "descriptor.toml";
   if (fs::is_regular_file(desc)) {
     try {
       const auto doc = toml::parse_file(desc.string());
@@ -558,7 +558,7 @@ std::vector<std::string> load_toolkit_requirements(const fs::path& backend_dir,
 }
 
 std::vector<ToolkitEntry> list_toolkits(const fs::path& repo_root,
-                                        const fs::path& backend_dir,
+                                        const fs::path& station_dir,
                                         bool fetch_versions) {
   std::string pkg_list;
   for (const auto& p : builtins().packages()) {
@@ -572,12 +572,12 @@ std::vector<ToolkitEntry> list_toolkits(const fs::path& repo_root,
   builtin_entry.installed = true;
   builtin_entry.description = "Paperboat standard toolkit packages (" + pkg_list + ")";
 
-  const fs::path root = repo_root.empty() ? find_repo_root(backend_dir) : repo_root;
+  const fs::path root = repo_root.empty() ? find_repo_root(station_dir) : repo_root;
   if (root.empty() || !fs::is_regular_file(root / "toolkits.toml")) {
     return {std::move(builtin_entry)};
   }
   auto entries = load_toolkits_manifest(root / "toolkits.toml");
-  const auto reqs = load_toolkit_requirements(backend_dir, entries);
+  const auto reqs = load_toolkit_requirements(station_dir, entries);
   for (auto& e : entries) {
     const fs::path target = toolkit_dir(root, e.name);
     e.installed = fs::is_regular_file(target / "toolkit.toml");
@@ -756,7 +756,7 @@ namespace {
 
 // An installed paperboat (no engine sources): build `entry` as a plugin, libpaperboat_plugin_<name> in
 // <toolkit>/lib, against the installed SDK, with the toolkits it requires built in beside it. Also
-// writes <toolkit>/lib/paperboat-toolkit.cmake, which PaperboatConfig.cmake includes so a C++ backend
+// writes <toolkit>/lib/paperboat-toolkit.cmake, which PaperboatConfig.cmake includes so a C++ station
 // can link paperboat::toolkit_<name> (pb#354).
 ToolkitResult build_plugin(const ToolkitEntry& entry, const std::vector<ToolkitEntry>& entries, const fs::path& root,
                            const ToolkitLog& log) {
@@ -798,8 +798,8 @@ ToolkitResult build_plugin(const ToolkitEntry& entry, const std::vector<ToolkitE
        << "target_link_libraries(" << plugin << " PRIVATE " << tk << ")\n"
        << "set_target_properties(" << plugin << " PROPERTIES LIBRARY_OUTPUT_DIRECTORY " << quoted(dir / "lib")
        << " RUNTIME_OUTPUT_DIRECTORY " << quoted(dir / "lib") << ")\n"
-       // The package a backend links (PaperboatConfig includes it): the plugin, the toolkit's headers, and the
-       // imported libraries it uses (OpenCV for opencv), which a backend including its header needs too.
+       // The package a station links (PaperboatConfig includes it): the plugin, the toolkit's headers, and the
+       // imported libraries it uses (OpenCV for opencv), which a station including its header needs too.
        << "set(_incs \"\")\nset(_libs \"\")\n"
        << "get_target_property(_ll " << tk << " LINK_LIBRARIES)\nget_target_property(_il " << tk << " INTERFACE_LINK_LIBRARIES)\n"
        << "foreach(_l IN LISTS _ll _il)\n"
@@ -961,7 +961,7 @@ ToolkitResult install_toolkit(std::string_view name,
     }
   }
 
-  const std::string msg = "installed toolkit" + std::string(order.size() > 1 ? "s " : " ") + names + "; restart backend to load changes";
+  const std::string msg = "installed toolkit" + std::string(order.size() > 1 ? "s " : " ") + names + "; restart station to load changes";
   if (log) log("info", msg);
   return {true, msg};
 }
@@ -1051,7 +1051,7 @@ ToolkitInspectResult inspect_toolkit(std::string_view name,
     for (const auto* t : registry.package(pkg)) {
       if (t->abstract) continue;
       if (!t->def.instrument.empty()) {
-        res.dashboard_instruments.push_back({t->name, t->def.label, t->def.instrument, t->def.description});
+        res.board_instruments.push_back({t->name, t->def.label, t->def.instrument, t->def.description});
       } else {
         res.flow_blocks.push_back({t->name, t->def.label, t->def.description});
       }
@@ -1112,7 +1112,7 @@ std::string toolkit_inspect_json(const ToolkitInspectResult& res) {
     fl_arr.push_back({{"type", b.type}, {"label", b.label}, {"description", b.description}});
   }
   json in_arr = json::array();
-  for (const auto& i : res.dashboard_instruments) {
+  for (const auto& i : res.board_instruments) {
     in_arr.push_back({{"type", i.type}, {"label", i.label}, {"instrument", i.instrument}, {"description", i.description}});
   }
   json doc = {
@@ -1121,7 +1121,7 @@ std::string toolkit_inspect_json(const ToolkitInspectResult& res) {
       {"installed", res.installed},
       {"station_blocks", std::move(st_arr)},
       {"flow_blocks", std::move(fl_arr)},
-      {"dashboard_instruments", std::move(in_arr)},
+      {"board_instruments", std::move(in_arr)},
   };
   return doc.dump(2);
 }
@@ -1153,11 +1153,11 @@ std::string toolkit_inspect_text(const ToolkitInspectResult& res) {
     }
   }
 
-  out << "\nDashboard instruments (" << res.dashboard_instruments.size() << "):\n";
-  if (res.dashboard_instruments.empty()) {
+  out << "\nBoard instruments (" << res.board_instruments.size() << "):\n";
+  if (res.board_instruments.empty()) {
     out << "  (none)\n";
   } else {
-    for (const auto& i : res.dashboard_instruments) {
+    for (const auto& i : res.board_instruments) {
       out << "  " << i.type << "\t" << i.label << " [" << i.instrument << "]";
       if (!i.description.empty()) out << "\t" << i.description;
       out << "\n";

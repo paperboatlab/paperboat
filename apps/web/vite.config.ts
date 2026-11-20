@@ -12,9 +12,9 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const run = promisify(execFile);
 
 /**
- * Dev-server equivalents of the installed app's CLI-backed endpoints (serve.cpp): `/__paperboat/backends`
- * (`paperboat list --json`: what is running, for the Backend dialog) and `/__paperboat/status`
- * (`paperboat status --json`: what each backend is doing, starting ones included, for the wait screen).
+ * Dev-server equivalents of the installed app's CLI-backed endpoints (serve.cpp): `/__paperboat/stations`
+ * (`paperboat list --json`: what is running, for the Station dialog) and `/__paperboat/status`
+ * (`paperboat status --json`: what each station is doing, starting ones included, for the wait screen).
  */
 function cliEndpoints(): Plugin {
   const endpoint = (args: string[], empty: string) => (_request: IncomingMessage, response: ServerResponse) => {
@@ -29,8 +29,8 @@ function cliEndpoints(): Plugin {
       });
   };
   const install = (server: { middlewares: { use: (path: string, fn: ReturnType<typeof endpoint>) => void } }) => {
-    server.middlewares.use("/__paperboat/backends", endpoint(["list", "--json"], "[]"));
-    server.middlewares.use("/__paperboat/status", endpoint(["status", "--json"], '{"backends":[]}'));
+    server.middlewares.use("/__paperboat/stations", endpoint(["list", "--json"], "[]"));
+    server.middlewares.use("/__paperboat/status", endpoint(["status", "--json"], '{"stations":[]}'));
   };
   return {
     name: "paperboat-cli-endpoints",

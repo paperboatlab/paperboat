@@ -13,7 +13,7 @@ export type NoticeSpec = {
 
 /**
  * A notice floating in the middle of the screen: opening a project that needs a word first (another
- * backend, unsaved changes, a file that can't be read), or the offer to restore the last session. Not
+ * station, unsaved changes, a file that can't be read), or the offer to restore the last session. Not
  * modal: nothing behind it is blocked, but it keeps its keys (Enter, Esc) to itself.
  */
 export function Notice({ spec, onClose }: { spec: NoticeSpec; onClose: () => void }) {

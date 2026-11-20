@@ -119,7 +119,7 @@ jobs:
           cmake --build engine/build --target paperboat
           cmake -S python -B python/build -DCMAKE_BUILD_TYPE=Release -DPython_EXECUTABLE="$(which python)"
           cmake --build python/build -j 4
-      - name: Generate and check a Python backend
+      - name: Generate and check a Python station
         run: |
           ./bin/paperboat new demo --python --dir "$RUNNER_TEMP/demo"
           ./bin/paperboat check "$RUNNER_TEMP/demo"

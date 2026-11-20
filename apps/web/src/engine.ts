@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { TraceStore } from "./traces.ts";
 import { ReplayStore, type ReplayRecord, type ReplayState } from "./replay.ts";
-import type { AnalysisDef, BlockDef, ClientMsg, Connectors, DashboardLayout, Entity, FlowType, Graph, MonitorState, ObjectDef, RunSettings, RunStatus, ServerMsg, Station, StationView, ToolkitStatus, Variables, VectorComponent, View } from "./protocol";
+import type { AnalysisDef, BlockDef, ClientMsg, Connectors, BoardLayout, Entity, FlowType, Graph, MonitorState, ObjectDef, RunSettings, RunStatus, ServerMsg, Station, StationView, ToolkitStatus, Variables, VectorComponent, View } from "./protocol";
 
-/** The run the backend is on, or last ran. */
+/** The run the station is on, or last ran. */
 export type RunState = {
   id: string;
   progress: number;
@@ -19,31 +19,31 @@ export type RunState = {
 export type EngineState = {
   connection: "connecting" | "open" | "closed";
   engine: string;
-  /** The Paperboat build serving the backend (hello.version); absent: an older backend. */
+  /** The Paperboat build serving the station (hello.version); absent: an older station. */
   version?: string;
   /** How the Station page shows the station (from hello). */
   stationView: StationView;
-  /** The backend's run defaults (from hello); empty if it didn't say. */
+  /** The station's run defaults (from hello); empty if it didn't say. */
   runDefaults: RunSettings;
   /** Available optional toolkits and their installation status (from hello and toolkits.status). */
   toolkits: ToolkitStatus[];
-  /** The flow types a sheet may be (from hello, #9); absent: an older backend that doesn't say. */
+  /** The flow types a sheet may be (from hello, #9); absent: an older station that doesn't say. */
   flows?: FlowType[];
   blocks: BlockDef[];
   /** The catalog's connector classes, for blocks' icon ports (§4). */
   connectors: Connectors;
   objects: ObjectDef[];
-  /** The backend's default Dashboard layout (from catalog), if it shipped one. */
-  dashboard?: DashboardLayout;
+  /** The station's default Board layout (from catalog), if it shipped one. */
+  board?: BoardLayout;
   /** What the imported toolkits can analyse outside the flows (catalog, pb#370). */
   analyses: AnalysisDef[];
   entities: Record<string, Entity>;
   view: View;
-  /** Last graph the backend asked the UI to load. */
+  /** Last graph the station asked the UI to load. */
   loaded: Graph | null;
-  /** Last station the backend asked the UI to load. */
+  /** Last station the station asked the UI to load. */
   station: Station | null;
-  /** The backend's default variables (#36), from variables.load. */
+  /** The station's default variables (#36), from variables.load. */
   variables: Variables;
   /** Live variables from Squero MX (variables.remote); not part of the project. */
   remoteVariables: Variables;
@@ -126,7 +126,7 @@ export type MonitorReading = { state: MonitorState; t: number; v?: number };
 
 /** Max points kept per metric series (the oldest go first). */
 export const MAX_METRIC_POINTS = 2000;
-/** What a replay control asks for (#284): the app's own, not the backend's. */
+/** What a replay control asks for (#284): the app's own, not the station's. */
 export type ReplayAction =
   | { type: "replay.start" }
   | { type: "replay.exit" }
@@ -143,7 +143,7 @@ export type Action = ServerMsg | ReplayAction | { type: "signals"; list: SignalM
 export const MAX_LOGS = 200;
 
 /**
- * Return all toolkits that are required by the current backend or by missing blocks in the
+ * Return all toolkits that are required by the current station or by missing blocks in the
  * open graph/project and are not currently installed.
  */
 export function missingRequiredToolkits(
@@ -183,7 +183,7 @@ function replayAt(s: EngineState, t: number): ReplayState | null {
 export function reduce(s: EngineState, m: Action): EngineState {
   switch (m.type) {
     case "reset":
-      // A new URL may be a different backend: drop everything the old one sent, keeping Console logs.
+      // A new URL may be a different station: drop everything the old one sent, keeping Console logs.
       return { ...initial, logs: s.logs, traces: s.traces, traceVersion: s.traceVersion + 1 };
     case "connection": {
       if (m.value !== "closed") return { ...s, connection: m.value };
@@ -193,8 +193,8 @@ export function reduce(s: EngineState, m: Action): EngineState {
         const logs = pushLog(s.logs, { level: "warn", text: "connection lost, reconnecting…" });
         return { ...s, connection: "closed", run, logs };
       }
-      if (s.connection === "connecting" && s.logs.at(-1)?.text !== "waiting for backend, reconnecting…") {
-        return { ...s, connection: "closed", logs: pushLog(s.logs, { level: "warn", text: "waiting for backend, reconnecting…" }) };
+      if (s.connection === "connecting" && s.logs.at(-1)?.text !== "waiting for station, reconnecting…") {
+        return { ...s, connection: "closed", logs: pushLog(s.logs, { level: "warn", text: "waiting for station, reconnecting…" }) };
       }
       return { ...s, connection: "closed" };
     }
@@ -215,7 +215,7 @@ export function reduce(s: EngineState, m: Action): EngineState {
     case "toolkits.status":
       return { ...s, toolkits: m.toolkits };
     case "catalog":
-      return { ...s, blocks: m.blocks, connectors: m.connectors ?? {}, objects: m.objects ?? [], dashboard: m.dashboard, analyses: m.analyses ?? [] };
+      return { ...s, blocks: m.blocks, connectors: m.connectors ?? {}, objects: m.objects ?? [], board: m.board, analyses: m.analyses ?? [] };
     case "scene":
       return { ...s, entities: Object.fromEntries(m.entities.map((e) => [e.id, e])), view: m.view ?? s.view };
     case "graph.load":
@@ -227,7 +227,7 @@ export function reduce(s: EngineState, m: Action): EngineState {
     case "variables.remote":
       // A message without a list (or a malformed one) means none, never `undefined`.
       return { ...s, remoteVariables: Array.isArray(m.variables) ? m.variables : [] };
-    case "project.load":
+    case "psf.load":
       return s;
     case "variables.values":
       return { ...s, varValues: m.values, varError: m.error ? { text: m.error, at: m.at } : null };
@@ -364,8 +364,8 @@ export function reduce(s: EngineState, m: Action): EngineState {
 const RETRY_MS = 1000;
 
 /**
- * One WebSocket to a backend that speaks protocol v0. Reconnects when the backend
- * goes away; on reconnect the backend resends catalog, scene and starter graph.
+ * One WebSocket to a station that speaks protocol v0. Reconnects when the station
+ * goes away; on reconnect the station resends catalog, scene and starter graph.
  */
 export function useEngine(url: string) {
   // Each engine has its own trace store; the reducer only carries it along.
@@ -389,7 +389,7 @@ export function useEngine(url: string) {
       pending = [];
       dispatch({ type: "signals", list });
     };
-    // Live variables from Squero MX are shared by the backend across sessions. The WebSocket
+    // Live variables from Squero MX are shared by the station across sessions. The WebSocket
     // broadcast covers most cases; polling the small HTTP snapshot keeps an open tab current even
     // when the broadcast races a reconnect.
     const http = url.replace(/^ws/, "http").replace(/\/$/, "");
@@ -401,7 +401,7 @@ export function useEngine(url: string) {
         const body = (await response.json()) as { variables?: Variables };
         if (!stopped) dispatch({ type: "variables.remote", source: "mx", variables: body.variables ?? [] });
       } catch {
-        // the backend is between restarts; the next tick tries again
+        // the station is between restarts; the next tick tries again
       }
     };
     const connect = () => {
@@ -419,7 +419,7 @@ export function useEngine(url: string) {
         try {
           const msg = JSON.parse(e.data) as ServerMsg;
           if (msg.type === "signal" || msg.type === "signals") {
-            // Plots read the store; React hears of a frame's samples once (#37). A backend sends
+            // Plots read the store; React hears of a frame's samples once (#37). A station sends
             // samples taken faster than every 30 ms as one `signals` batch.
             for (const one of msg.type === "signals" ? msg.list : [msg]) {
               traces.add(one);
@@ -433,7 +433,7 @@ export function useEngine(url: string) {
           }
           for (const listen of listeners.current) listen(msg);
         } catch (err) {
-          dispatch({ type: "log", level: "error", text: `bad message from backend: ${err instanceof Error ? err.message : String(err)}` });
+          dispatch({ type: "log", level: "error", text: `bad message from station: ${err instanceof Error ? err.message : String(err)}` });
         }
       };
       ws.onclose = () => {
@@ -478,7 +478,7 @@ export function useEngine(url: string) {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
   }, []);
 
-  /** Hear every message from the backend; returns the unsubscribe. */
+  /** Hear every message from the station; returns the unsubscribe. */
   const subscribe = useCallback((listen: (m: ServerMsg) => void) => {
     listeners.current.add(listen);
     return () => void listeners.current.delete(listen);
@@ -489,7 +489,7 @@ export function useEngine(url: string) {
     dispatch({ type: "log", level, text, ...(node ? { node } : {}) });
   }, []);
 
-  /** The replay's controls (#284): the app's own, not sent to the backend. */
+  /** The replay's controls (#284): the app's own, not sent to the station. */
   const replay = {
     start: () => dispatch({ type: "replay.start" }),
     exit: () => dispatch({ type: "replay.exit" }),

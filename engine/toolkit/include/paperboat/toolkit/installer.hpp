@@ -1,7 +1,7 @@
 #pragma once
 
 // Optional external toolkits: declared in toolkits.toml at the repository root and installed on
-// demand into engine/toolkit/<name>. Backends may declare required toolkits in
+// demand into engine/toolkit/<name>. Stations may declare required toolkits in
 // toolkit_requirements.toml (or import/use them in descriptor.toml).
 
 #include <compare>
@@ -19,7 +19,7 @@ namespace paperboat::toolkit {
 
 // One cmake build at a time in this process: two that touch the same build folder at once fail on
 // each other's files. Hold this before configuring or building (the installer does, and so does
-// every backend build), so an install and a restart-triggered rebuild never overlap.
+// every station build), so an install and a restart-triggered rebuild never overlap.
 std::unique_lock<std::mutex> lock_build();
 
 struct ToolkitEntry {
@@ -59,7 +59,7 @@ struct ToolkitInspectResult {
   bool found = false;
   std::vector<ToolkitInspectBlock> station_blocks;
   std::vector<ToolkitInspectBlock> flow_blocks;
-  std::vector<ToolkitInspectInstrument> dashboard_instruments;
+  std::vector<ToolkitInspectInstrument> board_instruments;
 };
 
 struct HostBuild {
@@ -126,14 +126,14 @@ std::filesystem::path sdk_dir();
 std::vector<ToolkitEntry> parse_toolkits_manifest(std::string_view toml_text);
 std::vector<ToolkitEntry> load_toolkits_manifest(const std::filesystem::path& manifest_path);
 
-// Toolkit names required by a backend folder (from toolkit_requirements.toml, toolkits.toml,
+// Toolkit names required by a station folder (from toolkit_requirements.toml, toolkits.toml,
 // or descriptor.toml imports/templates matching known external toolkits).
-std::vector<std::string> load_toolkit_requirements(const std::filesystem::path& backend_dir,
+std::vector<std::string> load_toolkit_requirements(const std::filesystem::path& station_dir,
                                                    const std::vector<ToolkitEntry>& known = {});
 
 // All toolkits from toolkits.toml with `installed` and `required` populated.
 std::vector<ToolkitEntry> list_toolkits(const std::filesystem::path& repo_root = {},
-                                        const std::filesystem::path& backend_dir = {},
+                                        const std::filesystem::path& station_dir = {},
                                         bool fetch_versions = false);
 
 // Protocol JSON array for hello.toolkits / toolkits.status.
@@ -161,7 +161,7 @@ ToolkitResult uninstall_toolkit(std::string_view name,
 std::vector<std::string> list_toolkit_versions(std::string_view name,
                                                const std::filesystem::path& repo_root = {});
 
-// Inspect blocks, station objects, and dashboard instruments of a toolkit or package.
+// Inspect blocks, station objects, and board instruments of a toolkit or package.
 ToolkitInspectResult inspect_toolkit(std::string_view name,
                                      const Registry& registry = builtins(),
                                      const std::filesystem::path& repo_root = {});

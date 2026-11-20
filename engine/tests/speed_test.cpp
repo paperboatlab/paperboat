@@ -13,7 +13,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "rig.hpp"
 #include "received.hpp"
 
@@ -64,11 +64,11 @@ struct Paced {
 // wall-clock seconds so far and what the run said) has one.
 Paced paced_run(core::RunSettings settings, std::function<std::optional<double>(double, const Paced&)> ask) {
   settings.real_time = true;
-  const core::Backend backend{.engine = "test", .catalog = &rig::catalog(), .run = settings};
+  const core::Station station{.engine = "test", .catalog = &rig::catalog(), .run = settings};
   Paced out;
   const auto start = Clock::now();
   const core::SpeedNow speed = [&] { return ask(since(start), out); };
-  out.status = core::run("r", json::parse(rig::catalog().graph), json::parse(rig::catalog().station), backend,
+  out.status = core::run("r", json::parse(rig::catalog().graph), json::parse(rig::catalog().station), station,
                          [&](const json& m) { out.messages.push_back(m); }, nullptr, {}, nullptr, nullptr, nullptr, speed);
   out.wall = since(start);
   return out;
@@ -143,7 +143,7 @@ TEST_CASE("run.speed: max finishes at once; back from max the pace starts where 
 }
 
 TEST_CASE("run.speed: the session refuses what isn't a speed, ignores one between runs, hands the rest to the run") {
-  static const core::Backend backend{.engine = "test",
+  static const core::Station station{.engine = "test",
                                      .catalog = &rig::catalog(),
                                      .run = {.dt = 0.01, .duration = 10, .real_time = true, .speed = 1}};
   std::vector<json> sent;
@@ -160,7 +160,7 @@ TEST_CASE("run.speed: the session refuses what isn't a speed, ignores one betwee
     std::lock_guard lock(mutex);
     return sent.at(index);
   };
-  core::Session session(backend, [&](const std::string& text) {
+  core::Session session(station, [&](const std::string& text) {
     std::lock_guard lock(mutex);
     receive(sent, text);
   });

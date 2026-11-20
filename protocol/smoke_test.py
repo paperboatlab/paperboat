@@ -1,9 +1,9 @@
-"""Protocol smoke test for any Paperboat backend.
+"""Protocol smoke test for any Paperboat station.
 
-Connects to a running backend, checks the handshake, then runs the backend's own starter
-graph (from graph.load), a graph with an algebraic loop, one with a block the backend doesn't have,
+Connects to a running station, checks the handshake, then runs the station's own starter
+graph (from graph.load), a graph with an algebraic loop, one with a block the station doesn't have,
 and a cancelled run. Every message either way is checked against the protocol's JSON
-Schema (schema/paperboat-0.schema.json). Knows no domain, so every backend (simulation or
+Schema (schema/paperboat-0.schema.json). Knows no domain, so every station (simulation or
 not, any language, the C++ engine) must pass it. Exits non-zero on failure.
 """
 
@@ -22,7 +22,7 @@ os.environ["no_proxy"] = "localhost,127.0.0.1"
 
 SCHEMA = json.loads((Path(__file__).parent / "schema" / "paperboat-0.schema.json").read_text())
 TO_UI = jsonschema.Draft202012Validator({**SCHEMA, "$ref": "#/$defs/toUI"})
-TO_BACKEND = jsonschema.Draft202012Validator({**SCHEMA, "$ref": "#/$defs/toBackend"})
+TO_BACKEND = jsonschema.Draft202012Validator({**SCHEMA, "$ref": "#/$defs/toStation"})
 
 def check(cond: bool, what: str) -> None:
     if not cond:
@@ -38,7 +38,7 @@ def conforms(validator: jsonschema.Draft202012Validator, msg: dict, way: str) ->
 
 async def recv(ws: ClientConnection) -> dict:
     msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
-    conforms(TO_UI, msg, "backend sent")
+    conforms(TO_UI, msg, "station sent")
     return msg
 
 
@@ -95,7 +95,7 @@ async def main() -> None:
     args = parser.parse_args()
 
     async with connect(f"ws://localhost:{args.port}", proxy=None) as ws:
-        # The handshake, up to graph.load: hello and catalog first, then the scene; a backend
+        # The handshake, up to graph.load: hello and catalog first, then the scene; a station
         # with variables also sends variables.load and variables.values, in among them.
         first = {}
         while "graph.load" not in first:
@@ -148,7 +148,7 @@ async def main() -> None:
                   "failed algebraic loop names none of its blocks")
         print(f"ok  algebraic loop {'solved' if status == 'done' else 'rejected, block named'}")
 
-        # A block the backend doesn't have (an old graph, another backend's): the run fails
+        # A block the station doesn't have (an old graph, another station's): the run fails
         # and names it, so the UI can mark it.
         lost = {"nodes": [{"id": "lost-1", "type": "no-such-block-type", "params": {"k": 2}}], "edges": []}
         msgs = await run_until_finished(ws, lost)
@@ -180,12 +180,12 @@ async def starter_and_cancel(ws: ClientConnection, starter: dict, monitors: set[
     print(f"ok  starter run: {len(signals)} signals, {len(scene_updates)} scene updates, progress {progress:.2f}")
 
     msgs = await run_until_finished(ws, starter, cancel_after=0.5)
-    # A one-shot backend may finish before the cancel arrives; that is fine.
+    # A one-shot station may finish before the cancel arrives; that is fine.
     status = msgs[-1]["status"]
     check(status in ("cancelled", "done"), f"cancel run status {status}")
     print("ok  cancel" if status == "cancelled" else "ok  cancel (run finished first)")
 
-    # The UI may change a run's length and speed; a bad value fails the run, not the backend.
+    # The UI may change a run's length and speed; a bad value fails the run, not the station.
     msgs = await run_until_finished(ws, starter, settings={"duration": 0.1, "speed": 0})
     check(msgs[-1]["status"] == "done", f"run with settings: status {msgs[-1]['status']}")
     msgs = await run_until_finished(ws, starter, settings={"dt": 0}, check_schema=False)

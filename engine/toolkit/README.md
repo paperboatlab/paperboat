@@ -1,7 +1,7 @@
 # toolkit
 
 Reusable C++20 block and station-object packages for the [Paperboat](../../README.md) engine.
-Built-in packages (`base`, `signal`, `math`, `string`, `list`, `dashboard`, `step`, `group`) ship
+Built-in packages (`base`, `signal`, `math`, `string`, `list`, `board`, `step`, `group`) ship
 with the engine; optional toolkits (`control`, `optimization`, `opencv`, `meshop`) install into
 `engine/toolkit/<name>/` or `~/.local/share/paperboat/toolkits/<name>/` as plugins.
 
@@ -21,7 +21,7 @@ src/
   math/        arithmetic, trigonometry, vectors, matrices and FFT
   string/      string formatting and parsing
   list/        array and point-list operations
-  dashboard/   Display, Graph, Scope, Lamp, Switch, Choice and Speaker monitors
+  board/   Display, Graph, Scope, Lamp, Switch, Choice and Speaker monitors
   step/        Step-flow sequencing blocks
   group/       Subsystems, frames and port blocks
 ```

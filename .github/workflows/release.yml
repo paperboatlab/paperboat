@@ -1,7 +1,7 @@
 # Release packages on a GitHub release: the one-file paperboat (Linux x86_64, macOS arm64, Windows x64), which installs the rest
 # on its first run; the .tar.gz it installs (and that scripts/install.sh downloads); the .zip (Windows x64); the
 # Python wheels. scripts/install.sh and `paperboat update` download the .tar.gz; one format per platform, one update path (pb#357).
-# Every package ships the Python bindings (pb#223) in lib/paperboat/python, so a Python backend runs
+# Every package ships the Python bindings (pb#223) in lib/paperboat/python, so a Python station runs
 # with no pip step: paperboat._engine for CPython 3.11 and, through the stable ABI, for 3.12 and later
 # (scripts/build_python.sh). The same builds' wheels (paperboat-*.whl) go to the release too.
 # A tag v<version> publishes; pull requests and manual runs only build and check the packages.
@@ -17,8 +17,8 @@ on:
       - "scripts/install.sh"
       - "engine/CMakeLists.txt"
       - "engine/cmake/**"
-      - "engine/tests/sdk-backend/**"
-      - "engine/tests/sdk-backend-python/**"
+      - "engine/tests/sdk-station/**"
+      - "engine/tests/sdk-station-python/**"
       - "python/**"
       - "scripts/build_python.sh"
       - "protocol/*.py"
@@ -122,29 +122,29 @@ jobs:
           shopt -s nullglob
           archives=(dist/*.tar.gz dist/*.deb dist/*.rpm dist/*.whl)
           python3 scripts/check_bundle.py --archive "${archives[@]}"
-      - name: "The CLI .debs on Debian 12: installs only CLI, builds and checks a backend"
+      - name: "The CLI .debs on Debian 12: installs only CLI, builds and checks a station"
         run: |
-          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-backend:/src:ro" debian:bookworm sh -ec '
+          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-station:/src:ro" debian:bookworm sh -ec '
             apt-get update -qq && apt-get install -y -qq /dist/paperboat_[0-9]*.deb /dist/paperboat-dev_*.deb curl python3-pip >/dev/null
             pip install -q --break-system-packages websockets jsonschema
             paperboat --version && test ! -e "/opt/Paperboat Launcher"
-            cp -r /src /tmp/sdk-backend && paperboat build /tmp/sdk-backend && paperboat check /tmp/sdk-backend'
-      - name: "The CLI .rpms on Fedora: installs only CLI, builds and checks a backend"
+            cp -r /src /tmp/sdk-station && paperboat build /tmp/sdk-station && paperboat check /tmp/sdk-station'
+      - name: "The CLI .rpms on Fedora: installs only CLI, builds and checks a station"
         run: |
-          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-backend:/src:ro" fedora:latest sh -ec '
+          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-station:/src:ro" fedora:latest sh -ec '
             dnf install -y -q /dist/paperboat-[0-9]*.rpm /dist/paperboat-devel-*.rpm python3-pip >/dev/null
             paperboat --version && test ! -e "/opt/Paperboat Launcher"
             pip install -q websockets jsonschema
-            cp -r /src /tmp/sdk-backend && paperboat build /tmp/sdk-backend && paperboat check /tmp/sdk-backend'
+            cp -r /src /tmp/sdk-station && paperboat build /tmp/sdk-station && paperboat check /tmp/sdk-station'
       - name: "The Launcher .deb and .rpm install Paperboat Launcher desktop app"
         run: |
           dpkg -c dist/paperboat-launcher-*.deb | grep -q "/opt/Paperboat Launcher/paperboat-launcher"
           rpm -qlp dist/paperboat-launcher-*.rpm | grep -q "/opt/Paperboat Launcher/paperboat-launcher"
-      # The SDK (pb#177): with only the .tar.gz, a C++ backend builds and passes paperboat check.
-      - name: "The .tar.gz on Debian 12: runs, serves the web app, builds and checks a backend, paperboat new writes, and checks a Python backend"
+      # The SDK (pb#177): with only the .tar.gz, a C++ station builds and passes paperboat check.
+      - name: "The .tar.gz on Debian 12: runs, serves the web app, builds and checks a station, paperboat new writes, and checks a Python station"
         run: |
-          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-backend:/src:ro" \
-              -v "$PWD/engine/tests/sdk-backend-python:/src-py:ro" debian:bookworm sh -ec '
+          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-station:/src:ro" \
+              -v "$PWD/engine/tests/sdk-station-python:/src-py:ro" debian:bookworm sh -ec '
             apt-get update -qq && apt-get install -y -qq cmake g++ make curl python3-pip >/dev/null
             pip install -q --break-system-packages websockets jsonschema
             mkdir /opt/pb && tar xzf /dist/paperboat-*.tar.gz -C /opt/pb --strip-components=1 && export PATH=/opt/pb/bin:$PATH
@@ -152,18 +152,18 @@ jobs:
             test -f /opt/pb/share/paperboat/cli/main.js
             (paperboat start --port 3047 >/tmp/web.log 2>&1 &) && sleep 2
             curl -sf http://localhost:3047/ | grep -q "<div id=\"root\"" && echo "web app served"
-            cp -r /src /tmp/sdk-backend && paperboat build /tmp/sdk-backend && paperboat check /tmp/sdk-backend
+            cp -r /src /tmp/sdk-station && paperboat build /tmp/sdk-station && paperboat check /tmp/sdk-station
             cd /tmp && paperboat new demo && paperboat build demo && paperboat check demo
-            python3 --version && cp -r /src-py /tmp/py-backend && paperboat check /tmp/py-backend'
-      - name: "SDK: the .tar.gz on Fedora builds and checks a backend, and checks a Python backend"
+            python3 --version && cp -r /src-py /tmp/py-station && paperboat check /tmp/py-station'
+      - name: "SDK: the .tar.gz on Fedora builds and checks a station, and checks a Python station"
         run: |
-          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-backend:/src:ro" \
-              -v "$PWD/engine/tests/sdk-backend-python:/src-py:ro" fedora:latest sh -ec '
+          docker run --rm -v "$PWD/dist:/dist:ro" -v "$PWD/engine/tests/sdk-station:/src:ro" \
+              -v "$PWD/engine/tests/sdk-station-python:/src-py:ro" fedora:latest sh -ec '
             dnf install -y -q cmake gcc-c++ make python3-pip tar gzip git >/dev/null
             pip install -q websockets jsonschema
             mkdir /opt/pb && tar xzf /dist/paperboat-*.tar.gz -C /opt/pb --strip-components=1
-            cp -r /src /tmp/sdk-backend && /opt/pb/bin/paperboat build /tmp/sdk-backend && /opt/pb/bin/paperboat check /tmp/sdk-backend
-            cp -r /src-py /tmp/py-backend && cd /tmp && /opt/pb/bin/paperboat check /tmp/py-backend'
+            cp -r /src /tmp/sdk-station && /opt/pb/bin/paperboat build /tmp/sdk-station && /opt/pb/bin/paperboat check /tmp/sdk-station
+            cp -r /src-py /tmp/py-station && cd /tmp && /opt/pb/bin/paperboat check /tmp/py-station'
       # The promise (pb#358): one install, then paperboat manages the rest. On a clean machine with only the
       # usual tools: install.sh puts paperboat in ~/.local, and from there a toolkit (built as a plugin
       # against the SDK, no engine rebuild), its example, a library app and the update check.
@@ -184,10 +184,10 @@ jobs:
             paperboat pkg install paperboat-shared
             paperboat pkg list | grep paperboat-shared | grep -vq "not installed"
             paperboat update --check'
-      - name: "The wheel installs with pip and runs a Python backend"
+      - name: "The wheel installs with pip and runs a Python station"
         run: |
           python -m venv "$RUNNER_TEMP/whl" && "$RUNNER_TEMP/whl/bin/pip" install -q dist/paperboat-*-cp312-abi3-*.whl
-          cp -r engine/tests/sdk-backend-python "$RUNNER_TEMP/whl-backend" && cd "$RUNNER_TEMP/whl-backend"
+          cp -r engine/tests/sdk-station-python "$RUNNER_TEMP/whl-station" && cd "$RUNNER_TEMP/whl-station"
           "$RUNNER_TEMP/whl/bin/python" server.py --run | tail -1 | grep -q '"status":"done"' && echo "wheel runs"
       - uses: actions/upload-artifact@v4
         with:
@@ -270,23 +270,23 @@ jobs:
           python3 scripts/check_bundle.py --self-test
           python3 scripts/check_bundle.py --prefix "$RUNNER_TEMP/root"
           python3 scripts/check_bundle.py --archive dist/*.tar.gz
-      - name: The .tar.gz runs, and builds and checks a backend
+      - name: The .tar.gz runs, and builds and checks a station
         run: |
           mkdir -p "$RUNNER_TEMP/pb" && tar xzf dist/paperboat-*.tar.gz -C "$RUNNER_TEMP/pb" --strip-components=1
           "$RUNNER_TEMP/pb/bin/paperboat" --version
           "$RUNNER_TEMP/pb/bin/paperboat" pkg list
           pip install -q websockets jsonschema
-          cp -r engine/tests/sdk-backend "$RUNNER_TEMP/sdk-backend" && cd "$RUNNER_TEMP"   # outside the checkout: the SDK, not the sources
-          "$RUNNER_TEMP/pb/bin/paperboat" build "$RUNNER_TEMP/sdk-backend"
-          "$RUNNER_TEMP/pb/bin/paperboat" check "$RUNNER_TEMP/sdk-backend"
-          cp -r "$GITHUB_WORKSPACE/engine/tests/sdk-backend-python" "$RUNNER_TEMP/py-backend"
-          "$RUNNER_TEMP/pb/bin/paperboat" check "$RUNNER_TEMP/py-backend"   # python3 3.12: the abi3 module
-      - name: "The .tar.gz checks a Python backend with Python 3.11 (PAPERBOAT_PYTHON: the cp311 module)"
+          cp -r engine/tests/sdk-station "$RUNNER_TEMP/sdk-station" && cd "$RUNNER_TEMP"   # outside the checkout: the SDK, not the sources
+          "$RUNNER_TEMP/pb/bin/paperboat" build "$RUNNER_TEMP/sdk-station"
+          "$RUNNER_TEMP/pb/bin/paperboat" check "$RUNNER_TEMP/sdk-station"
+          cp -r "$GITHUB_WORKSPACE/engine/tests/sdk-station-python" "$RUNNER_TEMP/py-station"
+          "$RUNNER_TEMP/pb/bin/paperboat" check "$RUNNER_TEMP/py-station"   # python3 3.12: the abi3 module
+      - name: "The .tar.gz checks a Python station with Python 3.11 (PAPERBOAT_PYTHON: the cp311 module)"
         run: |
           py311="${{ steps.py311.outputs.python-path }}"
           "$py311" -m pip install -q websockets jsonschema
-          cp -r engine/tests/sdk-backend-python "$RUNNER_TEMP/py-backend-311" && cd "$RUNNER_TEMP"
-          PAPERBOAT_PYTHON="$py311" "$RUNNER_TEMP/pb/bin/paperboat" check "$RUNNER_TEMP/py-backend-311"
+          cp -r engine/tests/sdk-station-python "$RUNNER_TEMP/py-station-311" && cd "$RUNNER_TEMP"
+          PAPERBOAT_PYTHON="$py311" "$RUNNER_TEMP/pb/bin/paperboat" check "$RUNNER_TEMP/py-station-311"
       - name: The web app is served from the .tar.gz, and stops
         run: |
           "$RUNNER_TEMP/pb/bin/paperboat" start --daemon --port 3047
@@ -381,19 +381,19 @@ jobs:
           python scripts/check_bundle.py --self-test
           python scripts/check_bundle.py --prefix "$RUNNER_TEMP/root"
           python scripts/check_bundle.py --archive dist/*.zip dist/*.whl
-      - name: "SDK: the .zip builds and checks a backend"
+      - name: "SDK: the .zip builds and checks a station"
         run: |
           pip install -q websockets jsonschema
           mkdir -p "$RUNNER_TEMP/pb" && unzip -q dist/paperboat-*.zip -d "$RUNNER_TEMP/pb"
           exe=$(ls "$RUNNER_TEMP"/pb/*/bin/paperboat.exe)
-          cp -r engine/tests/sdk-backend "$RUNNER_TEMP/sdk-backend" && cd "$RUNNER_TEMP"   # outside the checkout: the SDK, not the sources
-          "$exe" build "$RUNNER_TEMP/sdk-backend"
-          "$exe" check "$RUNNER_TEMP/sdk-backend"
-          cp -r "$GITHUB_WORKSPACE/engine/tests/sdk-backend-python" "$RUNNER_TEMP/py-backend"
-          "$exe" check "$RUNNER_TEMP/py-backend"   # Python 3.12: the abi3 module (_engine.pyd)
+          cp -r engine/tests/sdk-station "$RUNNER_TEMP/sdk-station" && cd "$RUNNER_TEMP"   # outside the checkout: the SDK, not the sources
+          "$exe" build "$RUNNER_TEMP/sdk-station"
+          "$exe" check "$RUNNER_TEMP/sdk-station"
+          cp -r "$GITHUB_WORKSPACE/engine/tests/sdk-station-python" "$RUNNER_TEMP/py-station"
+          "$exe" check "$RUNNER_TEMP/py-station"   # Python 3.12: the abi3 module (_engine.pyd)
           py311="${{ steps.py311.outputs.python-path }}"
           "$py311" -m pip install -q websockets jsonschema
-          PAPERBOAT_PYTHON="$py311" "$exe" check "$RUNNER_TEMP/py-backend"   # the cp311 module
+          PAPERBOAT_PYTHON="$py311" "$exe" check "$RUNNER_TEMP/py-station"   # the cp311 module
       - name: The web app is served from the .zip, and stops
         run: |
           exe=$(ls "$RUNNER_TEMP"/pb/*/bin/paperboat.exe)

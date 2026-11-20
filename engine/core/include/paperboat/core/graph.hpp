@@ -109,6 +109,6 @@ struct Graph {
 // a cycle of signal wires through blocks with feedthrough (an algebraic loop; wires into linked
 // blocks, steps and blocks without feedthrough don't count) becomes a Loop the run solves.
 // Throws GraphError.
-Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, Station& station);
+Graph prepare_graph(const json& graph, const toolkit::Catalog& catalog, StationObjects& station);
 
 }  // namespace paperboat::core

@@ -1,10 +1,10 @@
 #pragma once
 
-// The Paperboat SDK for C++: the one header a backend includes, and its whole public
+// The Paperboat SDK for C++: the one header a station includes, and its whole public
 // surface. Everything here is stable within a protocol version; headers it doesn't include
 // (core/graph.hpp, core/run.hpp internals) may change. Reference: docs/api (C++ API).
 //
-// A backend is a descriptor (descriptor.toml: which packages, starters, how the Station
+// A station is a descriptor (descriptor.toml: which packages, starters, how the Station
 // shows) plus code for what only the domain has:
 //
 //   #include <paperboat/sdk.hpp>
@@ -24,7 +24,7 @@
 //     return paperboat::main({.engine = "parts", .catalog = &catalog}, argc, argv, 8770);
 //   }
 
-#include "paperboat/core/backend.hpp"
+#include "paperboat/core/server.hpp"
 #include "paperboat/core/executor.hpp"
 #include "paperboat/toolkit/bases.hpp"
 #include "paperboat/toolkit/block.hpp"
@@ -101,14 +101,14 @@ using toolkit::load_descriptor;
 using toolkit::load_descriptor_file;
 
 // Serving.
-using core::Backend;
+using core::Station;
 using core::RunSettings;
 using core::Server;
 using core::main;
 using core::run_starter;
 using core::serve;
 
-// Run styles (executor.hpp): Backend::executor picks one per graph.
+// Run styles (executor.hpp): Station::executor picks one per graph.
 using core::Executor;
 using core::Run;
 using core::clock_executor;

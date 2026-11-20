@@ -1,4 +1,4 @@
-// The Station page's body: the station as the backend shows it (its own web page, a graph of
+// The Station page's body: the station as the station shows it (its own web page, a graph of
 // objects, or a 2D/3D scene), the panel of its objects, and objects dropped from the browser.
 
 import { Suspense, lazy, type MutableRefObject } from "react";
@@ -13,7 +13,7 @@ const SceneView = lazy(() => import("./SceneView").then((m) => ({ default: m.Sce
 type Props = {
   view: EngineState["stationView"]["view"];
   state: EngineState;
-  /** The backend's address, for a station drawn by its own web page. */
+  /** The station's address, for a station drawn by its own web page. */
   url: string;
   subscribe: (f: (m: ServerMsg) => void) => () => void;
   send: (m: ClientMsg) => void;
@@ -30,7 +30,7 @@ type Props = {
 };
 
 export function StationView({ view, state, url, subscribe, send, station, editStation, running, stationCanvas, theme, gridOn, cameraProjection, taken, addObject }: Props) {
-  // A replay puts the Station back at the playhead (#284); live, it is what the backend last sent.
+  // A replay puts the Station back at the playhead (#284); live, it is what the station last sent.
   const entities = state.replay?.active ? state.sceneHistory.entitiesAt(state.replay.time) : state.entities;
   return (
     <div
@@ -50,7 +50,7 @@ export function StationView({ view, state, url, subscribe, send, station, editSt
     >
       {view === "web" && state.stationView.page ? (
         <WebStation
-          backend={url}
+          station={url}
           page={state.stationView.page}
           state={state}
           subscribe={subscribe}

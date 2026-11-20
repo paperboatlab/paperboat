@@ -5,7 +5,7 @@ import { buildProject, parseProject } from "../src/project.ts";
 
 test("parseProject validates commented, comment_mode, and comment in flow nodes", () => {
   const validProject = buildProject({
-    backend: "test",
+    station: "test",
     flow: {
       nodes: [
         { id: "g1", type: "gain", commented: true, comment_mode: "out", comment: "Gain tuning" },
@@ -33,7 +33,7 @@ test("parseProject validates commented, comment_mode, and comment in flow nodes"
 test("parseProject rejects invalid comment_mode or non-boolean commented", () => {
   const invalidMode = {
     paperboat: 0,
-    backend: "test",
+    station: "test",
     flow: {
       nodes: [{ id: "g1", type: "gain", commented: true, comment_mode: "invalid_mode" }],
       edges: [],
@@ -45,7 +45,7 @@ test("parseProject rejects invalid comment_mode or non-boolean commented", () =>
 
   const invalidCommented = {
     paperboat: 0,
-    backend: "test",
+    station: "test",
     flow: {
       nodes: [{ id: "g1", type: "gain", commented: "yes" }],
       edges: [],
@@ -57,7 +57,7 @@ test("parseProject rejects invalid comment_mode or non-boolean commented", () =>
 
   const invalidComment = {
     paperboat: 0,
-    backend: "test",
+    station: "test",
     flow: {
       nodes: [{ id: "g1", type: "gain", comment: 123 }],
       edges: [],

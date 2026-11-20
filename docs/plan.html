@@ -125,7 +125,7 @@ td code { white-space: nowrap; }
   <div class="wrap">
     <span class="eyebrow">Project plan · v2 · 3 Nov 2026</span>
     <h1>Paperboat</h1>
-    <p class="lede">A framework for building systems from simple blocks and watching them run: a station where things sit, a flow where blocks are wired, a dashboard where the run shows itself. Fold an idea, set it on the water, see what it does.</p>
+    <p class="lede">A framework for building systems from simple blocks and watching them run: a station where things sit, a flow where blocks are wired, a board where the run shows itself. Fold an idea, set it on the water, see what it does.</p>
     <div class="meta">
       <span>Handle <b>paperboatlab</b></span>
       <span>Repo <b>~/Onedrive/Projects/rigflow</b></span>
@@ -144,11 +144,11 @@ td code { white-space: nowrap; }
       <table>
         <thead><tr><th>Part</th><th>State</th></tr></thead>
         <tbody>
-          <tr><td><b>Web app</b></td><td>Station (2D/3D), Flow (React Flow), Dashboard plots and Console in one screen; backend switching and auto-reconnect. Wires are typed (signal or step) and deletable (Delete, ×, drag off); a Step flow lights up the block it is at.</td></tr>
-          <tr><td><b>Protocol v0</b></td><td>JSON over one WebSocket, with <code>graph.load</code>, a 2D/3D <code>view</code> and keyboard <code>input</code>. A domain-neutral smoke test checks any backend.</td></tr>
-          <tr><td><b>Toolkit (C++)</b></td><td>Packages <code>base</code> (constant, key), <code>signal</code> (waves), <code>math</code> (arithmetic), <code>dashboard</code> (graph, scope, display, switch), <code>control</code> (dynamics) and <code>step</code> (start, when, wait, if, repeat, stop); station templates next to blocks (the <code>control/cart-pole</code> station object, with a linked block); TOML descriptors that <code>import</code> whole packages into the palette; <code>paperboat-catalog</code>; 157 Catch2 tests. Python backends run on the same engine through nanobind bindings and load the same descriptors.</td></tr>
-          <tr><td><b>Example backends</b></td><td>Nine backends, in the separate <code>paperboat-examples</code> repository. Signal flow: mass-spring, parametric geometry, a runner game, a chain of masses and springs and a supply network in Python; cart-pole, double pendulum (RLS, swing-up, LQR) and an OpenCV parts counter in C++. Step flow: a 3D animation (move, rotate, scale) in Python. All pass the smoke test and their golden runs.</td></tr>
-          <tr><td><b>Engine core</b></td><td><code>engine/core</code>: protocol session, WebSocket server, station and graph checking, Signal and Step flow runs, node events, and a cache that lets a run that evaluates once reuse the blocks nothing changed for. The cart-pole backend is a few lines on it.</td></tr>
+          <tr><td><b>Web app</b></td><td>Station (2D/3D), Flow (React Flow), Board plots and Console in one screen; station switching and auto-reconnect. Wires are typed (signal or step) and deletable (Delete, ×, drag off); a Step flow lights up the block it is at.</td></tr>
+          <tr><td><b>Protocol v0</b></td><td>JSON over one WebSocket, with <code>graph.load</code>, a 2D/3D <code>view</code> and keyboard <code>input</code>. A domain-neutral smoke test checks any station.</td></tr>
+          <tr><td><b>Toolkit (C++)</b></td><td>Packages <code>base</code> (constant, key), <code>signal</code> (waves), <code>math</code> (arithmetic), <code>board</code> (graph, scope, display, switch), <code>control</code> (dynamics) and <code>step</code> (start, when, wait, if, repeat, stop); station templates next to blocks (the <code>control/cart-pole</code> station object, with a linked block); TOML descriptors that <code>import</code> whole packages into the palette; <code>paperboat-catalog</code>; 157 Catch2 tests. Python stations run on the same engine through nanobind bindings and load the same descriptors.</td></tr>
+          <tr><td><b>Example stations</b></td><td>Nine stations, in the separate <code>paperboat-examples</code> repository. Signal flow: mass-spring, parametric geometry, a runner game, a chain of masses and springs and a supply network in Python; cart-pole, double pendulum (RLS, swing-up, LQR) and an OpenCV parts counter in C++. Step flow: a 3D animation (move, rotate, scale) in Python. All pass the smoke test and their golden runs.</td></tr>
+          <tr><td><b>Engine core</b></td><td><code>engine/core</code>: protocol session, WebSocket server, station and graph checking, Signal and Step flow runs, node events, and a cache that lets a run that evaluates once reuse the blocks nothing changed for. The cart-pole station is a few lines on it.</td></tr>
         </tbody>
       </table>
     </div>
@@ -192,7 +192,7 @@ td code { white-space: nowrap; }
       </div>
       <span class="arrow" aria-hidden="true">→</span>
       <div class="page run">
-        <span class="tag">3 · Dashboard</span>
+        <span class="tag">3 · Board</span>
         <h3>Instruments</h3>
         <svg viewBox="0 0 200 90" aria-label="A falling residual curve and progress bars">
           <g stroke="var(--line)" stroke-width="1"><line x1="8" y1="62" x2="120" y2="62"/><line x1="8" y1="8" x2="8" y2="62"/></g>
@@ -281,8 +281,8 @@ td code { white-space: nowrap; }
 <section>
   <div class="wrap">
     <span class="eyebrow">Monitoring</span>
-    <h2>Monitor blocks build the Dashboard</h2>
-    <p>Each monitor block in the flow becomes one instrument on the Dashboard. You lay the instruments out once and the layout is saved with the project, so the Dashboard needs no separate UI work.</p>
+    <h2>Monitor blocks build the Board</h2>
+    <p>Each monitor block in the flow becomes one instrument on the Board. You lay the instruments out once and the layout is saved with the project, so the Board needs no separate UI work.</p>
     <ul>
       <li><b>Scope</b> (the graph; goal: the "mother of all scopes", with zoom, cursors, triggers, X–Y and export) takes any number of signals and overlays them. <b>Diff mode</b> plots A − B when the units match, and A against B on two axes when they don't.</li>
       <li><b>Lamp</b> takes a threshold and a comparison and lights in the signal colour (a warning) or red (a trip), saying its state in words. It can latch when tripped, and its output <code>y</code> can stop the run.</li>
@@ -314,7 +314,7 @@ td code { white-space: nowrap; }
   <div class="wrap">
     <span class="eyebrow">Flow types</span>
     <h2>Beyond Signal flow</h2>
-    <p>A backend declares which flow types it supports, and a toolkit can require one (an electrical toolkit needs Model flow). Each has its own executor and look. A flow is drawn on <b>sheets</b>. Signal blocks (the <code>base</code>, <code>signal</code> and <code>math</code> packages) work in every type: in a Step flow they run once per clock step and feed conditions and monitors.</p>
+    <p>A station declares which flow types it supports, and a toolkit can require one (an electrical toolkit needs Model flow). Each has its own executor and look. A flow is drawn on <b>sheets</b>. Signal blocks (the <code>base</code>, <code>signal</code> and <code>math</code> packages) work in every type: in a Step flow they run once per clock step and feed conditions and monitors.</p>
     <div class="tbl">
       <table>
         <thead><tr><th>Flow type</th><th>Wires mean</th><th>Like</th><th>State</th></tr></thead>
@@ -377,8 +377,8 @@ td code { white-space: nowrap; }
     <span class="eyebrow">Architecture</span>
     <h2>Four layers</h2>
     <div class="layers">
-      <div class="layer"><b>Frontend</b><span>Station (three.js), Flow (React Flow), Dashboard (uPlot planned) and Console. Builds every form and block from the backend's catalog, so it has no domain code.</span></div>
-      <div class="layer wire"><b>Protocol</b><span>One WebSocket. JSON text messages for the block catalog, the scene, the graph and run events; binary frames for large fields. Language-neutral, so any backend that speaks it works with the UI (see <code>protocol/README.md</code>). Schemas published as JSON Schema.</span></div>
+      <div class="layer"><b>Frontend</b><span>Station (three.js), Flow (React Flow), Board (uPlot planned) and Console. Builds every form and block from the station's catalog, so it has no domain code.</span></div>
+      <div class="layer wire"><b>Protocol</b><span>One WebSocket. JSON text messages for the block catalog, the scene, the graph and run events; binary frames for large fields. Language-neutral, so any station that speaks it works with the UI (see <code>protocol/README.md</code>). Schemas published as JSON Schema.</span></div>
       <div class="layer"><b>Core (C++)</b><span>Toolkit of reusable blocks and TOML descriptors (built) · registry of entity and block types · graph validation and type checking · content-hash cache · thread-pool executor with progress, cancel (<code>std::stop_token</code>) and fan-out · WebSocket server.</span></div>
       <div class="layer"><b>Solvers (C++)</b><span>Solver adapters behind blocks: an Eigen direct-stiffness frame solver, own equations of motion with boost::odeint, a lattice-Boltzmann solver, and later OpenFOAM or CalculiX in podman. Solvers that can't check the stop token run in a child process so cancel always works.</span></div>
     </div>
@@ -402,7 +402,7 @@ label = "Limit 10 mm"
 defaults = { level = 10 }
 
 [[blocks]]
-use = "dashboard/graph"
+use = "board/graph"
 
 # The domain's own blocks
 [[blocks]]
@@ -435,20 +435,20 @@ class LinearStatic : public Node {
 };
 
 void register_structural(Domain&amp; d) {
-  d.load_descriptor("examples/backends/structural-cpp/descriptor.toml");
+  d.load_descriptor("examples/stations/structural-cpp/descriptor.toml");
   d.implement&lt;LinearStatic&gt;("LinearStatic");
   d.implement&lt;ForceSource&gt;("ForceSource");
   d.implement&lt;DisplacementProbe&gt;("DisplacementProbe");
 }</code></pre>
     <ul>
       <li>Placing a <code>ForceSource</code> or <code>DisplacementProbe</code> on a joint in the station adds a matching block to the flow palette, named after the entity (<code>F1</code>, <code>P1</code>).</li>
-      <li><code>ctx.progress</code>, <code>ctx.metric</code>, <code>ctx.log</code> and <code>ctx.frame</code> become events on the Dashboard and Console.</li>
+      <li><code>ctx.progress</code>, <code>ctx.metric</code>, <code>ctx.log</code> and <code>ctx.frame</code> become events on the Board and Console.</li>
       <li><code>ctx.stop_token()</code> is a <code>std::stop_token</code>. Solvers check it between iterations; anything that can't runs in a child process that the engine kills on cancel.</li>
       <li>A block's output is cached by a hash of its inputs and params, so editing one block re-runs only what depends on it.</li>
       <li>Domains are separate CMake targets: <code>paperboat_structural</code>, <code>paperboat_control</code>, <code>paperboat_cfd</code>. They link statically at first; loadable shared libraries behind a C ABI come later.</li>
       <li>The toolkit (<code>engine/toolkit</code>) is built and tested: packages <code>base</code>, the simple things meant for every flow type (constant, gain, sum, threshold, saturation, sine, step, ramp, square, key, graph), and <code>control</code>, dynamics on a clock (PID, integrator, lag, plus <code>rk4_step</code> for plants). A descriptor's <code>config</code> fixes load-time settings, so one template can appear twice, e.g. Key ← and Key →.</li>
       <li>Station entities (Joint, Member) get a descriptor section of their own later; Lua scripting can be added for expression blocks without changing the format.</li>
-      <li>Block definitions are data once they leave the engine, so a domain can also be prototyped in any language that speaks the protocol (<code>examples/backends/</code>) before it is ported to C++.</li>
+      <li>Block definitions are data once they leave the engine, so a domain can also be prototyped in any language that speaks the protocol (<code>examples/stations/</code>) before it is ported to C++.</li>
     </ul>
   </div>
 </section>
@@ -457,7 +457,7 @@ void register_structural(Domain&amp; d) {
   <div class="wrap">
     <span class="eyebrow">Run protocol</span>
     <h2>Events on the WebSocket</h2>
-    <p>The Station, Flow palette and Dashboard are built only from these messages, so any domain gets its UI without writing UI. Rows marked <i>planned</i> are not in protocol v0 yet.</p>
+    <p>The Station, Flow palette and Board are built only from these messages, so any domain gets its UI without writing UI. Rows marked <i>planned</i> are not in protocol v0 yet.</p>
     <div class="tbl">
       <table>
         <thead><tr><th>Event</th><th>Carries</th><th>Shown as</th></tr></thead>
@@ -472,7 +472,7 @@ void register_structural(Domain&amp; d) {
           <tr><td><code>metric</code></td><td>Series name, x, y, unit</td><td>Solver plots that aren't on the run clock (residual against iteration)</td></tr>
           <tr><td><code>frame</code></td><td>2D primitives or a small field image</td><td>Live view (pendulum, velocity field, deformed shape)</td></tr>
           <tr><td><code>log</code></td><td>Level, text</td><td>The Console</td></tr>
-          <tr><td><code>input</code> (UI → backend)</td><td>A key code and up/down</td><td>Drives Key blocks (play the runner with Space and ↓)</td></tr>
+          <tr><td><code>input</code> (UI → station)</td><td>A key code and up/down</td><td>Drives Key blocks (play the runner with Space and ↓)</td></tr>
         </tbody>
       </table>
     </div>
@@ -490,8 +490,8 @@ void register_structural(Domain&amp; d) {
         <dl>
           <div><dt>Station</dt><dd>3D joints and members on a snapping grid, supports, sections and materials. Force sources on joints, and displacement and stress probes on joints and members.</dd></div>
           <div><dt>Flow</dt><dd><code>Sine 5 kN</code> → <code>F1</code> · <code>P1 disp</code> → <code>Graph</code> and <code>Threshold 10 mm</code> → <code>Lamp</code> · study: <code>Section sweep</code></dd></div>
-          <div><dt>Dashboard</dt><dd>Animated deformed shape, load against displacement, lamps per probe, utilization per member.</dd></div>
-          <div><dt>Backend</dt><dd>Own direct-stiffness frame solver on Eigen for statics, with superposition for time-varying loads. Newmark-β on the assembled matrices for dynamics. Later gmsh + CalculiX for solids.</dd></div>
+          <div><dt>Board</dt><dd>Animated deformed shape, load against displacement, lamps per probe, utilization per member.</dd></div>
+          <div><dt>Station</dt><dd>Own direct-stiffness frame solver on Eigen for statics, with superposition for time-varying loads. Newmark-β on the assembled matrices for dynamics. Later gmsh + CalculiX for solids.</dd></div>
         </dl>
       </article>
       <article class="domain">
@@ -500,8 +500,8 @@ void register_structural(Domain&amp; d) {
         <dl>
           <div><dt>Station</dt><dd>2D rail, cart, one or two links. The motor is a force source with a limit; the encoders are angle and position probes. Masses and lengths as settings.</dd></div>
           <div><dt>Flow</dt><dd>Closed loop: <code>θ, x probes</code> → <code>LQR</code> → <code>Motor</code>. <code>Graph</code> of θ against the reference, <code>Lamp</code> when the cart nears the rail end. Study: <code>Sweep Q ×10</code> → <code>Pareto</code>.</dd></div>
-          <div><dt>Dashboard</dt><dd>Animated pendulum, state and force plots, one row per sweep case.</dd></div>
-          <div><dt>Backend</dt><dd>Own equations of motion, boost::odeint for integration, LQR from a Riccati solve on Eigen.</dd></div>
+          <div><dt>Board</dt><dd>Animated pendulum, state and force plots, one row per sweep case.</dd></div>
+          <div><dt>Station</dt><dd>Own equations of motion, boost::odeint for integration, LQR from a Riccati solve on Eigen.</dd></div>
         </dl>
       </article>
       <article class="domain">
@@ -510,8 +510,8 @@ void register_structural(Domain&amp; d) {
         <dl>
           <div><dt>Station</dt><dd>2D channel with obstacles (cylinder, airfoil), walls, outlet, fluid viscosity. The inlet is a velocity source; pressure and velocity probes go at points behind the obstacle.</dd></div>
           <div><dt>Flow</dt><dd><code>Ramp 0→2 m/s</code> → <code>Inlet</code> · <code>Probe p</code> → <code>FFT</code> → <code>Graph</code> (shedding frequency) · <code>Lamp</code> if residuals diverge · study: <code>Reynolds sweep</code></dd></div>
-          <div><dt>Dashboard</dt><dd>Live vorticity field, residual curve, drag coefficient, cancel and resume.</dd></div>
-          <div><dt>Backend</dt><dd>C++ lattice-Boltzmann (a few hundred lines). Later an OpenFOAM block in podman with the same graph.</dd></div>
+          <div><dt>Board</dt><dd>Live vorticity field, residual curve, drag coefficient, cancel and resume.</dd></div>
+          <div><dt>Station</dt><dd>C++ lattice-Boltzmann (a few hundred lines). Later an OpenFOAM block in podman with the same graph.</dd></div>
         </dl>
       </article>
     </div>
@@ -524,7 +524,7 @@ void register_structural(Domain&amp; d) {
     <h2>Libraries</h2>
     <ul>
       <li><b>Engine:</b> C++20, CMake with presets; dependencies through FetchContent today (vcpkg manifest still an option, decide before CI). nlohmann/json, toml++ for descriptors, Catch2 for tests. Planned: uWebSockets or Boost.Beast for the core server (the C++ example uses IXWebSocket), Eigen, boost::odeint; clang-format and clang-tidy.</li>
-      <li><b>Frontend:</b> Vite + React + TypeScript. <a href="https://reactflow.dev" target="_blank" rel="noopener">React Flow (xyflow)</a> for the node editor, three.js for the Station, uPlot for the Dashboard (planned; SVG today), a JSON-Schema form renderer for settings.</li>
+      <li><b>Frontend:</b> Vite + React + TypeScript. <a href="https://reactflow.dev" target="_blank" rel="noopener">React Flow (xyflow)</a> for the node editor, three.js for the Station, uPlot for the Board (planned; SVG today), a JSON-Schema form renderer for settings.</li>
       <li><b>Desktop:</b> Electron wraps the same web app and starts the engine as a child process on a local port. Electron over Tauri because Tauri uses WebKitGTK on Linux, which is weaker for WebGL.</li>
       <li><b>Browser:</b> the same web app, talking to an engine on a server or running locally.</li>
       <li><b>Prior art to study:</b> ComfyUI (closest architecture), Grasshopper, Houdini, Blender Geometry Nodes, DaVinci Fusion, Node-RED.</li>
@@ -538,7 +538,7 @@ void register_structural(Domain&amp; d) {
     <h2>Monorepo</h2>
 <pre class="tree">paperboat/               (folder: ~/Onedrive/Projects/rigflow)
 ├─ apps/
-│  ├─ web/               Vite + React app: Station, Flow, Dashboard, Console
+│  ├─ web/               Vite + React app: Station, Flow, Board, Console
 │  └─ desktop/           Electron shell; starts the engine (planned)
 ├─ engine/               C++20, CMake
 │  ├─ toolkit/           reusable blocks (base, control, step) + descriptor loader
@@ -548,7 +548,7 @@ void register_structural(Domain&amp; d) {
 ├─ python/               Paperboat's Python runtime (pip install ./python), a mirror of the engine
 ├─ protocol/             wire protocol spec + smoke_test.py, later JSON Schema
 ├─ examples/
-│  ├─ backends/          one project per domain that uses Paperboat (the engine never builds them),
+│  ├─ stations/          one project per domain that uses Paperboat (the engine never builds them),
 │  │                     each with its descriptor.toml (palette and
 │  │                     starters): mass-spring-python, cart-pole-cpp, parametric-python,
 │  │                     runner-python, animation-python (Step flow); later structural, cfd
@@ -572,8 +572,8 @@ void register_structural(Domain&amp; d) {
       </div>
       <div class="ms">
         <span class="id">M1 · Flow page · partly done</span>
-        <h3>Flow and Dashboard</h3>
-        <p class="done"><b>Done when:</b> the web app lists block types from the backend, builds a flow, edits params through generated forms, runs it and shows progress and logs live. Scope, Lamp and Readout instruments work, and dragging a port onto a scope adds a tap. <b>So far:</b> the palette, typed wiring, delete, number params, live plots, progress and Console work against the example backends; the Scope, Graph, Display (a readout), Switch and Lamp instruments and taps are done.</p>
+        <h3>Flow and Board</h3>
+        <p class="done"><b>Done when:</b> the web app lists block types from the station, builds a flow, edits params through generated forms, runs it and shows progress and logs live. Scope, Lamp and Readout instruments work, and dragging a port onto a scope adds a tap. <b>So far:</b> the palette, typed wiring, delete, number params, live plots, progress and Console work against the example stations; the Scope, Graph, Display (a readout), Switch and Lamp instruments and taps are done.</p>
       </div>
       <div class="ms">
         <span class="id">M2 · Structural</span>
@@ -611,7 +611,7 @@ void register_structural(Domain&amp; d) {
       <li><b>Probe placement on meshes.</b> A probe at a point that isn't a mesh node has to interpolate. Snap probes to joints first and allow free points later.</li>
       <li><b>Large results.</b> CFD fields don't belong in JSON. Send them as compressed binary frames and keep full results on disk with a reference in the cache.</li>
       <li><b>C++ builds on three OSes.</b> Pin dependencies with a vcpkg manifest and run CI on Linux, Windows and macOS from M0, not at release.</li>
-      <li><b>Protocol drift.</b> The C++ engine and the example backends must stay in sync. Generate the TypeScript types and C++ structs from one JSON Schema; every backend already runs the same smoke test.</li>
+      <li><b>Protocol drift.</b> The C++ engine and the example stations must stay in sync. Generate the TypeScript types and C++ structs from one JSON Schema; every station already runs the same smoke test.</li>
       <li><b>Flow type scope.</b> Model flow and Modes are each a project of their own. Make Signal and Step flow solid first; treat Model flow as an adapter to OpenModelica (generate Modelica, compile to an FMU, step it) before writing a DAE solver.</li>
       <li><b>Name.</b> Settled: product <b>Paperboat</b>, handle <b>paperboatlab</b> (GitHub org, domain, package scope).</li>
     </ul>

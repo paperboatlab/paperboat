@@ -9,8 +9,8 @@ import type { BlockDef, Connectors, GraphNode, ObjectDef, ParamValue, Station } 
 import type { WirePoint } from "./wireRouting.ts";
 
 /**
- * `missing`: the backend's catalog has no block of this type (an old graph, another
- * backend's, a block renamed in code). The node keeps its type, params and wires, drawn
+ * `missing`: the station's catalog has no block of this type (an old graph, another
+ * station's, a block renamed in code). The node keeps its type, params and wires, drawn
  * red from what it had, until the type comes back or the user replaces it.
  * `ports`: where the user moved its ports to (drag a port's name); absent: inputs left, outputs right.
  */
@@ -167,7 +167,7 @@ export function missingDef(
 }
 
 /**
- * The same canvas against a new catalog (the backend came back, perhaps changed): each
+ * The same canvas against a new catalog (the station came back, perhaps changed): each
  * block takes its type's current definition, keeping the params it still has; a type that
  * is gone leaves a missing block; a missing one whose type is back is whole again.
  * Returns `nodes` itself when nothing changes.

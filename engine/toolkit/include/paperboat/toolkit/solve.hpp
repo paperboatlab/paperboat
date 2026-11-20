@@ -51,7 +51,7 @@ struct Options {
   bool operator==(const Options&) const = default;
 };
 
-// The run's solver and options: graph.run's settings (the Run menu) over the backend's.
+// The run's solver and options: graph.run's settings (the Run menu) over the station's.
 // A solver named "auto" (or "") is this one; options left out are these. Set per thread: a
 // run sets them on its own before it makes its blocks and objects.
 struct Defaults {

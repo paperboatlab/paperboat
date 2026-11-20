@@ -1,12 +1,12 @@
 Protocol
 ========
 
-One WebSocket between the UI and a backend; every message is a JSON object with a
+One WebSocket between the UI and a station; every message is a JSON object with a
 ``type``. The source of truth for shapes is the JSON Schema
-``protocol/schema/paperboat-0.schema.json`` (``$defs/toUI``, ``$defs/toBackend``);
+``protocol/schema/paperboat-0.schema.json`` (``$defs/toUI``, ``$defs/toStation``);
 ``protocol/README.md`` explains each message, and the web app's types
 (``paperboat-shared/src/protocol.ts``) are generated from the schema (``npm run gen:protocol``). A
-backend on the engine speaks it already.
+station on the engine speaks it already.
 
 Message Quick Reference
 -------------------------
@@ -77,13 +77,13 @@ Message Quick Reference
      - Abort the running simulation loop immediately.
    * -
      - ``run.speed``
-     - Change the speed of the run in progress; the backend answers with ``run.speed`` once the run took it.
+     - Change the speed of the run in progress; the station answers with ``run.speed`` once the run took it.
    * -
      - ``input``
-     - Forward key and dashboard-control down/up events to ``Key`` and ``Switch`` blocks.
+     - Forward key and board-control down/up events to ``Key`` and ``Switch`` blocks.
        A press shows for at least one pass, even if it is released before the pass runs.
 
-Backend → UI
+Station → UI
 ------------
 
 ======================  =====================================================================
@@ -112,7 +112,7 @@ Backend → UI
 ``analysis.result``     ``id``, ``analysis``, ``result?`` or ``error?``: the answer to ``analysis.request``
 ======================  =====================================================================
 
-UI → Backend
+UI → Station
 ------------
 
 ======================  =====================================================================
@@ -129,5 +129,5 @@ UI → Backend
                         a toolkit's analysis of a subsystem or selection, outside any run
 ======================  =====================================================================
 
-Over HTTP, on the same port, a backend with a web station serves its page's folder and
+Over HTTP, on the same port, a station with a web station serves its page's folder and
 ``/paperboat/station.js`` (:doc:`station`).

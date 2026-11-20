@@ -1,6 +1,6 @@
-// Per-backend Station page visibility (#407): each backend starts from its own
+// Per-station Station page visibility (#407): each station starts from its own
 // `hello.station.visible` default ("auto"), and a manual View toggle applies only to that
-// backend rather than leaking across every backend in the browser.
+// station rather than leaking across every station in the browser.
 
 import { useCallback, useState } from "react";
 import { readStored, writeStored } from "./storage.ts";
@@ -15,17 +15,17 @@ function isChoiceMap(v: unknown): v is Record<string, StationChoice> {
   return Object.values(v).every(isChoice);
 }
 
-/** Stable key identifying a backend connection (endpoint URL + reported engine name). */
-export function backendVisibilityKey(url: string, engine?: string): string {
+/** Stable key identifying a station connection (endpoint URL + reported engine name). */
+export function stationVisibilityKey(url: string, engine?: string): string {
   return engine ? `${url}#${engine}` : url;
 }
 
-/** Resolve whether the Station page is shown from the backend's choice and hello.station.visible. */
+/** Resolve whether the Station page is shown from the station's choice and hello.station.visible. */
 export function resolveStationVisible(choice: StationChoice, helloVisible?: boolean): boolean {
   return choice === "auto" ? helloVisible !== false : choice === "shown";
 }
 
-/** Read per-backend station choices, dropping any legacy global string value to auto. */
+/** Read per-station station choices, dropping any legacy global string value to auto. */
 export function readStationChoices(): Record<string, StationChoice> {
   try {
     const raw = localStorage.getItem(STATION_STORAGE_KEY);
@@ -45,7 +45,7 @@ export function readStationChoices(): Record<string, StationChoice> {
   return map;
 }
 
-/** Update one backend's choice in storage ("auto" clears the override back to backend default). */
+/** Update one station's choice in storage ("auto" clears the override back to station default). */
 export function writeStationChoice(key: string, choice: StationChoice, current = readStationChoices()): Record<string, StationChoice> {
   const next = { ...current };
   if (choice === "auto") delete next[key];
@@ -54,9 +54,9 @@ export function writeStationChoice(key: string, choice: StationChoice, current =
   return next;
 }
 
-/** Per-backend Station page visibility choice ("auto" follows hello.station.visible). */
+/** Per-station Station page visibility choice ("auto" follows hello.station.visible). */
 export function useStationVisibility(url: string, engine?: string): [StationChoice, (c: StationChoice) => void] {
-  const key = backendVisibilityKey(url, engine);
+  const key = stationVisibilityKey(url, engine);
   const [choices, setChoices] = useState<Record<string, StationChoice>>(() => readStationChoices());
   const choice = choices[key] ?? "auto";
   const setChoice = useCallback(

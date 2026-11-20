@@ -1,41 +1,41 @@
-// Project files (#82, #34): everything a user made, as one JSON file (`name.ppj`). Pure functions: building the
+// Flow files (#82, #34): everything a user made, as one JSON file (`name.psf`). Pure functions: building the
 // file, reading and checking one, naming it, and the small lists the browser keeps (recent
-// projects and the autosave). The shape is `Project` in protocol.ts, generated from the schema.
+// flows and the autosave). The shape is `StationFlow` in protocol.ts, generated from the schema.
 
-import type { DashboardLayout, FlowType, Graph, Project, RunSettings, Station, Variables } from "./protocol";
+import type { BoardLayout, FlowType, Graph, RunSettings, Station, StationFlow, Variables } from "./protocol";
 import { readStored as read, writeStored as write } from "./storage.ts";
 
 /** The format version this app writes and reads. A newer file is refused. */
 export const PROJECT_VERSION = 0;
 /** The file name's ending. One place to change it. */
-export const PROJECT_EXT = ".ppj";
+export const PROJECT_EXT = ".psf";
 
 type Parts = {
-  backend: string;
+  station: string;
   flow: Graph;
-  station?: Station | null;
+  station_objects?: Station | null;
   variables?: Variables;
-  dashboard?: DashboardLayout;
+  board?: BoardLayout;
   run?: RunSettings;
-  ui?: Project["ui"];
+  ui?: StationFlow["ui"];
 };
 
-/** The project for these parts: the parts that are empty or absent are left out, so the file stays small and readable. */
-export function buildProject({ backend, flow, station, variables, dashboard, run, ui }: Parts): Project {
+/** The flow file for these parts: empty/absent parts are left out, so the file stays small and readable. */
+export function buildProject({ station, flow, station_objects, variables, board, run, ui }: Parts): StationFlow {
   return {
     paperboat: PROJECT_VERSION,
-    backend,
+    station,
     flow,
-    ...(station ? { station } : {}),
+    ...(station_objects ? { station_objects } : {}),
     ...(variables && variables.length > 0 ? { variables } : {}),
-    ...(dashboard ? { dashboard } : {}),
+    ...(board ? { board } : {}),
     ...(run && Object.keys(run).length > 0 ? { run } : {}),
     ...(ui && ui.lock && Object.keys(ui.lock).length > 0 ? { ui } : {}),
   };
 }
 
-/** A project's text: indented, so a diff shows what changed. */
-export const stringify = (p: Project) => `${JSON.stringify(p, null, 2)}\n`;
+/** A flow file's text: indented, so a diff shows what changed. */
+export const stringify = (p: StationFlow) => `${JSON.stringify(p, null, 2)}\n`;
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isText = (v: unknown): v is string => typeof v === "string";
@@ -79,10 +79,10 @@ function flowProblem(flow: unknown): string | null {
 
 /** The first thing wrong with the optional parts, in words, or null. */
 function partsProblem(p: Record<string, unknown>): string | null {
-  const { station, variables, dashboard, run, ui } = p;
-  if (station !== undefined) {
-    if (!isObj(station) || !Array.isArray(station.objects)) return "station.objects must be a list";
-    for (const [i, o] of station.objects.entries()) if (!isObj(o) || !isText(o.id) || !isText(o.type)) return `station.objects[${i}] needs an id and a type`;
+  const { station_objects, variables, board, run, ui } = p;
+  if (station_objects !== undefined) {
+    if (!isObj(station_objects) || !Array.isArray(station_objects.objects)) return "station_objects.objects must be a list";
+    for (const [i, o] of station_objects.objects.entries()) if (!isObj(o) || !isText(o.id) || !isText(o.type)) return `station_objects.objects[${i}] needs an id and a type`;
   }
   if (variables !== undefined) {
     if (!Array.isArray(variables)) return "variables must be a list";
@@ -90,7 +90,7 @@ function partsProblem(p: Record<string, unknown>): string | null {
       if (!isObj(v) || !isText(v.name) || !VARIABLE_TYPES.includes(v.type as string)) return `variables[${i}] needs a name and a type`;
     }
   }
-  if (dashboard !== undefined && !(isObj(dashboard) && Array.isArray(dashboard.instruments))) return "dashboard.instruments must be a list";
+  if (board !== undefined && !(isObj(board) && Array.isArray(board.instruments))) return "board.instruments must be a list";
   if (run !== undefined) {
     if (!isObj(run)) return "run must be an object";
     for (const k of ["duration", "dt", "speed"]) if (run[k] !== undefined && !isNum(run[k])) return `run.${k} must be a number`;
@@ -124,21 +124,21 @@ function partsProblem(p: Record<string, unknown>): string | null {
  * Read a project file's text. Either the project or why it can't be opened, in words for the
  * user; nothing is changed by reading. A newer format is refused, and says so.
  */
-export function parseProject(text: string): { project: Project } | { error: string } {
+export function parseProject(text: string): { project: StationFlow } | { error: string } {
   let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
-    return { error: "This isn't a Paperboat project: the file is not valid JSON." };
+    return { error: "This isn't a Paperboat flow file: the file is not valid JSON." };
   }
-  if (!isObj(data) || data.paperboat === undefined) return { error: 'This isn\'t a Paperboat project: it has no "paperboat" version.' };
+  if (!isObj(data) || data.paperboat === undefined) return { error: 'This isn\'t a Paperboat flow file: it has no "paperboat" version.' };
   const v = data.paperboat;
-  if (!(typeof v === "number" && Number.isInteger(v) && v >= 0)) return { error: 'The project\'s "paperboat" version must be a whole number.' };
-  if (v > PROJECT_VERSION) return { error: `This project is format ${v}, made by a newer Paperboat. This one reads format ${PROJECT_VERSION}: update it to open this project.` };
-  if (!isText(data.backend)) return { error: 'The project must say which backend it was made on ("backend").' };
+  if (!(typeof v === "number" && Number.isInteger(v) && v >= 0)) return { error: 'The flow file\'s "paperboat" version must be a whole number.' };
+  if (v > PROJECT_VERSION) return { error: `This flow file is format ${v}, made by a newer Paperboat. This one reads format ${PROJECT_VERSION}: update it to open this file.` };
+  if (!isText(data.station)) return { error: 'The flow file must say which station it was made on ("station").' };
   const problem = flowProblem(data.flow) ?? partsProblem(data);
-  if (problem) return { error: `The project is damaged: ${problem}.` };
-  return { project: data as unknown as Project };
+  if (problem) return { error: `The flow file is damaged: ${problem}.` };
+  return { project: data as unknown as StationFlow };
 }
 
 /** A file name for a project: the name with what a file system dislikes made into dashes. */
@@ -147,9 +147,9 @@ export function projectFileName(name: string): string {
   return `${clean || "project"}${PROJECT_EXT}`;
 }
 
-/** The project's name from its file's: without `.ppj` (or `.paperboat.json`, `.json` from before). */
+/** The project's name from its file's: without `.psf` (or `.paperboat.json`, `.json` from before). */
 export function projectName(file: string): string {
-  const name = file.replace(/\.(ppj|paperboat\.json|json)$/i, "").trim();
+  const name = file.replace(/\.(psf|paperboat\.json|json)$/i, "").trim();
   return name || "Untitled";
 }
 
@@ -164,8 +164,8 @@ export function ago(then: number, now: number): string {
 
 // ---- What the browser keeps: recent projects (their content, so they can be reopened) and the autosave ----
 
-/** A project kept in this browser, with the name it was saved under and when. */
-export type Stored = { name: string; savedAt: number; project: Project };
+/** A flow kept in this browser, with the name it was saved under and when. */
+export type Stored = { name: string; savedAt: number; project: StationFlow };
 
 export const RECENT_MAX = 5;
 /** All recent projects together stay under this many characters (localStorage holds about 5 MB). */
@@ -195,12 +195,12 @@ export const loadRecent = (): Stored[] => {
 };
 export const saveRecent = (list: Stored[]) => write(RECENT_KEY, list);
 
-/** The unsaved work of this backend's last session, kept as it happens. */
+/** The unsaved work of this station's last session, kept as it happens. */
 export const loadAutosave = (engine: string): Stored | undefined => read(autosaveKey(engine), isStored);
 export const saveAutosave = (engine: string, s: Stored) => write(autosaveKey(engine), s);
 export const clearAutosave = (engine: string) => write(autosaveKey(engine), undefined);
 
-/** Only the settings that differ from the backend's defaults (solver options one by one). */
+/** Only the settings that differ from the station's defaults (solver options one by one). */
 export function changed(value: RunSettings, defaults: RunSettings): RunSettings {
   const out = Object.fromEntries(
     Object.entries(value).filter(([k, v]) => v !== undefined && k !== "solver_options" && v !== defaults[k as keyof RunSettings]),
