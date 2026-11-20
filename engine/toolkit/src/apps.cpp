@@ -16,6 +16,7 @@
 #endif
 
 #include "paperboat/toolkit/descriptor.hpp"
+#include "paperboat/toolkit/self.hpp"
 
 namespace paperboat::toolkit {
 namespace {
@@ -214,16 +215,7 @@ std::string label(std::string_view name, std::string_view version) {
 
 }  // namespace
 
-fs::path apps_dir() {
-  if (const char* v = std::getenv("PAPERBOAT_HOME"); v && *v) return fs::path(v) / "apps";
-#ifdef _WIN32
-  // %LOCALAPPDATA%\paperboat, where scripts/install.ps1 installs paperboat itself
-  if (const char* v = std::getenv("LOCALAPPDATA"); v && *v) return fs::path(v) / "paperboat" / "apps";
-#endif
-  if (const char* v = std::getenv("XDG_DATA_HOME"); v && *v) return fs::path(v) / "paperboat" / "apps";
-  const char* home = std::getenv("HOME");
-  return fs::path(home && *home ? home : ".") / ".local" / "share" / "paperboat" / "apps";
-}
+fs::path apps_dir() { return paperboat_home() / "apps"; }
 
 std::vector<AppEntry> parse_apps_manifest(std::string_view toml_text) {
   toml::table doc;

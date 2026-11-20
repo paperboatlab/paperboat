@@ -33,6 +33,7 @@
 #include "paperboat/toolkit/apps.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
 #include "paperboat/toolkit/platform.hpp"
+#include "paperboat/toolkit/self.hpp"
 #include "paperboat/toolkit/update.hpp"
 #include "paperboat/toolkit/installer.hpp"
 #include "paperboat/toolkit/plugin.hpp"
@@ -169,9 +170,12 @@ Optimization:
 #endif
   std::cout << R"(
 Updating:
-  update [--check] [--no-build] [--channel release|beta|dev]
+  update [--check] [--no-build] [--channel release|beta|dev|source]
                              Update paperboat, its installed apps and toolkits, each on its channel
                              ([release] stable, beta prereleases, dev branch). --check only reports.
+  use [<version> | --list] [--json]
+                             List installed paperboat versions or switch the active one (installing
+                             a release version if not already present).
 
 Dependencies:
   deps install [path]        Create the backend's isolated environment and install its
@@ -1465,11 +1469,11 @@ fs::path running_build_dir(const fs::path& root) {
   return root / "engine" / "build";
 }
 
-// paperboat update [--check] [--no-build] [--channel release|source|main]: update paperboat itself, then
-// the apps `pkg` installed and the toolkits, each along the channel it is on.
-// paperboat itself: an install made by scripts/install.sh (under $PAPERBOAT_HOME) runs that script again,
-// which downloads the newest release or rebuilds the source checkout; a development checkout pulls
-// (fast-forward only) with the sibling checkouts of the apps in apps.toml and rebuilds what changed.
+// paperboat update [--check] [--no-build] [--channel release|beta|dev|source]: update paperboat
+// itself, then the apps `pkg` installed and the toolkits, each along the channel it is on.
+// paperboat itself: a managed install (under $PAPERBOAT_HOME) self-updates in C++ from GitHub Releases
+// or rebuilds its source checkout; a development checkout pulls (fast-forward only) with the sibling
+// checkouts of the apps in apps.toml and rebuilds what changed.
 int cmd_update(const std::vector<std::string_view>& args) {
   bool check_only = false;
   bool build = true;
@@ -1540,42 +1544,30 @@ int cmd_update(const std::vector<std::string_view>& args) {
 
   // 1. this repository, then what it builds on
   std::vector<std::string> changed;
-  const std::string exe = platform::exe_path().string();
-  const auto under_home = fs::path(exe).lexically_relative(tk::apps_dir().parent_path());
-  const bool managed = !under_home.empty() && *under_home.begin() != "..";  // made by install.sh / install.ps1
+  const fs::path exe = platform::exe_path();
+  const bool managed = tk::is_managed_install(exe) || tk::current_self_install().managed;
   const bool checkout = !managed && fs::exists(root / ".git");
   if (managed || (!channel.empty() && !checkout)) {
-    // install.sh (install.ps1 on Windows) is in the checkout's scripts/ and in a package's share/paperboat/scripts/.
-#ifdef _WIN32
-    if (!channel.empty() && channel != "release" && channel != "beta") {
-      say("paperboat", "on Windows paperboat updates from release or beta releases only");
-      return 1;
-    }
-    std::vector<std::string> cmd = {"powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                                    (root / "scripts" / "install.ps1").string()};
-    if (check_only) cmd.emplace_back("-Check");
-    if (!channel.empty()) {
-      cmd.emplace_back("-Channel");
-      cmd.push_back(channel);
-    }
-#else
-    std::vector<std::string> cmd = {"sh", (root / "scripts" / "install.sh").string()};
-    if (check_only) cmd.emplace_back("--check");
-    if (!channel.empty()) cmd.push_back("--" + channel);
-#endif
     std::cout << "paperboat\n";
-    if (const int rc = tk::run_command(cmd, {}, [](std::string_view, std::string_view t) { std::cout << "  " << t << '\n'; });
-        rc != 0) {
+    tk::SelfInstallOptions self_opts;
+    self_opts.channel = channel;
+    self_opts.check_only = check_only;
+    self_opts.rebuild_toolkits = true;
+    const auto self_res = tk::install_self(self_opts, log);
+    if (!self_res.ok) {
+      std::cerr << "  " << self_res.message << '\n';
       ++failed;
-    } else if (!check_only) {
+    } else if (self_res.changed) {
       pulled = true;
+    } else if (!check_only && !self_res.message.empty()) {
+      say("paperboat", self_res.message);
     }
   } else if (!channel.empty()) {
     say("paperboat", "a development checkout: switch with git (git switch dev, git checkout v<version>)");
     ++failed;
   } else if (checkout) {
     sync("paperboat", root, changed);
-  } else {  // a package unpacked by hand (or an older .deb, .rpm or npm install): nothing here updates it
+  } else {  // a package unpacked by hand (or an older .deb, .rpm): nothing here updates it
     say("paperboat", std::string(tui::kVersion) + ", installed from a package; move to a per-user install that");
     std::cout << std::string(20, ' ') << "updates itself: paperboat update --channel release\n";
   }
@@ -1640,6 +1632,56 @@ int cmd_update(const std::vector<std::string_view>& args) {
 
   if (pulled) std::cout << "updated; restart running backends and servers to use it\n";
   return failed ? 1 : 0;
+}
+
+int cmd_use(const std::vector<std::string_view>& args) {
+  bool list_only = false;
+  bool json_out = false;
+  std::string target;
+  for (auto a : args) {
+    if (a == "--list" || a == "-l") list_only = true;
+    else if (a == "--json") json_out = true;
+    else if (a.starts_with("-")) {
+      std::cerr << "usage: paperboat use [<version> | --list] [--json]\n";
+      return 2;
+    } else if (target.empty()) {
+      target = std::string(a);
+    } else {
+      std::cerr << "usage: paperboat use [<version> | --list] [--json]\n";
+      return 2;
+    }
+  }
+  if (list_only || target.empty()) {
+    const auto versions = tk::list_installed_versions();
+    if (json_out) {
+      json arr = json::array();
+      for (const auto& v : versions) {
+        arr.push_back({{"version", v.version}, {"root", v.root.string()}, {"binary", v.binary.string()},
+                       {"active", v.active}, {"source", v.is_source}});
+      }
+      std::cout << arr.dump(2) << '\n';
+      return 0;
+    }
+    if (versions.empty()) {
+      std::cout << "no managed paperboat versions installed under " << tk::self_dir().string() << '\n';
+      return 0;
+    }
+    for (const auto& v : versions) {
+      std::cout << (v.active ? "* " : "  ") << std::left << std::setw(18) << v.version << v.root.string() << '\n';
+    }
+    return 0;
+  }
+
+  const auto log = [](std::string_view level, std::string_view text) {
+    (level == "error" || level == "warn" ? std::cerr : std::cout) << text << '\n';
+  };
+  const auto res = tk::use_self_version(target, log);
+  if (!res.ok) {
+    std::cerr << "paperboat use: " << res.message << '\n';
+    return 1;
+  }
+  std::cout << res.message << '\n';
+  return 0;
 }
 
 json step_json(const core::CheckStep& s) {
@@ -1887,6 +1929,8 @@ const std::vector<CommandSpec>& command_table() {
       {"unpack", cmd_unpack, "Unpack and verify a .ppk", {}, {}, {"--dir", "--json-stream"}, "ppk"},
       {"update", cmd_update, "Pull this repository and its app checkouts, rebuild", {}, {},
        {"--check", "--no-build", "--channel"}},
+      {"use", cmd_use, "List or switch installed paperboat runtime versions", {}, {},
+       {"--list", "--json"}, "version"},
       {"pkg", cmd_pkg, "Apps from other repositories (package manager)", {},
        {"list", "install", "update", "uninstall", "versions", "path"}, {"--json", "--all", "--version", "--force"}},
       {"launcher", cmd_launcher, "Open the Paperboat Launcher desktop app", {"gui"}},
@@ -2124,60 +2168,54 @@ int run_interactive_prompt() {
 
 }  // namespace
 
-extern const char* const kInstallSh;   // scripts/install.sh (install_sh.cpp, generated)
-extern const char* const kInstallPs1;  // scripts/install.ps1
-
 namespace {
 
-// The one-file download (pb#358): a standalone paperboat with nothing installed around it (no checkout,
-// no share/paperboat beside it). It installs the runtime of its own version with the embedded install.sh
-// ($PAPERBOAT_HOME, ~/.local/bin/paperboat), then hands the command to the paperboat it installed. From
-// then on that one is used, and `paperboat update` keeps it current. $PAPERBOAT_ARCHIVE installs from a
-// local release archive instead of downloading it (offline, CI).
+// The one-file download (pb#358, pb#355): a standalone paperboat with nothing installed around it
+// (no checkout, no share/paperboat beside it). It installs the runtime of its own version directly
+// in C++ ($PAPERBOAT_HOME/self/<version>, linked in $PAPERBOAT_BIN), then hands the command over.
+// $PAPERBOAT_ARCHIVE installs from a local release archive instead of downloading (offline, CI).
 std::optional<int> bootstrap(int argc, char** argv) {
   if (!tk::find_repo_root().empty()) return std::nullopt;  // a checkout or an installed paperboat
   std::cout << "paperboat " << tui::kVersion << ": first run, installing paperboat for this user…\n";
   const char* archive = std::getenv("PAPERBOAT_ARCHIVE");
-#ifdef _WIN32
-  const fs::path script = fs::temp_directory_path() / ("paperboat-install-" + std::to_string(_getpid()) + ".ps1");
-  std::ofstream(script) << kInstallPs1;
-  std::string cmd = "powershell -NoProfile -ExecutionPolicy Bypass -File \"" + script.string() + "\"";
-  if (archive && *archive) cmd += " -Archive \"" + std::string(archive) + "\"";
-  else cmd += " -Version " + std::string(tui::kVersion);
-  const int rc = std::system(("\"" + cmd + "\"").c_str());  // cmd.exe strips one pair of outer quotes
-  std::error_code ec;
-  fs::remove(script, ec);
-  if (rc != 0) {
-    std::cerr << "paperboat: the install failed; this file is unchanged, run it again to retry\n";
-    return 1;
-  }
-  const fs::path root = tk::apps_dir().parent_path();
-  const char* bin = std::getenv("PAPERBOAT_BIN");
-  std::cout << "paperboat is installed: open a new terminal and run `paperboat` (this downloaded file can be deleted)\n";
-  if (argc < 2) return 0;
-  // The command you gave, by the installed paperboat (through its shim: the version folder is its own).
-  std::string run = "\"\"" + ((bin && *bin ? fs::path(bin) : root / "bin") / "paperboat.cmd").string() + "\"";
-  for (int i = 1; i < argc; ++i) run += " \"" + std::string(argv[i]) + "\"";
-  return std::system((run + "\"").c_str());
-#else
-  const fs::path script = fs::temp_directory_path() / ("paperboat-install-" + std::to_string(::getpid()) + ".sh");
-  std::ofstream(script) << kInstallSh;
-  std::string cmd = "sh '" + script.string() + "'";
-  if (archive && *archive) cmd += " --archive '" + std::string(archive) + "'";
-  else cmd += " --version " + std::string(tui::kVersion);
-  const int rc = std::system(cmd.c_str());
-  std::error_code ec;
-  fs::remove(script, ec);
-  if (rc != 0) {
+
+  tk::SelfInstallOptions opts;
+  opts.channel = "release";
+  if (archive && *archive) opts.archive = archive;
+  else opts.version = tui::kVersion;
+  opts.rebuild_toolkits = true;
+
+  const auto log = [](std::string_view level, std::string_view text) {
+    (level == "error" || level == "warn" ? std::cerr : std::cout) << text << '\n';
+  };
+  const auto res = tk::install_self(opts, log);
+  if (!res.ok) {
+    std::cerr << "paperboat: " << res.message << '\n';
     std::cerr << "paperboat: the install failed; this binary is unchanged, run it again to retry\n";
     return 1;
   }
-  const char* bin = std::getenv("PAPERBOAT_BIN");
-  const char* home = std::getenv("HOME");
-  const fs::path installed = (bin && *bin ? fs::path(bin) : fs::path(home ? home : ".") / ".local" / "bin") / "paperboat";
-  std::cout << "paperboat is installed: run `paperboat` from now on (this downloaded file can be deleted)\n";
+
+#ifdef _WIN32
+  std::cout << "paperboat is installed: open a new terminal and run `paperboat` (this downloaded file can be deleted)\n";
   if (argc < 2) return 0;
-  argv[0] = const_cast<char*>(installed.c_str());
+  std::vector<std::string> owned = {core::quote_command_arg(res.binary.string())};
+  for (int i = 1; i < argc; ++i) owned.push_back(core::quote_command_arg(argv[i]));
+  std::vector<const char*> c_argv;
+  c_argv.reserve(owned.size() + 1);
+  for (const auto& s : owned) c_argv.push_back(s.c_str());
+  c_argv.push_back(nullptr);
+  const intptr_t rc = _spawnv(_P_WAIT, res.binary.string().c_str(), c_argv.data());
+  if (rc == -1) {
+    std::cerr << "paperboat: cannot run " << res.binary.string() << '\n';
+    return 1;
+  }
+  return static_cast<int>(rc);
+#else
+  const fs::path installed = tk::active_link_path();
+  std::cout << "paperboat is installed: run `paperboat` from now on (this downloaded file can be deleted)\n" << std::flush;
+  if (argc < 2) return 0;
+  std::string link_str = installed.string();
+  argv[0] = link_str.data();
   ::execv(installed.c_str(), argv);  // the command you gave, by the installed paperboat
   std::cerr << "paperboat: cannot run " << installed.string() << '\n';
   return 1;

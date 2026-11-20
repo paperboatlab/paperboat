@@ -17,6 +17,7 @@ set(PAPERBOAT_TOOLKIT_CORE_SOURCES
   src/variables.cpp
   src/installer.cpp
   src/apps.cpp
+  src/self.cpp
   src/platform.cpp
   src/update.cpp
   src/plugin.cpp
@@ -169,3 +170,6 @@ target_link_libraries(paperboat_toolkit
   PUBLIC nlohmann_json::nlohmann_json paperboat::solvers  # variables.hpp takes the protocol's JSON
   PRIVATE ${CMAKE_DL_LIBS}  # plugin.cpp's dlopen
   PRIVATE $<BUILD_INTERFACE:tomlplusplus::tomlplusplus> $<BUILD_INTERFACE:paperboat_eigen> paperboat_warnings)
+if(WIN32)
+  target_link_libraries(paperboat_toolkit PRIVATE advapi32 user32)
+endif()

@@ -313,8 +313,8 @@ Where it installs
 toolkit or an app never needs administrator rights. Only the system packages (the CLI
 ``.deb``/``.rpm`` or the Launcher) do.
 
-Updating
-~~~~~~~~
+Updating and switching versions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: sh
 
@@ -322,11 +322,15 @@ Updating
    paperboat update                         # update on the current channel
    paperboat update --channel release       # switch to stable
    paperboat update --channel beta          # switch to prereleases
-   paperboat update --channel dev           # Linux/macOS: switch to dev (builds from source)
+   paperboat update --channel dev           # switch to dev (builds from source)
    paperboat update --no-build              # update files without rebuilding
+   paperboat use --list                     # list side-by-side runtime versions
+   paperboat use 0.1.5                      # switch active runtime under $PAPERBOAT_HOME/self/
 
-On Linux/macOS the update runs the same install script as above. On Windows it updates
-from release or beta archives.
+``paperboat update`` manages releases directly in C++ without invoking ``install.sh`` or
+``install.ps1``. Each managed runtime is installed side-by-side under
+``$PAPERBOAT_HOME/self/<version>/``, and ``paperboat use`` switches the active link or
+Windows shim between installed versions.
 
 .. _paperboat-launcher:
 
