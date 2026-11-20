@@ -521,12 +521,12 @@ fixed = true))``, ...), the top-level ``parameter`` declarations and the armatur
 ``Real i = L1.i annotation(__paperboat(probe = true))`` were typed into the ``.mo``.
 
 Squero Studio OM, the Modelica editor, talks to omc through ``squero-om``
-(or ``paperboat start squero-studio-om``), a WebSocket server speaking ``squero/0``:
+(or ``paperboat squero start squero-studio-om``), a WebSocket server speaking ``squero/0``:
 ``{"id", "op": "omc", "expr"}`` answered by ``{"id", "ok", "result" | "error"}``, plus
 ``{"op": "status", "state", "version"}`` pushes. Only an allow-list of omc calls passes.
 
-``squero-om [Model.mo]`` (or ``paperboat start squero-studio-om``) also serves the Studio app on the same port: ``--app DIR``,
-else a ``squero-studio-om`` checkout next to this repository (its ``dist/``), else the release ``paperboat pkg``
+``squero-om [Model.mo]`` (or ``paperboat squero start squero-studio-om``) also serves the Studio app on the same port: ``--app DIR``,
+else a ``squero-studio-om`` checkout next to this repository (its ``dist/``), else the release ``paperboat squero``
 fetched from GitHub into ``~/.local/share/paperboat/apps`` and opens ``Model.mo``, default ``./Untitled.mo``. Beyond ``omc``
 it has six ops of its own, written in C++ and confined to the opened model, each answered by
 ``{"id", "ok": true, "result": {…}}`` or ``{"id", "ok": false, "error"}``:

@@ -2,7 +2,7 @@
 
 // Apps that live in other repositories (squero-studio-om, paperboat-shared): declared in apps.toml
 // at the repository root, fetched with git at a release tag (or main) into a per-user store, and
-// built there. The package manager behind `paperboat pkg` and `paperboat start <program>`.
+// built there. The package manager behind `paperboat squero`.
 
 #include <filesystem>
 #include <map>

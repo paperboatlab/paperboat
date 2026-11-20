@@ -426,8 +426,8 @@ Squero Studio: OpenModelica
 
 Squero Studio OM is a separate app, in the ``squero-studio-om`` repository, for building the equipment a Paperboat flow runs: you draw
 a Modelica model, and Paperboat opens the station generated from it. It is not a page of the
-app above. Start it with ``paperboat start squero-studio-om [Model.mo]``, which fetches and builds the app from GitHub the first time
-(``paperboat pkg`` manages it: ``pkg versions squero-studio-om``, ``pkg update squero-studio-om``), and open ``http://localhost:59201``; with no file it opens ``./Untitled.mo``, creating it if it isn't there. It needs
+app above. Start it with ``paperboat squero start squero-studio-om [Model.mo]``, which fetches and builds the app from GitHub the first time
+(``paperboat squero`` manages it: ``squero versions squero-studio-om``, ``squero update squero-studio-om``), and open ``http://localhost:59201``; with no file it opens ``./Untitled.mo``, creating it if it isn't there. It needs
 OpenModelica (``omc``) on the path.
 
 The bar reads ``squero studio [ OM ]``, then the menus (Edit, View), the model's name and, at

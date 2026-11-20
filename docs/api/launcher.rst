@@ -77,7 +77,7 @@ The Apps page has three cards and an **Active Sessions** panel.
        shared UI it needs.
 
 **Install an app.** Pick the version in the card's select, press **Install**, and watch
-the inline feedback. The Launcher runs ``paperboat pkg install <name>@<version>``; the
+the inline feedback. The Launcher runs ``paperboat squero install <name>@<version>``; the
 app's dependencies are installed first. **Update all** at the top of the page updates
 every installed app; the version lists on the cards are refreshed when the page opens,
 and **Check for updates** checks the CLI on the selected channel.
