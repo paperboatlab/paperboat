@@ -1594,7 +1594,7 @@ int cmd_update(const std::vector<std::string_view>& args) {
     step("cmake --build", {platform::cmake_command(running_build_dir(root)), "--build", running_build_dir(root).string(), "--parallel"}, root);
   }
 
-  // 3. apps installed by `paperboat pkg`
+  // 3. apps installed by `paperboat squero`
   for (const auto& app : tk::list_apps(root)) {
     if (!app.installed) continue;
     if (!tk::app_outdated(app.name, root)) {

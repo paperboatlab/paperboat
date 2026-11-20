@@ -309,7 +309,7 @@ Where it installs
    * - ``PAPERBOAT_ARCHIVE``
      - Optional: an offline release archive for the one-file binary's first run.
 
-``paperboat pkg`` installs apps and toolkits under ``$PAPERBOAT_HOME``, so installing a
+``paperboat squero`` installs apps and toolkits under ``$PAPERBOAT_HOME``, so installing a
 toolkit or an app never needs administrator rights. Only the system packages (the CLI
 ``.deb``/``.rpm`` or the Launcher) do.
 

@@ -1,4 +1,4 @@
-# Apps that live in their own repositories. `paperboat pkg install <name>` clones one (a release tag,
+# Apps that live in their own repositories. `paperboat squero install <name>` clones one (a release tag,
 # or main) into the per-user store and builds it there. `deps` are installed first and sit next to the app (npm's file:../<dep>,
 # Julia's path deps), so an app's name is also its folder name.
 # kind: squero (start/stop it; `launch` is the command that runs it, `port` where it listens) or library.
@@ -9,9 +9,9 @@
 # version is a prerelease or dev (a dev app with no tag in range takes the dep's main). An installed dep
 # outside the range fails the install (`--force` reinstalls it in range), and a dep version outside the
 # range of an installed app that needs it is refused. The install marker records the dep versions;
-# `paperboat pkg list` shows them.
+# `paperboat squero list` shows them.
 #
-# `requires` names the tools an app needs on PATH to build and run ("a|b" is either one). `pkg install`
+# `requires` names the tools an app needs on PATH to build and run ("a|b" is either one). `squero install`
 # checks them for the app and all its deps before it fetches anything, and names what is missing with
 # the line from [tools] that says how to get it.
 
