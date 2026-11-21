@@ -497,7 +497,7 @@ TEST_CASE("a Python station gets `import paperboat` on PYTHONPATH and $PAPERBOAT
   setenv("PYTHONPATH", "/elsewhere", 1);
   setenv("PAPERBOAT_PYTHON", named_python.c_str(), 1);
   const auto env = core::StationManager::prepare_python_env(root);
-  CHECK(pythonpath(env) == (root / "python").string() + ":/elsewhere");
+  CHECK(pythonpath(env) == (root / "python").string());  // the host's is dropped (#322)
   CHECK(env.python_bin == named_python.string());
   // A name that is not a file falls back to python3 instead of failing in the station.
   setenv("PAPERBOAT_PYTHON", "/opt/python3.13/bin/python3", 1);
@@ -506,6 +506,32 @@ TEST_CASE("a Python station gets `import paperboat` on PYTHONPATH and $PAPERBOAT
   unsetenv("PAPERBOAT_PYTHON");
   CHECK(core::StationManager::prepare_python_env(root).python_bin == "python3");
   fs::remove_all(root);
+}
+
+TEST_CASE("the host's PYTHONPATH and JULIA_* never reach a station (#322)") {
+  const fs::path dir = fs::temp_directory_path() / "pb_env_leak";
+  fs::remove_all(dir);
+  fs::create_directories(dir);
+  setenv("PYTHONPATH", "/leak/py", 1);
+  setenv("PYTHONHOME", "/leak/home", 1);
+  setenv("JULIA_PROJECT", "/leak/project", 1);
+  setenv("JULIA_DEPOT_PATH", "/leak/depot", 1);
+  setenv("JULIA_LOAD_PATH", "/leak/load", 1);
+  // What the station process really sees: the station's env laid over this process's.
+  auto seen = [&](const std::vector<std::pair<std::string, std::string>>& env, const std::string& var) {
+    auto r = core::ProcessRunner::run_sync({"/bin/sh", "-c", "printf %s \"$" + var + "\""}, dir, env);
+    return r.stdout_text;
+  };
+  const auto py = core::StationManager::prepare_python_env(dir, dir).env;
+  CHECK(seen(py, "PYTHONPATH").find("/leak") == std::string::npos);
+  CHECK(seen(py, "PYTHONHOME").empty());
+  const auto jl = core::StationManager::julia_env(dir);
+  CHECK(seen(jl, "JULIA_PROJECT") == dir.string());
+  CHECK(seen(jl, "JULIA_DEPOT_PATH") == (dir / ".julia").string());
+  CHECK(seen(jl, "JULIA_LOAD_PATH") == "@:@stdlib");
+  for (const char* var : {"PYTHONPATH", "PYTHONHOME", "JULIA_PROJECT", "JULIA_DEPOT_PATH", "JULIA_LOAD_PATH"})
+    unsetenv(var);
+  fs::remove_all(dir);
 }
 
 TEST_CASE("list_toolkits includes built-in toolkit and inspect_toolkit categorizes blocks and instruments") {

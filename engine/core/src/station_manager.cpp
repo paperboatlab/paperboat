@@ -114,7 +114,7 @@ std::string julia_binary() {
 
 // Julia is isolated per station: its own depot, project and load path (#322). The host
 // library is the checkout's build unless the caller names one.
-std::vector<std::pair<std::string, std::string>> julia_env(const fs::path& dir) {
+std::vector<std::pair<std::string, std::string>> isolated_julia_env(const fs::path& dir) {
   std::vector<std::pair<std::string, std::string>> env;
   env.emplace_back("JULIA_PROJECT", dir.string());
   env.emplace_back("JULIA_DEPOT_PATH", (dir / ".julia").string());
@@ -905,6 +905,10 @@ std::string default_python() {
 
 }  // namespace
 
+std::vector<std::pair<std::string, std::string>> StationManager::julia_env(const fs::path& dir) {
+  return isolated_julia_env(dir);
+}
+
 fs::path StationManager::python_package_dir(const fs::path& root) {
   std::error_code ec;
   if (!root.empty() && fs::is_regular_file(root / "python" / "paperboat" / "__init__.py", ec)) return root / "python";
@@ -937,16 +941,11 @@ StationManager::PythonEnv StationManager::prepare_python_env(const fs::path& rep
   }
 
   // 2. `import paperboat`: the checkout's python/, or the package's lib/paperboat/python (pb#223),
-  //    before whatever PYTHONPATH already has.
+  //    and nothing else: the host's PYTHONPATH and PYTHONHOME never reach a station (#322; Python
+  //    reads an empty one as unset).
   const fs::path py_dir = python_package_dir(root);
-  if (!py_dir.empty()) {
-    std::string pythonpath = py_dir.string();
-    const char* cur = std::getenv("PYTHONPATH");
-    if (cur && *cur) {
-      pythonpath += kPathSep + std::string(cur);
-    }
-    env.env.emplace_back("PYTHONPATH", pythonpath);
-  }
+  env.env.emplace_back("PYTHONPATH", py_dir.string());
+  env.env.emplace_back("PYTHONHOME", "");
 
   env.env.emplace_back("no_proxy", "localhost,127.0.0.1");
   env.env.emplace_back("NO_PROXY", "localhost,127.0.0.1");
@@ -2460,7 +2459,7 @@ ProcessResult run_packer(const std::vector<std::string>& args, const fs::path& c
 }  // namespace
 
 PackResult StationManager::pack_station(const fs::path& path, const fs::path& out_path, bool /*fast*/,
-                                        const PackProgress& progress) {
+                                        const PackProgress& progress, bool bundle_deps) {
   PackResult res;
   const fs::path dir = resolve_station_dir(path);
   if (!fs::is_directory(dir)) {
@@ -2489,9 +2488,10 @@ PackResult StationManager::pack_station(const fs::path& path, const fs::path& ou
   auto py_env = prepare_python_env(repo_root, dir);
   fs::path script = repo_root / "scripts" / "package_station.py";
 
-  auto pack_proc = run_packer(
-      {py_env.python_bin.string(), script.string(), "pack", "--dir", dir.string(), "--out", package_out.string()},
-      repo_root, py_env.env, progress);
+  std::vector<std::string> pack_args = {py_env.python_bin.string(), script.string(), "pack", "--dir", dir.string(),
+                                       "--out", package_out.string()};
+  if (bundle_deps) pack_args.emplace_back("--bundle-deps");
+  auto pack_proc = run_packer(pack_args, repo_root, py_env.env, progress);
 
   if (!pack_proc.ok()) {
     res.errors.push_back("packing script failed: " + output_of(pack_proc));
@@ -2511,6 +2511,7 @@ PackResult StationManager::pack_station(const fs::path& path, const fs::path& ou
     res.file_count = j.value("file_count", 0);
     res.total_bytes = j.value("total_bytes", static_cast<uint64_t>(0));
     res.sha256 = j.value("sha256", std::string{});
+    res.deps = j.value("deps", std::string{});
   } catch (const std::exception& e) {
     res.errors.push_back("failed to parse pack output: " + std::string(e.what()));
     return res;

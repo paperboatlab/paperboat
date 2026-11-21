@@ -70,6 +70,9 @@ cmake --build engine/build
 ./bin/paperboat new my-rig              # scaffold a C++ station (--python or --julia for Python or Julia)
 ```
 
+A station's libraries go in its own environment (`paperboat deps install`): see
+[Adding a library to a station](https://paperboatlab.github.io/paperboat/dependencies.html).
+
 The web app opens at `http://localhost:3047` (`?station=ws://localhost:<port>` connects to any
 running station). Run `./bin/paperboat` with no arguments in a terminal to open the interactive
 console.

@@ -33,6 +33,7 @@ and the toolkit doesn't.
    station
    board
    project
+   dependencies
    testing
 
 .. toctree::
