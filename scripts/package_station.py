@@ -6,12 +6,16 @@ and file integrity hashes, excluding build artifacts and ignore patterns.
 Unpacks and verifies file hashes.
 """
 
+from __future__ import annotations
+
 import argparse
 import fnmatch
 import hashlib
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -89,7 +93,54 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def cmd_pack(station_dir: Path, out_path: Path) -> dict:
+def walk_files(top: Path, base: Path, patterns: list[str]) -> dict[str, Path]:
+    """Every file under `top` not ignored, keyed by its archive path (relative to `base`)."""
+    found = {}
+    for root, dirs, files in os.walk(top):
+        rel_root = os.path.relpath(root, base)
+        if rel_root != "." and is_ignored(rel_root, patterns):
+            dirs[:] = []
+            continue
+        dirs[:] = [d for d in dirs if not is_ignored(os.path.join(rel_root, d) if rel_root != "." else d, patterns)]
+        for file in files:
+            rel_norm = (os.path.join(rel_root, file) if rel_root != "." else file).replace("\\", "/")
+            full_path = Path(root) / file
+            if not is_ignored(rel_norm, patterns) and full_path.is_file():
+                found[rel_norm] = full_path
+    return found
+
+
+def bundle_deps(station_dir: Path, tmp: Path) -> dict[str, Path] | str:
+    """The environment a station's lockfile names, for an offline install (#322): Python wheels
+    built into wheels/ (what `paperboat deps install` installs from), or the Julia depot .julia/."""
+    if (station_dir / "Project.toml").is_file():
+        depot = station_dir / ".julia"
+        if not depot.is_dir():
+            return "no .julia depot to bundle: run `paperboat deps install` first"
+        return walk_files(depot, station_dir, [])
+    reqs = station_dir / "requirements.txt"
+    if reqs.is_file() or (station_dir / "pyproject.toml").is_file():
+        wheels = tmp / "wheels"
+        what = ["-r", str(reqs)] if reqs.is_file() else [str(station_dir)]
+        proc = subprocess.run(
+            [sys.executable, "-m", "pip", "wheel", "--disable-pip-version-check", "-q", "-w", str(wheels), *what],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            return f"pip wheel failed: {proc.stderr.strip() or proc.stdout.strip()}"
+        return walk_files(wheels, tmp, []) if wheels.is_dir() else {}
+    return "no requirements.txt, pyproject.toml or Project.toml to bundle"
+
+
+def deps_kind(station_dir: Path) -> str:
+    for lock in ("requirements.txt", "pyproject.toml", "Project.toml"):
+        if (station_dir / lock).is_file():
+            return "lockfile"
+    return ""
+
+
+def cmd_pack(station_dir: Path, out_path: Path, bundle: bool = False) -> dict:
     if not station_dir.is_dir():
         return {"ok": False, "error": f"directory not found: {station_dir}"}
 
@@ -117,30 +168,25 @@ def cmd_pack(station_dir: Path, out_path: Path) -> dict:
 
     patterns = load_ignore_patterns(station_dir)
 
-    files_to_pack = []
-    for root, dirs, files in os.walk(station_dir):
-        rel_root = os.path.relpath(root, station_dir)
-        if rel_root != "." and is_ignored(rel_root, patterns):
-            dirs[:] = []
-            continue
+    sources = walk_files(station_dir, station_dir, patterns)
+    deps = deps_kind(station_dir)
+    with tempfile.TemporaryDirectory() as tmp:
+        if bundle:
+            extra = bundle_deps(station_dir, Path(tmp))
+            if isinstance(extra, str):
+                return {"ok": False, "error": extra}
+            sources.update(extra)
+            deps = "bundled"
+        return write_package(sources, out_path, name, version, language, engine, deps)
 
-        dirs[:] = [d for d in dirs if not is_ignored(os.path.join(rel_root, d) if rel_root != "." else d, patterns)]
 
-        for file in files:
-            rel_file = os.path.join(rel_root, file) if rel_root != "." else file
-            rel_norm = rel_file.replace("\\", "/")
-            if is_ignored(rel_norm, patterns):
-                continue
-            full_path = station_dir / rel_file
-            if full_path.is_file():
-                files_to_pack.append(rel_norm)
-
-    files_to_pack.sort()
+def write_package(sources: dict[str, Path], out_path: Path, name, version, language, engine, deps) -> dict:
+    files_to_pack = sorted(sources)
 
     manifest_files = []
     total_bytes = 0
     for rel in files_to_pack:
-        p = station_dir / rel
+        p = sources[rel]
         size = p.stat().st_size
         total_bytes += size
         digest = sha256_file(p)
@@ -161,8 +207,8 @@ def cmd_pack(station_dir: Path, out_path: Path) -> dict:
         zf.writestr("PACKAGE.json", json.dumps(pkg_meta, indent=2))
         written = 0
         for i, rel in enumerate(files_to_pack, 1):
-            zf.write(station_dir / rel, arcname=rel)
-            written += (station_dir / rel).stat().st_size
+            zf.write(sources[rel], arcname=rel)
+            written += sources[rel].stat().st_size
             progress(i, len(files_to_pack), written)
 
     archive_digest = sha256_file(out_path)
@@ -174,6 +220,7 @@ def cmd_pack(station_dir: Path, out_path: Path) -> dict:
         "file_count": len(files_to_pack),
         "total_bytes": total_bytes,
         "sha256": archive_digest,
+        "deps": deps,
     }
 
 
@@ -262,6 +309,7 @@ def main():
     pack_p.add_argument("pos_dir", nargs="?", type=Path, default=None, help="Station directory")
     pack_p.add_argument("--dir", type=Path, default=None, help="Station directory to pack")
     pack_p.add_argument("--out", type=Path, default=None, help="Output package path (.pst)")
+    pack_p.add_argument("--bundle-deps", action="store_true", help="Add wheels/ (Python) or .julia/ (Julia)")
 
     unpack_p = subparsers.add_parser("unpack")
     unpack_p.add_argument("pos_pkg", nargs="?", type=Path, default=None, help="Input package path (.pst)")
@@ -277,7 +325,7 @@ def main():
         if out_pkg is None:
             name, version = read_manifest_info(src_dir)
             out_pkg = Path(f"{name}-{version}.pst")
-        res = cmd_pack(src_dir, out_pkg.resolve())
+        res = cmd_pack(src_dir, out_pkg.resolve(), args.bundle_deps)
     elif args.subcommand == "unpack":
         pkg_file = (args.pkg or args.pos_pkg)
         if not pkg_file:

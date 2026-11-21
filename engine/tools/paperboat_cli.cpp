@@ -153,8 +153,9 @@ Toolkits:
 Verification & Packaging:
   check [path] [--fast] [--json | --json-stream]
                              4-stage verification (manifest, catalog, smoke, golden)
-  pack [path] [--out <pkg>] [--json-stream]
-                             Package station into .pst archive
+  pack [path] [--out <pkg>] [--bundle-deps] [--json-stream]
+                             Package station into .pst archive (lockfiles, not environments;
+                             --bundle-deps adds Python wheels/ or the Julia .julia/ depot)
   unpack <pkg> [--dir <dir>] [--json-stream]
                              Unpack and verify .pst archive
                              --json-stream prints one JSON event per line as work goes
@@ -294,9 +295,14 @@ int cmd_deps(const std::vector<std::string_view>& args) {
       if (run_deps({base, "-m", "venv", venv.string()}, dir) != 0) return 1;
     }
     std::vector<std::string> pip = {python.string(), "-m", "pip", "install", "--disable-pip-version-check"};
+    if (fs::is_directory(dir / "wheels")) {  // a `pack --bundle-deps` package installs offline
+      std::cout << "  installing from wheels/ (offline)\n";
+      pip.insert(pip.end(), {"--no-index", "--find-links", (dir / "wheels").string()});
+    }
     if (fs::is_regular_file(requirements)) { pip.push_back("-r"); pip.push_back(requirements.string()); }
     else { pip.push_back("."); }
-    if (run_deps(pip, dir) != 0) return 1;
+    // The host's PYTHONPATH must not satisfy a requirement the venv lacks (#322).
+    if (run_deps(pip, dir, {{"PYTHONPATH", ""}, {"PYTHONHOME", ""}}) != 0) return 1;
     std::cout << "  [ok] Python environment ready: " << venv.string() << "\n";
     return 0;
   }
@@ -1795,27 +1801,30 @@ int cmd_pack(const std::vector<std::string_view>& args) {
   std::string out_path;
 
   bool stream = false;
+  bool bundle_deps = false;
   for (std::size_t i = 0; i < args.size(); ++i) {
     auto a = args[i];
     if (a == "--out" && i + 1 < args.size()) {
       out_path = std::string(args[++i]);
     } else if (a == "--json-stream") {
       stream = true;
+    } else if (a == "--bundle-deps") {
+      bundle_deps = true;
     } else if (!a.starts_with("-") && path.empty()) {
       path = std::string(a);
     }
   }
 
   if (stream) {
-    auto res = core::StationManager::pack_station(path, out_path, /*fast=*/true, progress_events());
+    auto res = core::StationManager::pack_station(path, out_path, /*fast=*/true, progress_events(), bundle_deps);
     emit({{"event", "result"}, {"ok", res.ok}, {"package", res.package_path.string()}, {"name", res.name},
           {"version", res.version}, {"files", res.file_count}, {"bytes", res.total_bytes}, {"sha256", res.sha256},
-          {"errors", res.errors}});
+          {"deps", res.deps}, {"errors", res.errors}});
     return res.ok ? 0 : 1;
   }
 
   std::cout << "==> Packing station " << (path.empty() ? "." : path) << "…\n";
-  auto res = core::StationManager::pack_station(path, out_path, /*fast=*/true);
+  auto res = core::StationManager::pack_station(path, out_path, /*fast=*/true, {}, bundle_deps);
   if (!res.ok) {
     std::cerr << "[failed] packing error:\n";
     for (const auto& e : res.errors) {
@@ -1830,6 +1839,11 @@ int cmd_pack(const std::vector<std::string_view>& args) {
             << std::fixed << std::setprecision(1) << kb << " KB)\n";
   if (!res.sha256.empty()) {
     std::cout << "     sha256: " << res.sha256 << '\n';
+  }
+  if (res.deps == "lockfile") {
+    std::cout << "     dependencies: lockfile only, environments not bundled (--bundle-deps adds them)\n";
+  } else if (res.deps == "bundled") {
+    std::cout << "     dependencies: bundled (wheels/ or .julia/) for an offline `paperboat deps install`\n";
   }
   return 0;
 }
@@ -1926,7 +1940,7 @@ const std::vector<CommandSpec>& command_table() {
        {"--json", "--all", "--no-build", "--version"}, "toolkit"},
       {"check", cmd_check, "Verify a station (manifest, catalog, smoke, golden)", {}, {},
        {"--fast", "--json", "--json-stream"}, "station"},
-      {"pack", cmd_pack, "Package a station as .pst", {}, {}, {"--out", "--json-stream"}, "station"},
+      {"pack", cmd_pack, "Package a station as .pst", {}, {}, {"--out", "--bundle-deps", "--json-stream"}, "station"},
       {"unpack", cmd_unpack, "Unpack and verify a .pst", {}, {}, {"--dir", "--json-stream"}, "pst"},
       {"update", cmd_update, "Pull this repository and its app checkouts, rebuild", {}, {},
        {"--check", "--no-build", "--channel"}},

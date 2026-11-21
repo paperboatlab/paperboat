@@ -132,6 +132,9 @@ struct PackResult {
   int file_count = 0;
   uint64_t total_bytes = 0;
   std::string sha256;
+  // The dependencies: "" (none declared), "lockfile" (the lockfile only) or "bundled" (wheels/ or
+  // .julia/ too, `--bundle-deps`).
+  std::string deps;
   std::vector<std::string> errors;
 };
 
@@ -191,6 +194,8 @@ class StationManager {
   // The interpreter is the station's .venv, $PAPERBOAT_PYTHON, the checkout's .venv, else python3.
   static PythonEnv prepare_python_env(const std::filesystem::path& repo_root = {},
                                      const std::filesystem::path& station_dir = {});
+  // A Julia station's environment: its own project, depot and load path, whatever the host sets (#322).
+  static std::vector<std::pair<std::string, std::string>> julia_env(const std::filesystem::path& dir);
   // The folder that holds the `paperboat` Python package, put on PYTHONPATH (pb#223): a checkout's
   // python/, else an installed package's <prefix>/lib/paperboat/python; empty if neither.
   static std::filesystem::path python_package_dir(const std::filesystem::path& root);
@@ -237,7 +242,8 @@ class StationManager {
   static PackResult pack_station(const std::filesystem::path& path = {},
                                  const std::filesystem::path& out_path = {},
                                  bool fast = true,
-                                 const PackProgress& progress = {});
+                                 const PackProgress& progress = {},
+                                 bool bundle_deps = false);
   static UnpackResult unpack_station(const std::filesystem::path& archive_path,
                                      const std::filesystem::path& dest_dir = {},
                                      bool verify = true,
