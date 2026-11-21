@@ -1444,6 +1444,9 @@ export function App() {
                   const fbKey = `app:${app.name}`;
                   const isBusy = feedbackMap[fbKey]?.status === "busy";
                   const ready = app.installed || app.checkout;
+                  const verLabel = (v: string) => (v === "dev" ? "dev" : v.startsWith("v") ? v : `v${v}`);
+                  // A version picked other than the installed one: Update installs that one instead.
+                  const switchTo = app.installed && picked !== app.version ? picked : "";
 
                   return (
                     <article key={app.name} className={`app-card${liveApp ? " live" : ""}`}>
@@ -1453,9 +1456,12 @@ export function App() {
                           {appDisplayTitle(app.name)}
                         </span>
                         {liveApp ? (
-                          <span className="badge-pill signal">running :{liveApp.port}</span>
+                          <span className="badge-pill signal">
+                            running :{liveApp.port}
+                            {app.installed && app.version ? ` · ${verLabel(app.version)}` : ""}
+                          </span>
                         ) : app.installed ? (
-                          <span className="badge-pill ink">{app.version || "installed"}</span>
+                          <span className="badge-pill ink">{app.version ? `${verLabel(app.version)} installed` : "installed"}</span>
                         ) : app.checkout ? (
                           <span className="badge-pill ink">workspace</span>
                         ) : (
@@ -1476,7 +1482,8 @@ export function App() {
                         >
                           {versions.map((v) => (
                             <option key={v} value={v}>
-                              {v === "dev" ? "dev" : v.startsWith("v") ? v : `v${v}`}
+                              {verLabel(v)}
+                              {app.installed && v === app.version ? " · installed" : ""}
                             </option>
                           ))}
                         </select>
@@ -1542,9 +1549,16 @@ export function App() {
                               type="button"
                               className="key small"
                               disabled={isBusy}
-                              onClick={() => void runCmd(["squero", "update", app.name], `update ${appDisplayTitle(app.name)}`, "task", fbKey)}
+                              onClick={() =>
+                                void runCmd(
+                                  switchTo ? ["squero", "install", `${app.name}@${switchTo}`] : ["squero", "update", app.name],
+                                  `${switchTo ? `install ${verLabel(switchTo)} of` : "update"} ${appDisplayTitle(app.name)}`,
+                                  "task",
+                                  fbKey,
+                                )
+                              }
                             >
-                              {isBusy ? "Updating…" : "Update"}
+                              {isBusy ? "Working…" : switchTo ? `Install ${verLabel(switchTo)}` : "Update"}
                             </button>
                             {app.installed && !liveApp && (
                               <button
