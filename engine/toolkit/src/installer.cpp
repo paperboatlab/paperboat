@@ -256,6 +256,14 @@ ToolkitResult materialize_toolkit(const fs::path& clone_dir, std::string_view na
   return {true, {}};
 }
 
+// An install in progress, or one whose build failed or was cancelled, leaves this file: its files are
+// on disk but it is not usable, so it lists as not installed until an install finishes.
+constexpr const char* kInstalling = ".installing";
+
+bool ready(const fs::path& toolkit_dir) {
+  return fs::is_regular_file(toolkit_dir / "toolkit.toml") && !fs::exists(toolkit_dir / kInstalling);
+}
+
 // Marker file helpers
 std::string read_marker_version(const fs::path& toolkit_dir) {
   const fs::path marker = toolkit_dir / ".paperboat-toolkit.json";
@@ -584,7 +592,7 @@ std::vector<ToolkitEntry> list_toolkits(const fs::path& repo_root,
   const auto reqs = load_toolkit_requirements(station_dir, entries);
   for (auto& e : entries) {
     const fs::path target = toolkit_dir(root, e.name);
-    e.installed = fs::is_regular_file(target / "toolkit.toml");
+    e.installed = ready(target);
     e.required = std::ranges::find(reqs, e.name) != reqs.end();
     if (e.installed) {
       e.version = read_marker_version(target);
@@ -914,7 +922,7 @@ ToolkitResult install_toolkit(std::string_view name,
   // The toolkit and what it requires, each requirement first: control cannot be built without
   // optimization, and asking for that build step by hand is a trap.
   const auto installed = [&](const ToolkitEntry& e) {
-    return fs::is_regular_file(toolkit_dir(root, e.name) / "toolkit.toml");
+    return ready(toolkit_dir(root, e.name));
   };
   std::vector<const ToolkitEntry*> order;
   std::set<std::string> seen;
@@ -942,6 +950,7 @@ ToolkitResult install_toolkit(std::string_view name,
     const bool asked = e->name == name;
     const auto res = install_files(*e, asked ? requested_version : std::string_view{}, asked ? source : std::string_view{}, root, log);
     if (!res.ok) return res;
+    std::ofstream(toolkit_dir(root, e->name) / kInstalling) << "the build has not finished\n";
     if (!names.empty()) names += ", ";
     names += e->name;
   }
@@ -966,6 +975,8 @@ ToolkitResult install_toolkit(std::string_view name,
     }
   }
 
+  std::error_code done_ec;
+  for (const ToolkitEntry* e : order) fs::remove(toolkit_dir(root, e->name) / kInstalling, done_ec);
   const std::string msg = "installed toolkit" + std::string(order.size() > 1 ? "s " : " ") + names + "; restart station to load changes";
   if (log) log("info", msg);
   return {true, msg};
