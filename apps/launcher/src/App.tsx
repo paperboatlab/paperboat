@@ -498,8 +498,12 @@ export function App() {
   };
 
   const runningTasks = tasks.filter((t) => t.status === "running");
-  const busy = runningTasks.length > 0;
   const activeTask = runningTasks[0];
+  // A launch ("job") may run beside anything; two installs, updates or uninstalls may not:
+  // an uninstall deleting files under a running build breaks it.
+  const mutatingTask = runningTasks.find((t) => t.kind !== "job");
+  const busy = Boolean(mutatingTask);
+  const busyWhy = mutatingTask ? `Wait for “${mutatingTask.label}” to finish` : undefined;
 
   const stations = snap?.stations ?? [];
   const apps = snap?.apps ?? [];
@@ -1186,8 +1190,8 @@ export function App() {
     toolkits: { text: String(installedToolkitsCount) },
   };
 
-  const statusLabel = busy
-    ? activeTask?.label || "working"
+  const statusLabel = mutatingTask
+    ? mutatingTask.label || "working"
     : running.length > 0
       ? `v${versionStr} · ${running.length} live`
       : `v${versionStr} · ready`;
@@ -1317,8 +1321,10 @@ export function App() {
               label={statusLabel}
               labels={[`v${versionStr} · ready`, `v${versionStr} · 9 live`, "checking updates…"]}
               tone={busy ? "busy" : "ok"}
-              title="Click to check for updates"
-              onClick={() => void runCmd(["update", "--check", "--channel", channel], "check updates", "task", "app:paperboat")}
+              title={busy ? "Show the running task" : "Click to check for updates"}
+              onClick={() =>
+                busy ? setPage("cli") : void runCmd(["update", "--check", "--channel", channel], "check updates", "task", "app:paperboat")
+              }
             />
           }
           theme={themeChoice}
@@ -1427,7 +1433,8 @@ export function App() {
                       <button
                         type="button"
                         className="key small"
-                        disabled={feedbackMap["app:paperboat"]?.status === "busy"}
+                        disabled={feedbackMap["app:paperboat"]?.status === "busy" || busy}
+                        title={busyWhy}
                         onClick={() => void runCmd(["update", "--channel", channel], `update paperboat (${channel})`, "task", "app:paperboat")}
                       >
                         {feedbackMap["app:paperboat"]?.status === "busy" ? "Updating…" : "Update"}
@@ -1440,7 +1447,7 @@ export function App() {
                 {apps.map((app: AppInfo) => {
                   const liveApp = running.find((r) => r.name === app.name);
                   const versions = appVersions[app.name] ?? ["dev"];
-                  const picked = appPickedVer[app.name] ?? app.version ?? versions[0] ?? "dev";
+                  const picked = appPickedVer[app.name] || app.version || versions[0] || "dev";
                   const fbKey = `app:${app.name}`;
                   const isBusy = feedbackMap[fbKey]?.status === "busy";
                   const ready = app.installed || app.checkout;
@@ -1503,7 +1510,8 @@ export function App() {
                             <button
                               type="button"
                               className="key small run"
-                              disabled={isBusy}
+                              disabled={isBusy || busy}
+                              title={busyWhy}
                               onClick={() =>
                                 void runCmd(
                                   ["squero", "install", picked ? `${app.name}@${picked}` : app.name],
@@ -1548,7 +1556,8 @@ export function App() {
                             <button
                               type="button"
                               className="key small"
-                              disabled={isBusy}
+                              disabled={isBusy || busy}
+                              title={busyWhy}
                               onClick={() =>
                                 void runCmd(
                                   switchTo ? ["squero", "install", `${app.name}@${switchTo}`] : ["squero", "update", app.name],
@@ -1564,8 +1573,8 @@ export function App() {
                               <button
                                 type="button"
                                 className="key small subtle-danger"
-                                disabled={isBusy}
-                                title={`Uninstall ${appDisplayTitle(app.name)}`}
+                                disabled={isBusy || busy}
+                                title={busyWhy ?? `Uninstall ${appDisplayTitle(app.name)}`}
                                 onClick={() => void runCmd(["squero", "uninstall", app.name], `uninstall ${appDisplayTitle(app.name)}`, "task", fbKey)}
                               >
                                 Uninstall
@@ -2118,6 +2127,8 @@ export function App() {
               <button
                 type="button"
                 className="key small"
+                disabled={busy}
+                title={busyWhy}
                 onClick={() => void runCmd(["toolkit", "update", "--all"], "update all toolkits")}
               >
                 Update all
@@ -2155,8 +2166,15 @@ export function App() {
                     {(() => {
                       const fbKey = `toolkit:${curToolkit.name}`;
                       const isBusy = feedbackMap[fbKey]?.status === "busy";
-                      const pickedVer =
-                        tkPickedVer[curToolkit.name] ?? (tkVersions[curToolkit.name]?.[0] || "dev");
+                      const bare = (v?: string) => (v ?? "").replace(/^v/, "");
+                      const tkVers = tkVersions[curToolkit.name] ?? ["dev"];
+                      const installedVer = curToolkit.installed
+                        ? tkVers.find((v) => bare(v) === bare(curToolkit.version))
+                        : undefined;
+                      const pickedVer = tkPickedVer[curToolkit.name] ?? installedVer ?? (tkVers[0] || "dev");
+                      // An installed toolkit with another version picked: install that one instead of updating.
+                      const tkSwitchTo = installedVer && pickedVer !== installedVer ? pickedVer : "";
+                      const tkLabel = (v: string) => (v === "dev" ? "dev" : v.startsWith("v") ? v : `v${v}`);
 
                       return (
                         <>
@@ -2185,9 +2203,10 @@ export function App() {
                                       }
                                       style={{ height: 24 }}
                                     >
-                                      {(tkVersions[curToolkit.name] ?? ["dev"]).map((v) => (
+                                      {tkVers.map((v) => (
                                         <option key={v} value={v}>
-                                          {v === "dev" ? "dev" : v.startsWith("v") ? v : `v${v}`}
+                                          {tkLabel(v)}
+                                          {v === installedVer ? " · installed" : ""}
                                         </option>
                                       ))}
                                     </select>
@@ -2195,7 +2214,8 @@ export function App() {
                                       <button
                                         type="button"
                                         className="key small run"
-                                        disabled={isBusy}
+                                        disabled={isBusy || busy}
+                                        title={busyWhy}
                                         onClick={() =>
                                           void runCmd(
                                             ["toolkit", "install", curToolkit.name, "--version", pickedVer],
@@ -2212,22 +2232,26 @@ export function App() {
                                         <button
                                           type="button"
                                           className="key small"
-                                          disabled={isBusy}
+                                          disabled={isBusy || busy}
+                                          title={busyWhy}
                                           onClick={() =>
                                             void runCmd(
-                                              ["toolkit", "update", curToolkit.name],
-                                              `update ${curToolkit.name}`,
+                                              tkSwitchTo
+                                                ? ["toolkit", "install", curToolkit.name, "--version", tkSwitchTo]
+                                                : ["toolkit", "update", curToolkit.name],
+                                              `${tkSwitchTo ? `install ${tkLabel(tkSwitchTo)} of` : "update"} ${curToolkit.name}`,
                                               "task",
                                               fbKey,
                                             )
                                           }
                                         >
-                                          {isBusy ? "Updating…" : "Update"}
+                                          {isBusy ? "Working…" : tkSwitchTo ? `Install ${tkLabel(tkSwitchTo)}` : "Update"}
                                         </button>
                                         <button
                                           type="button"
                                           className="key small subtle-danger"
-                                          disabled={isBusy}
+                                          disabled={isBusy || busy}
+                                          title={busyWhy}
                                           onClick={() =>
                                             void runCmd(
                                               ["toolkit", "uninstall", curToolkit.name],

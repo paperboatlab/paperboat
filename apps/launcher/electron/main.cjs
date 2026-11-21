@@ -236,6 +236,9 @@ ipcMain.handle("launcher:logs", (_event, since) => {
 ipcMain.handle("launcher:exec", (_event, payload) => {
   const args = Array.isArray(payload?.args) ? payload.args.map(String) : [];
   if (!args.length) throw new Error("args array required");
+  // One install/update/uninstall at a time: a second one would rewrite files under the first's build.
+  const blocking = payload?.kind !== "job" && tasks.find((t) => t.status === "running" && t.kind !== "job");
+  if (blocking) throw new Error(`wait for “${blocking.label}” to finish`);
   const task = {
     id: nextTaskId++,
     label: String(payload?.label || `paperboat ${args[0]}`),
