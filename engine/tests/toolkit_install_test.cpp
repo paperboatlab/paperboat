@@ -289,12 +289,15 @@ TEST_CASE("installing a toolkit rebuilds the host, and a broken host build fails
   CHECK(broken.message.find("rebuild failed") != std::string::npos);
   CHECK(broken.message.find("cmake build failed") != std::string::npos);
   CHECK(fs::is_regular_file(toolkit_file));
+  // Its files are there but it did not build: it lists as not installed, so it is offered again.
+  CHECK_FALSE(list_toolkits(fixture.root, fixture.station)[1].installed);
 
   // Once fixed, the next install rebuilds and succeeds.
   write_file(host_src / "CMakeLists.txt", host_cmake(fixture, true));
   const auto recovered = install_toolkit(entry.name, "local", fixture.root, host, logger);
   CAPTURE(recovered.message);
   CHECK(recovered.ok);
+  CHECK(list_toolkits(fixture.root, fixture.station)[1].installed);
 
   fs::remove_all(tmp, ec);
 }
