@@ -108,6 +108,9 @@ int run_cmd(const std::vector<std::string>& args,
   while (fgets(buf.data(), static_cast<int>(buf.size()), pipe)) {
     if (all_output) *all_output += buf.data();
     line = trim_line(buf.data());
+    // git warns on every shallow clone of an annotated tag (`warning: refs/tags/v0.1.0 <sha> is not
+    // a commit!`); the clone is fine, and the line only alarms whoever reads the install log.
+    if (line.starts_with("warning: refs/tags/") && line.ends_with("is not a commit!")) continue;
     if (!line.empty()) {
       if (last_line) *last_line = line;
       if (log) log("info", line);
@@ -387,7 +390,8 @@ std::vector<std::string> list_releases(const ToolkitEntry& entry, const ToolkitL
   const std::string url = resolve_repo_url(entry, {});
   std::string out;
   std::string last;
-  if (run_cmd({"git", "ls-remote", "--tags", "--refs", url}, {}, log, &last, &out) != 0) {
+  // The raw ls-remote listing is parsed, not shown: it would fill the install log with hashes.
+  if (run_cmd({"git", "ls-remote", "--tags", "--refs", url}, {}, {}, &last, &out) != 0) {
     if (log) log("warn", "could not list tags from " + url);
     return {};
   }
@@ -844,8 +848,8 @@ ToolkitResult build_plugin(const ToolkitEntry& entry, const std::vector<ToolkitE
 }
 
 // A toolkit's web part (web/index.ts(x), or <block>/web/index.ts(x)) bundled into <toolkit>/web-dist as
-// one ES module that `paperboat start` serves and the web app imports at startup, with React left to
-// the app (pb#353). Needs Node's npx; without it the blocks work and only their instruments are missing.
+// one ES module that `paperboat start` serves and the web app imports at startup, with React and the
+// UI kit (@paperboat/shared) left to the app: an installed toolkit has no node_modules to bundle them from (pb#353). Needs Node's npx; without it the blocks work and only their instruments are missing.
 void bundle_web(const ToolkitEntry& entry, const fs::path& root, const ToolkitLog& log) {
   const fs::path dir = toolkit_dir(root, entry.name);
   std::error_code ec;
@@ -872,11 +876,12 @@ void bundle_web(const ToolkitEntry& entry, const fs::path& root, const ToolkitLo
   std::string out;
   const int rc = run_cmd({"npx", "--yes", "esbuild@0.25.12", entry_file.string(), "--bundle", "--format=esm", "--jsx=automatic",
                           "--minify", "--log-level=error", "--external:react", "--external:react/jsx-runtime",
-                          "--external:react-dom", "--outfile=" + (dir / "web-dist" / "index.js").string()},
+                          "--external:react-dom", "--external:@paperboat/shared", "--external:@paperboat/shared/*",
+                          "--outfile=" + (dir / "web-dist" / "index.js").string()},
                          dir, {}, nullptr, &out);
   fs::remove(entry_file, ec);
   if (rc != 0 && log)
-    log("warn", "toolkit \"" + entry.name + "\": its web part did not bundle (needs Node's npx); its blocks work, its instruments will not show: " + trim_line(out));
+    log("warn", "toolkit \"" + entry.name + "\": its web part did not bundle; its blocks work, its instruments will not show: " + trim_line(out));
 }
 
 }  // namespace
@@ -1036,7 +1041,14 @@ std::vector<std::string> list_toolkit_versions(std::string_view name,
       versions.push_back(std::move(tag));
     }
   }
-  std::ranges::sort(versions);
+  // Newest first, like `squero versions` (the launcher offers the first): by SemVer, so v0.1.10
+  // sorts above v0.1.2; tags that aren't versions go last, by name.
+  std::ranges::sort(versions, [](const std::string& a, const std::string& b) {
+    const auto va = parse_version(a), vb = parse_version(b);
+    if (va && vb) return *va > *vb;
+    if (va || vb) return va.has_value();
+    return a < b;
+  });
   return versions;
 }
 
