@@ -109,8 +109,8 @@ function detectInstallType() {
 }
 
 function readMissingPrereqs(appEntry) {
-  // Missing prerequisites are surfaced when `pkg install` runs or from appEntry if present.
-  return appEntry.missingPrerequisites || "";
+  // `squero list --json` names what an uninstalled app needs (and where to get it) before any click.
+  return appEntry.missing_prerequisites || "";
 }
 
 function createWindow() {

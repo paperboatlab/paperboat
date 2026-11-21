@@ -1372,7 +1372,8 @@ int cmd_squero(const std::vector<std::string_view>& args) {
         }
         arr.push_back({{"name", a.name}, {"repo", a.repo}, {"description", a.description},
                        {"installed", a.installed}, {"checkout", a.checkout}, {"version", a.version}, {"deps", deps}, {"dep_ranges", ranges},
-                       {"built_with", a.built_with}, {"kind", a.kind}, {"launch", a.launch}, {"port", a.port}});
+                       {"built_with", a.built_with}, {"kind", a.kind}, {"launch", a.launch}, {"port", a.port},
+                       {"missing_prerequisites", a.installed ? std::string() : tk::missing_prerequisites(a.name)}});
       }
       std::cout << arr.dump(2) << '\n';
       return 0;
