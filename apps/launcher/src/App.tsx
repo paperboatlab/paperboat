@@ -652,7 +652,7 @@ export function App() {
     }
   }, []);
 
-  const versionStr = snap?.version || "0.1.6";
+  const versionStr = snap?.version || "0.1.7";
   const channel = snap?.channel || "release";
 
   /* =========================================================================

@@ -96,7 +96,7 @@ function readChannel() {
 function readVersion() {
   return new Promise((resolve) => {
     execFile(PAPERBOAT_BIN, ["--version"], { env: CHILD_ENV, timeout: 5000 }, (err, stdout) => {
-      if (err || !stdout) return resolve("0.1.6");
+      if (err || !stdout) return resolve("0.1.7");
       resolve(stdout.trim().replace(/^paperboat\s+/, ""));
     });
   });
