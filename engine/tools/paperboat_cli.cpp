@@ -2241,6 +2241,13 @@ std::optional<int> bootstrap(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  // Piped (the launcher, CI), stdout is block-buffered: a minute-long install would show nothing
+  // until it ends. Each line goes out as it is written (Windows has no line buffering: unbuffered).
+#ifdef _WIN32
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+#else
+  std::setvbuf(stdout, nullptr, _IOLBF, 0);
+#endif
   core::StationManager::set_registry_extension(add_optional_packages);
   if (argc >= 2 && (std::string_view(argv[1]) == "--version" || std::string_view(argv[1]) == "-v" ||
                     std::string_view(argv[1]) == "--help" || std::string_view(argv[1]) == "-h")) {

@@ -199,6 +199,9 @@ function launcherDevApi(): Plugin {
           const body = await readBody(req);
           const args = Array.isArray(body.args) ? body.args.map(String) : [];
           if (!args.length) return sendJson(res, 400, { error: "args required" });
+          // One install/update/uninstall at a time: a second one would rewrite files under the first's build.
+          const blocking = body.kind !== "job" && tasks.find((t) => t.status === "running" && t.kind !== "job");
+          if (blocking) return sendJson(res, 409, { error: `wait for “${String(blocking.label)}” to finish` });
           const taskId = nextTaskId++;
           const task: Record<string, unknown> = {
             id: taskId,
@@ -247,7 +250,15 @@ function launcherDevApi(): Plugin {
             task.exitCode = code ?? 1;
             task.finishedAtMs = Date.now();
             if (task.status !== "stopped") task.status = task.exitCode === 0 ? "done" : "failed";
-            pushLog(taskId, task.exitCode === 0 ? "ok" : "err", `[ok] ${String(task.label)} finished`);
+            pushLog(
+              taskId,
+              task.exitCode === 0 ? "ok" : "err",
+              task.exitCode === 0
+                ? `[ok] ${String(task.label)} finished`
+                : task.status === "stopped"
+                  ? `[stopped] ${String(task.label)}`
+                  : `[exit ${task.exitCode}] ${String(task.label)}`,
+            );
           });
           return sendJson(res, 200, { ok: true, taskId });
         }

@@ -1,6 +1,6 @@
 // Toolkits installed into a release (pb#353): `paperboat toolkit install` bundles a toolkit's web part
 // into one ES module, `paperboat start` lists them at /__paperboat/toolkits, and the app imports each at
-// startup. A bundle leaves React to the app: its imports of react are pointed at the app's own copy.
+// startup. A bundle leaves React and the UI kit to the app: those imports are pointed at the app's own copies.
 // (In a checkout the dev server bundles engine/toolkit/*/web at build time instead: instruments.ts.)
 import * as React from "react";
 import * as ReactDOM from "react-dom";
@@ -35,6 +35,8 @@ export async function loadInstalledToolkits(): Promise<void> {
     return;
   }
   if (!list.length) return;
+  // The UI kit's plot only when a toolkit is installed: the app itself does not use it.
+  modules["@paperboat/shared/plot"] = await import("@paperboat/shared/plot");
   (globalThis as { __paperboatModules?: unknown }).__paperboatModules = modules;
   const urls = Object.fromEntries(Object.keys(modules).map((name) => [name, shim(name)]));
   for (const t of list) {
