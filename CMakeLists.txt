@@ -123,6 +123,7 @@ set(CPACK_RPM_CLI_PACKAGE_SUGGESTS "podman")
 set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "json-devel >= 3.11")
 # macOS: one .pkg with both components
 set(CPACK_PRODUCTBUILD_IDENTIFIER "org.paperboatlab.paperboat")
+set(CPACK_PACKAGING_INSTALL_PREFIX /usr/local)  # productbuild's own default is not on PATH
 include(CPack)
 
 if(PAPERBOAT_BUILD_TESTS)
