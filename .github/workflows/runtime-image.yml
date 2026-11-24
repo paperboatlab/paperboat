@@ -48,6 +48,7 @@ jobs:
           exit-code: "1"
           format: sarif
           output: trivy.sarif
+          limit-severities-for-sarif: true  # else SARIF drops the severity filter and any finding fails
         env:
           TRIVY_IGNORE_POLICY: images/trivy/ignore.rego  # every other exception, each with its reason
       - uses: actions/upload-artifact@v4
