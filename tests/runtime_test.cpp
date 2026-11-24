@@ -117,6 +117,22 @@ TEST_CASE("session mode", "[runtime]") {
     CHECK(std::ranges::none_of(rt.request("variables"), [](const json& v) { return v["name"] == "answer_value"; }));
   }
 
+  SECTION("lint: the language's own parser, answered at once even while a cell runs") {
+    const json ok = rt.request("lint", {{"code", "x = 1"}});
+    CHECK(ok["problems"].empty());
+    const json bad = rt.request("lint", {{"code", jl ? "a = 1\nb = (a +\n" : "a = 1\nb = (a +\n"}});
+    REQUIRE(bad["problems"].size() >= 1);
+    CHECK(bad["problems"][0]["severity"] == "error");
+    CHECK(bad["problems"][0]["from"].get<int>() >= 6);  // on the second line (byte offsets)
+    auto busy = std::async(std::launch::async, [&] { return rt.request("eval", {{"code", jl ? "sleep(4)" : "import time; time.sleep(4)"}}); });
+    std::this_thread::sleep_for(500ms);
+    RuntimeClient other(rig.lease["ipc"].get<std::string>());
+    const auto t0 = std::chrono::steady_clock::now();
+    CHECK(other.request("lint", {{"code", "y = ("}})["problems"].size() >= 1);
+    CHECK(std::chrono::steady_clock::now() - t0 < 2s);  // not queued behind the sleeping cell
+    busy.get();
+  }
+
   SECTION("the daemon's interrupt stops a busy cell and the session lives on") {
     auto busy = std::async(std::launch::async, [&] {
       try {

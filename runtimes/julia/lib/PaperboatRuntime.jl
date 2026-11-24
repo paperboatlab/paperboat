@@ -293,6 +293,18 @@ function run_eval(s::Session, code::String, cell::String, conn::Connection, id)
     end
 end
 
+# Problems in a piece of code, from Julia's own parser (JuliaSyntax, inside Base since 1.10): byte offsets
+# like `complete`. Only parsing, no namespace: it answers at once, even while a cell runs.
+function lint(code::String)
+    JS = Base.JuliaSyntax
+    ps = JS.ParseStream(code)
+    JS.parse!(ps; rule = :all)
+    problems = [Dict("from" => JS.first_byte(d) - 1, "to" => JS.last_byte(d),
+                     "severity" => d.level == :error ? "error" : d.level == :warning ? "warning" : "info", "message" => d.message)
+                for d in ps.diagnostics]
+    Dict("problems" => problems)
+end
+
 function complete(s::Session, code::String, pos::Int)
     comps, range, _ = REPL.REPLCompletions.completions(code, pos, s.mod)
     matches = unique!(sort!([REPL.REPLCompletions.completion_text(c) for c in comps]))
@@ -464,7 +476,7 @@ hello(mode) = Dict(
     "runtime" => Dict("name" => "julia", "version" => string(VERSION)),
     "pid" => getpid(), "transports" => ["shm", "uds"],
     "ops" => vcat(["ping", "interrupt", "shutdown"],
-                  mode == "session" ? ["eval", "complete", "variables", "reset"] : ["load", "new", "call", "drop", "shm", "bind"]),
+                  vcat(["lint"], mode == "session" ? ["eval", "complete", "variables", "reset"] : ["load", "new", "call", "drop", "shm", "bind"])),
 )
 
 function serve_connection(io, mode::String, session, stop::Threads.Event)
@@ -488,6 +500,8 @@ function serve_connection(io, mode::String, session, stop::Threads.Event)
                 notify(stop)
                 session === nothing || put!(session.jobs, nothing)
                 break
+            elseif op == "lint"
+                ok(lint(String(args["code"])))
             elseif session !== nothing && op == "eval"
                 code, cell = String(args["code"]), String(get(args, "cell", "cell"))
                 put!(session.jobs, (conn, id, () -> run_eval(session, code, cell, conn, id)))

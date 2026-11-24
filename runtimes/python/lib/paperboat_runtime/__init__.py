@@ -27,6 +27,7 @@ import signal
 import socket
 import struct
 import sys
+import warnings
 import threading
 import traceback
 
@@ -131,6 +132,35 @@ def _mime(value) -> dict | None:
                 out = base64.b64encode(out).decode()
             data[mime] = out
     return data
+
+
+def lint(code: str) -> dict:
+    """Problems in a piece of code, from Python's own compiler: a syntax error, and its warnings (an invalid
+    escape, `is` with a literal). Byte offsets, like `complete`. Only compiling, no namespace: it answers at
+    once, even while a cell runs."""
+    lines = code.splitlines(keepends=True)
+
+    def at(line, col):  # 1-based line, 1-based character column -> byte offset
+        if not line:
+            return 0
+        before = "".join(lines[: line - 1])
+        return len(before.encode()) + len((lines[line - 1] if line <= len(lines) else "")[: max(0, (col or 1) - 1)].encode())
+
+    problems = []
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        try:
+            compile(code, "<cell>", "exec")
+        except SyntaxError as e:
+            start = at(e.lineno, e.offset)
+            end = at(e.end_lineno, e.end_offset) if getattr(e, "end_lineno", None) else start
+            problems.append({"from": start, "to": max(end, start), "severity": "error", "message": e.msg})
+    for w in caught:
+        if issubclass(w.category, SyntaxWarning):
+            start = at(w.lineno, 1)
+            problems.append({"from": start, "to": start + len((lines[w.lineno - 1] if w.lineno <= len(lines) else "").rstrip("\n").encode()),
+                             "severity": "warning", "message": str(w.message)})
+    return {"problems": problems}
 
 
 class Session:
@@ -351,7 +381,7 @@ def _hello(mode: str) -> dict:
         "pid": os.getpid(),
         "transports": ["shm", "uds"],
         "ops": ["ping", "interrupt", "shutdown"]
-        + (["eval", "complete", "variables", "reset"] if mode == "session" else ["load", "new", "call", "drop", "shm", "bind"]),
+        + ["lint"] + (["eval", "complete", "variables", "reset"] if mode == "session" else ["load", "new", "call", "drop", "shm", "bind"]),
     }
 
 
@@ -379,6 +409,8 @@ def _serve_connection(sock: socket.socket, mode: str, session: Session | None, s
                 if session:
                     session.jobs.put(None)
                 break
+            elif op == "lint":
+                reply(lint(args["code"]))
             elif session and op == "eval":
                 session.jobs.put((conn, rid, lambda a=args: session.eval(a["code"], a.get("cell", "<cell>"), conn, rid)))
             elif session and op in ("complete", "variables", "reset"):
