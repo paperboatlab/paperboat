@@ -1,0 +1,28 @@
+# Python 3.12. Packages live in the project's deps volume (/work/deps/venv, made inside the image so
+# wheels match its libc); the image holds the interpreter only.
+name     = "python"
+version  = "3.12"
+protocol = "paperboat-runtime/0"
+modes    = ["exec"]
+
+[image]
+ref    = "docker.io/library/python:3.12-slim"  # until ghcr.io/paperboatlab/paperboat-runtime-python (phase 1b)
+digest = "sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b"  # the multi-arch index
+arch   = ["amd64", "arm64"]
+
+[env]
+HOME                    = "/tmp"
+PYTHONDONTWRITEBYTECODE = "1"
+PIP_CACHE_DIR           = "/work/deps/pip-cache"
+
+[limits]
+memory = "4g"
+cpus   = 2
+pids   = 512
+
+[capabilities]
+transports    = ["shm", "uds", "stdio"]
+granularities = ["step", "segment", "block"]
+
+[native]
+requires = "python3"

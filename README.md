@@ -1,0 +1,41 @@
+# Paperboat
+
+The Paperboat platform: the `paperboat` CLI, the per-user runtime daemon `paperboatd`, and (soon) the
+Paperboat Launcher. It runs the language runtimes the Paperboat apps need (Julia, Python,
+OpenModelica) from pinned, isolated container images, with a native fallback. The apps themselves
+(Simplicial, Articula, Julix) live in their own repositories.
+
+**Design:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Protocol:** [docs/control.md](docs/control.md)
+
+## Layout
+
+```text
+include/paperboat/   the runtime manager's API (manifest, catalog, policy, backend, manager, control)
+src/lib/             its implementation
+src/daemon/          paperboatd
+src/cli/             paperboat
+runtimes/            the shipped runtime manifests (one runtime.toml each)
+tests/               unit tests, and container tests against real podman
+```
+
+## Build
+
+```sh
+cmake -S . -B build -G Ninja && ninja -C build
+./build/tests/paperboat_tests              # unit
+./build/tests/paperboat_container_tests    # needs podman; skipped without it
+```
+
+## Run
+
+```sh
+./build/paperboat runtimes list
+./build/paperboat runtimes run julia -- julia -e 'println(VERSION)'
+./build/paperboat runtimes ps
+```
+
+`paperboat` starts `paperboatd` on demand; `paperboat daemon stop` stops it.
+
+## License
+
+GPL-3.0 (see LICENSE)
