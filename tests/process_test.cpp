@@ -223,7 +223,7 @@ TEST_CASE("process: is_alive is false for nothing") {
   CHECK_FALSE(ProcessRunner::is_alive(-5));
 }
 
-#ifndef _WIN32
+#ifdef __linux__  // reads /proc; the reset itself is the same POSIX code on macOS
 TEST_CASE("a child starts with no blocked or ignored signals", "[process]") {
   // paperboatd blocks SIGINT for its signal thread and ignores SIGPIPE; its runtimes must not inherit either.
   sigset_t block, old;
