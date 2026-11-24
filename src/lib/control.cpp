@@ -1,4 +1,5 @@
 #include "paperboat/control.hpp"
+#include "posix.hpp"
 
 #include "paperboat/backend.hpp"
 #include "paperboat/paths.hpp"
@@ -22,7 +23,7 @@ using json = nlohmann::json;
 
 #ifndef _WIN32
 int connect_to(const std::filesystem::path& socket) {
-  const int fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  const int fd = posix::unix_socket();
   if (fd < 0) return -1;
   sockaddr_un sa{};
   sa.sun_family = AF_UNIX;

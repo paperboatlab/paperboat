@@ -50,6 +50,11 @@ flowchart LR
   app not yet installed answers so (exit 2, `{"error","needs"}` with `--json`).
 - `src/cli/main.cpp`: dispatch over the registry (longest match on names and aliases) and one handler
   per command.
+- `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
+  SIGPIPE). The shm fast path stays Linux-only (futex).
+- Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` and
+  `devel`; rpm `paperboat-cli` Requires `paperboat-devel`; macOS one `.pkg` with both. The Launcher's
+  package will Require `paperboat-cli`.
 - `apps.toml`, `toolkits.toml`: the app and toolkit registries (no apps yet; the five
   `simplicial-toolkit-*` repos), installed to `share/paperboat/`.
 

@@ -19,6 +19,7 @@ apps.toml            the app registry (empty for now)
 toolkits.toml        the toolkit registry (simplicial-toolkit-*)
 runtimes/            the shipped runtimes: runtime.toml and lib/ (the runtime library) each
 images/              the runtime images' recipe and versions (published by CI to ghcr.io)
+cmake/               the installed CMake package's config
 tests/               unit tests, and container tests against real podman
 ```
 
@@ -39,6 +40,12 @@ cmake -S . -B build -G Ninja && ninja -C build
 ./build/paperboat package add python six --project ~/demo   # pulls the image if missing
 ./build/paperboat runtime ps
 ```
+
+## Packages
+
+`cd build && cpack -G RPM` (Linux) or `cpack -G productbuild` (macOS) makes `paperboat-cli` (the CLI,
+the daemon, runtimes, registries) and `paperboat-devel` (headers, library, `find_package(paperboat)`);
+the CLI requires devel. CI builds rpm x86_64 and macOS arm64 ([package.yml](.github/workflows/package.yml)).
 
 `paperboat` starts `paperboatd` on demand; `paperboat daemon stop` stops it.
 

@@ -8,6 +8,11 @@
 // the cleaner removes them. A later daemon also reaps instances labelled with a daemon that is gone.
 // POSIX only for now.
 
+#include "../lib/posix.hpp"
+
+#ifdef __APPLE__
+#include <libproc.h>
+#endif
 #include "paperboat/catalog.hpp"
 #include "paperboat/control.hpp"
 #include "paperboat/manager.hpp"
@@ -93,10 +98,16 @@ bool daemon_alive(const std::string& id) {
   if (id.substr(0, colon) != paths::boot_id()) return false;  // a previous boot: certainly gone
   const int pid = std::atoi(id.c_str() + colon + 1);
   if (pid <= 0 || ::kill(pid, 0) != 0) return false;
+#ifdef __APPLE__
+  char name[64] = {};
+  ::proc_name(pid, name, sizeof name);
+  return std::string(name) == "paperboatd";
+#else
   std::ifstream comm("/proc/" + std::to_string(pid) + "/comm");
   std::string name;
   std::getline(comm, name);
-  return name == "paperboatd";  // a reused pid is someone else
+  return name == "paperboatd";
+#endif  // a reused pid is someone else
 }
 
 // --- clients ---
@@ -219,7 +230,7 @@ void serve_client(Manager& m, std::shared_ptr<Client> c, const std::string& daem
 }
 
 int listen_on(const fs::path& socket) {
-  const int fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  const int fd = posix::unix_socket();
   sockaddr_un sa{};
   sa.sun_family = AF_UNIX;
   const std::string p = socket.string();
@@ -275,7 +286,7 @@ int main(int argc, char** argv) {
 
   // The cleaner, forked while this process has one thread.
   int pipefd[2];
-  if (::pipe2(pipefd, O_CLOEXEC) != 0) {
+  if (posix::pipe_cloexec(pipefd) != 0) {
     log("pipe failed");
     return 1;
   }
@@ -365,7 +376,7 @@ int main(int argc, char** argv) {
 
   int next_client = 0;
   while (!g_stop) {
-    const int fd = ::accept4(listen_fd, nullptr, nullptr, SOCK_CLOEXEC);
+    const int fd = posix::accept_cloexec(listen_fd);
     if (fd < 0) {
       if (g_stop) break;
       continue;

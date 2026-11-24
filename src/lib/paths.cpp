@@ -1,5 +1,6 @@
 #include "paperboat/paths.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 
@@ -8,6 +9,11 @@
 #include <windows.h>
 #else
 #include <unistd.h>
+#endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <sys/sysctl.h>
+#include <sys/time.h>
 #endif
 
 namespace paperboat::paths {
@@ -45,6 +51,13 @@ fs::path exe_dir() {
   wchar_t buf[MAX_PATH];
   const DWORD n = GetModuleFileNameW(nullptr, buf, MAX_PATH);
   return fs::path(std::wstring(buf, n)).parent_path();
+#elif defined(__APPLE__)
+  char buf[4096];
+  std::uint32_t n = sizeof buf;
+  if (_NSGetExecutablePath(buf, &n) != 0) return fs::current_path();
+  std::error_code ec;
+  const auto p = fs::canonical(buf, ec);
+  return ec ? fs::path(buf).parent_path() : p.parent_path();
 #else
   std::error_code ec;
   const auto p = fs::read_symlink("/proc/self/exe", ec);
@@ -53,6 +66,12 @@ fs::path exe_dir() {
 }
 
 std::string boot_id() {
+#ifdef __APPLE__
+  timeval tv{};
+  std::size_t n = sizeof tv;
+  if (::sysctlbyname("kern.boottime", &tv, &n, nullptr, 0) != 0) return {};
+  return std::to_string(tv.tv_sec) + "." + std::to_string(tv.tv_usec);
+#endif
   std::ifstream f("/proc/sys/kernel/random/boot_id");
   std::string id;
   std::getline(f, id);

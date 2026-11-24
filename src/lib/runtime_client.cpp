@@ -1,4 +1,5 @@
 #include "paperboat/runtime.hpp"
+#include "posix.hpp"
 
 #include <atomic>
 #include <cstring>
@@ -48,7 +49,7 @@ RuntimeClient::RuntimeClient(const fs::path& ipc, std::chrono::milliseconds time
   std::memcpy(sa.sun_path, path.c_str(), path.size() + 1);
   const auto deadline = std::chrono::steady_clock::now() + timeout;
   for (;;) {
-    fd_ = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    fd_ = posix::unix_socket();
     if (::connect(fd_, reinterpret_cast<sockaddr*>(&sa), sizeof sa) == 0) break;
     ::close(fd_);
     fd_ = -1;

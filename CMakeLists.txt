@@ -48,11 +48,12 @@ add_library(paperboat_runtime STATIC
   src/lib/runtime_client.cpp
   ${PAPERBOAT_PROCESS_SOURCE})
 add_library(paperboat::runtime ALIAS paperboat_runtime)
+set_target_properties(paperboat_runtime PROPERTIES EXPORT_NAME runtime)
 target_include_directories(paperboat_runtime PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(paperboat_runtime
-  PUBLIC nlohmann_json::nlohmann_json
-  PRIVATE $<BUILD_INTERFACE:tomlplusplus::tomlplusplus> paperboat_warnings)
+  PUBLIC $<BUILD_INTERFACE:nlohmann_json::nlohmann_json>  # installed: paperboatConfig.cmake adds it
+  PRIVATE $<BUILD_INTERFACE:tomlplusplus::tomlplusplus> $<BUILD_INTERFACE:paperboat_warnings>)
 
 add_executable(paperboatd src/daemon/main.cpp)
 target_compile_definitions(paperboatd PRIVATE PAPERBOAT_VERSION="${PAPERBOAT_VERSION}")
@@ -71,9 +72,53 @@ add_custom_target(paperboat_runtimes ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/runtimes ${CMAKE_CURRENT_BINARY_DIR}/runtimes
   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/apps.toml ${CMAKE_CURRENT_SOURCE_DIR}/toolkits.toml ${CMAKE_CURRENT_BINARY_DIR}/)
 
-install(TARGETS paperboat paperboatd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(DIRECTORY runtimes/ DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat/runtimes)
-install(FILES apps.toml toolkits.toml DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat)
+# ── install: two components, two packages (cli Requires devel; the Launcher's package Requires cli) ──
+install(TARGETS paperboat paperboatd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT cli)
+install(DIRECTORY runtimes/ DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat/runtimes COMPONENT cli)
+install(FILES apps.toml toolkits.toml DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat COMPONENT cli)
+
+include(CMakePackageConfigHelpers)
+set(PAPERBOAT_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/paperboat)
+install(TARGETS paperboat_runtime EXPORT paperboatTargets ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT devel)
+install(DIRECTORY include/paperboat DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT devel)
+install(EXPORT paperboatTargets NAMESPACE paperboat:: DESTINATION ${PAPERBOAT_CMAKE_DIR} COMPONENT devel)
+configure_package_config_file(cmake/paperboatConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/paperboatConfig.cmake
+  INSTALL_DESTINATION ${PAPERBOAT_CMAKE_DIR} PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/paperboatConfigVersion.cmake COMPATIBILITY SameMinorVersion)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/paperboatConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/paperboatConfigVersion.cmake
+  DESTINATION ${PAPERBOAT_CMAKE_DIR} COMPONENT devel)
+if(APPLE)  # no system nlohmann_json to depend on: the devel package carries its header
+  install(DIRECTORY ${nlohmann_json_SOURCE_DIR}/include/nlohmann DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT devel)
+endif()
+
+# ── packages: rpm (x86_64) and a macOS .pkg (arm64); deb and Windows are pb issues ──
+set(CPACK_PACKAGE_NAME paperboat)
+set(CPACK_PACKAGE_VENDOR "Paperboat Lab")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Paperboat: the paperboat CLI and the runtime daemon paperboatd")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/paperboatlab/paperboat")
+set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE)
+set(CPACK_COMPONENTS_ALL cli devel)
+set(CPACK_COMPONENT_CLI_DISPLAY_NAME "Paperboat CLI")
+set(CPACK_COMPONENT_CLI_DESCRIPTION "paperboat and paperboatd, the runtimes and the registries")
+set(CPACK_COMPONENT_CLI_DEPENDS devel)
+set(CPACK_COMPONENT_DEVEL_DISPLAY_NAME "Paperboat development files")
+set(CPACK_COMPONENT_DEVEL_DESCRIPTION "Headers, library and CMake package for paperboat::runtime")
+# rpm: paperboat-cli and paperboat-devel; installing the CLI brings devel
+set(CPACK_RPM_COMPONENT_INSTALL ON)
+set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+list(APPEND CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake)
+set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-only")
+set(CPACK_RPM_PACKAGE_RELEASE 1)
+if(PAPERBOAT_PRERELEASE)
+  set(CPACK_RPM_PACKAGE_RELEASE "0.${PAPERBOAT_PRERELEASE}")
+endif()
+set(CPACK_RPM_CLI_PACKAGE_REQUIRES "paperboat-devel = ${PROJECT_VERSION}-${CPACK_RPM_PACKAGE_RELEASE}")
+set(CPACK_RPM_CLI_PACKAGE_SUGGESTS "podman")
+set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "json-devel >= 3.11")
+# macOS: one .pkg with both components
+set(CPACK_PRODUCTBUILD_IDENTIFIER "org.paperboatlab.paperboat")
+include(CPack)
 
 if(PAPERBOAT_BUILD_TESTS)
   FetchContent_Declare(Catch2

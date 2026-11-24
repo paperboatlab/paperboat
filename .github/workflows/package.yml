@@ -1,0 +1,61 @@
+# Packages: rpm (x86_64) and a macOS .pkg (arm64). Every push builds and tests them; a v* tag
+# attaches them to the GitHub release. deb and Windows: see the issues labelled `packaging`.
+#   paperboat-cli   paperboat, paperboatd, runtimes, registries; Requires paperboat-devel
+#   paperboat-devel headers, libpaperboat_runtime.a, find_package(paperboat)
+# The Launcher's packages (apps/launcher, when it lands) Require paperboat-cli.
+name: package
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write  # the release upload
+
+jobs:
+  rpm-x64:
+    runs-on: ubuntu-24.04
+    container: fedora:43
+    steps:
+      - run: dnf -y install git cmake ninja-build gcc-c++ rpm-build
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPAPERBOAT_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr
+      - run: ninja -C build
+      - run: cd build && cpack -G RPM
+      - name: install and use
+        run: |
+          dnf -y install build/paperboat-cli-*.rpm build/paperboat-devel-*.rpm
+          paperboat help >/dev/null && paperboat toolkits
+          mkdir -p /tmp/c && cd /tmp/c
+          printf 'cmake_minimum_required(VERSION 3.25)\nproject(c CXX)\nset(CMAKE_CXX_STANDARD 20)\nfind_package(paperboat REQUIRED)\nadd_executable(c c.cpp)\ntarget_link_libraries(c PRIVATE paperboat::runtime)\n' > CMakeLists.txt
+          printf '#include <paperboat/paths.hpp>\n#include <iostream>\nint main() { std::cout << paperboat::paths::control_socket() << "\\n"; }\n' > c.cpp
+          cmake -S . -B b -G Ninja && ninja -C b && ./b/c
+      - uses: actions/upload-artifact@v4
+        with: { name: rpm-x64, path: build/*.rpm }
+
+  macos-arm:
+    runs-on: macos-15  # Xcode 16.3+: libc++ with std::jthread
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install ninja
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+      - run: ninja -C build
+      - run: ./build/tests/paperboat_tests && ./build/tests/paperboat_cli_tests
+      - run: cd build && cpack -G productbuild
+      - name: install and use
+        run: |
+          sudo installer -pkg build/paperboat-*.pkg -target /
+          paperboat help >/dev/null && paperboat toolkits
+      - uses: actions/upload-artifact@v4
+        with: { name: macos-arm64, path: build/*.pkg }
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [rpm-x64, macos-arm]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GITHUB_REPOSITORY" || gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes
+        env: { GH_TOKEN: "${{ github.token }}" }
