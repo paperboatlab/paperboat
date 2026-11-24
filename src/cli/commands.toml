@@ -1,0 +1,331 @@
+# The command registry: every paperboat command, one entry each. The C++ CLI embeds this file
+# (dispatch, usage, `help`); @paperboat/client reads the same file for the Launcher's keys and Ctrl+K
+# palette and the TUI's menu and /help. A TUI command is the CLI's own words: `/app install x` is
+# `paperboat app install x`. Wording approved 2026-11-24 (plans/2026-11-24_19-43_launcher_and_tui_on_one_client.md §4).
+#
+#   name     the words after `paperboat`
+#   args     usage of the arguments (<required>, [optional], a|b choices)
+#   desc     one line: lists describe what they show, actions start with a verb; sentence case, no full stop
+#   group    Apps | Sessions | Stations | Toolkits | Runtimes | Packages | Paperboat
+#   alias    other words for the same command (a plural that lists)
+#   needs    what must be installed first; until then the command says so (simplicial: the Simplicial app)
+#   tui      true: the TUI only
+
+# ── Apps ──
+[[command]]
+id = "app.list"
+name = "app list"
+alias = ["apps"]
+desc = "The apps: installed, running and available"
+group = "Apps"
+
+[[command]]
+id = "app.open"
+name = "app open"
+args = "<app>"
+desc = "Start an app if needed and open its window"
+group = "Apps"
+
+[[command]]
+id = "app.install"
+name = "app install"
+args = "<app>[@<version>]"
+desc = "Install an app and the runtimes it uses"
+group = "Apps"
+
+[[command]]
+id = "app.update"
+name = "app update"
+args = "<app>"
+desc = "Update an app on your channel"
+group = "Apps"
+
+[[command]]
+id = "app.uninstall"
+name = "app uninstall"
+args = "<app>"
+desc = "Remove an app; your projects stay"
+group = "Apps"
+
+[[command]]
+id = "app.stop"
+name = "app stop"
+args = "<app>"
+desc = "Stop a running app"
+group = "Apps"
+
+# ── Sessions ──
+[[command]]
+id = "session.list"
+name = "session list"
+alias = ["sessions"]
+desc = "Apps and stations running now"
+group = "Sessions"
+
+[[command]]
+id = "session.logs"
+name = "session logs"
+args = "<session>"
+desc = "Follow a session's output"
+group = "Sessions"
+
+[[command]]
+id = "session.restart"
+name = "session restart"
+args = "<session>"
+desc = "Restart a session"
+group = "Sessions"
+
+[[command]]
+id = "session.stop"
+name = "session stop"
+args = "<session>|--all"
+desc = "Stop one session, or all of them"
+group = "Sessions"
+
+# ── Stations ──
+[[command]]
+id = "station.list"
+name = "station list"
+alias = ["stations"]
+args = "[--source all|example|installed|built-in]"
+desc = "Station projects you can run"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.run"
+name = "run"
+args = "<station> [--port <n>] [--no-build] [--clean] [--time <s>] [--var <k>=<v>]"
+desc = "Build if needed, start, and open in Simplicial"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.build"
+name = "build"
+args = "<station> [--clean]"
+desc = "Compile a C++ station"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.deps"
+name = "deps install"
+args = "<station>"
+desc = "Install a Python or Julia station's dependencies"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.check"
+name = "check"
+args = "<station> [--fast]"
+desc = "Verify a station: manifest, catalog, smoke and golden"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.pack"
+name = "pack"
+args = "<station>"
+desc = "Write a portable .pst package"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.new"
+name = "new"
+args = "<name> --cpp|--python|--julia"
+desc = "Create a station that passes check"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.open"
+name = "open"
+args = "<file.pst|file.psf|folder>"
+desc = "Open a station package, a project or a folder"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.examples"
+name = "station examples"
+desc = "Fetch the official example stations"
+group = "Stations"
+needs = "simplicial"
+
+[[command]]
+id = "station.uninstall"
+name = "station uninstall"
+args = "<station>"
+desc = "Remove an installed station"
+group = "Stations"
+needs = "simplicial"
+
+# ── Toolkits ──
+[[command]]
+id = "toolkit.list"
+name = "toolkit list"
+alias = ["toolkits"]
+desc = "Built-in and optional toolkits"
+group = "Toolkits"
+
+[[command]]
+id = "toolkit.blocks"
+name = "toolkit blocks"
+args = "<toolkit> [--kind flow|station|board|analysis]"
+desc = "The blocks a toolkit adds"
+group = "Toolkits"
+needs = "simplicial"
+
+[[command]]
+id = "toolkit.install"
+name = "toolkit install"
+args = "<toolkit>[@<version>]|<git url>|<folder>"
+desc = "Build and install a toolkit as a plugin"
+group = "Toolkits"
+needs = "simplicial"
+
+[[command]]
+id = "toolkit.update"
+name = "toolkit update"
+args = "<toolkit>|--all"
+desc = "Update one toolkit, or all of them"
+group = "Toolkits"
+needs = "simplicial"
+
+[[command]]
+id = "toolkit.uninstall"
+name = "toolkit uninstall"
+args = "<toolkit>"
+desc = "Remove a toolkit and its blocks"
+group = "Toolkits"
+needs = "simplicial"
+
+# ── Runtimes ──
+[[command]]
+id = "runtime.list"
+name = "runtime list"
+alias = ["runtimes"]
+desc = "Runtimes, where they can run, and how many are running"
+group = "Runtimes"
+
+[[command]]
+id = "runtime.pull"
+name = "runtime pull"
+args = "<runtime>"
+desc = "Fetch a runtime's pinned image"
+group = "Runtimes"
+
+[[command]]
+id = "runtime.ps"
+name = "runtime ps"
+desc = "Running instances: kernels and stations"
+group = "Runtimes"
+
+[[command]]
+id = "runtime.stats"
+name = "runtime stats"
+args = "<instance>"
+desc = "CPU, memory and processes of an instance"
+group = "Runtimes"
+
+[[command]]
+id = "runtime.logs"
+name = "runtime logs"
+args = "<instance>"
+desc = "An instance's last 200 lines"
+group = "Runtimes"
+
+[[command]]
+id = "runtime.interrupt"
+name = "runtime interrupt"
+args = "<kernel>"
+desc = "Interrupt a kernel's running cell"
+group = "Runtimes"
+
+[[command]]
+id = "runtime.prune"
+name = "runtime prune"
+args = "[--dry-run]"
+desc = "Remove package volumes of deleted projects"
+group = "Runtimes"
+
+[[command]]
+id = "runtime.events"
+name = "runtime events"
+desc = "Follow runtime events as they happen"
+group = "Runtimes"
+
+# ── Packages ──
+[[command]]
+id = "package.list"
+name = "package list"
+args = "<runtime> --project <dir>"
+desc = "A project's packages"
+group = "Packages"
+
+[[command]]
+id = "package.add"
+name = "package add"
+args = "<runtime> <package>[@<version>] --project <dir>"
+desc = "Add a package to a project"
+group = "Packages"
+
+[[command]]
+id = "package.remove"
+name = "package remove"
+args = "<runtime> <package> --project <dir>"
+desc = "Remove a package from a project"
+group = "Packages"
+
+# ── Paperboat ──
+[[command]]
+id = "paperboat.update"
+name = "update"
+args = "[--check]"
+desc = "Update Paperboat, apps and toolkits on your channel; --check only looks"
+group = "Paperboat"
+
+[[command]]
+id = "paperboat.channel"
+name = "channel"
+args = "[release|beta|dev]"
+desc = "Show or set the update channel"
+group = "Paperboat"
+
+[[command]]
+id = "paperboat.daemon"
+name = "daemon"
+args = "status|stop"
+desc = "The runtime daemon (paperboatd)"
+group = "Paperboat"
+
+[[command]]
+id = "paperboat.about"
+name = "about"
+desc = "Versions of Paperboat, the daemon, apps and toolkits"
+group = "Paperboat"
+
+[[command]]
+id = "paperboat.help"
+name = "help"
+args = "[<command>]"
+desc = "Every command, or one in detail"
+group = "Paperboat"
+
+[[command]]
+id = "paperboat.clear"
+name = "clear"
+desc = "Clear the transcript"
+group = "Paperboat"
+tui = true
+
+[[command]]
+id = "paperboat.quit"
+name = "quit"
+desc = "Leave"
+group = "Paperboat"
+tui = true

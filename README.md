@@ -14,7 +14,9 @@ OpenModelica) from pinned, isolated container images, with a native fallback. Th
 include/paperboat/   the runtime manager's API (manifest, catalog, policy, backend, manager, control)
 src/lib/             its implementation
 src/daemon/          paperboatd
-src/cli/             paperboat
+src/cli/             paperboat and its command registry (commands.toml)
+apps.toml            the app registry (empty for now)
+toolkits.toml        the toolkit registry (simplicial-toolkit-*)
 runtimes/            the shipped runtimes: runtime.toml and lib/ (the runtime library) each
 images/              the runtime images' recipe and versions (published by CI to ghcr.io)
 tests/               unit tests, and container tests against real podman
@@ -25,16 +27,17 @@ tests/               unit tests, and container tests against real podman
 ```sh
 cmake -S . -B build -G Ninja && ninja -C build
 ./build/tests/paperboat_tests              # unit
+./build/tests/paperboat_cli_tests          # the CLI against its registry
 ./build/tests/paperboat_container_tests    # needs podman; skipped without it
 ```
 
 ## Run
 
 ```sh
-./build/paperboat runtimes list
-./build/paperboat runtimes run julia -- julia -e 'println(VERSION)'
-./build/paperboat runtimes repl julia       # a live session over paperboat-runtime/0
-./build/paperboat runtimes ps
+./build/paperboat help                     # every command (src/cli/commands.toml)
+./build/paperboat runtimes                 # runtimes and where they can run
+./build/paperboat package add python six --project ~/demo   # pulls the image if missing
+./build/paperboat runtime ps
 ```
 
 `paperboat` starts `paperboatd` on demand; `paperboat daemon stop` stops it.

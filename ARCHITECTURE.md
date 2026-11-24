@@ -45,7 +45,13 @@ flowchart LR
   in, OCI labels) and `images.toml`; `.github/workflows/runtime-image.yml` (reusable) builds, scans
   (Trivy), attests (SBOM, SLSA provenance), signs (cosign keyless) and pushes from `main` only.
 - `src/daemon/main.cpp`: socket server, cleaner, signals, idle exit.
-- `src/cli/main.cpp`: `paperboat runtimes …`, `paperboat daemon …`.
+- `src/cli/commands.toml`: the command registry (every command's words, usage, group, alias, `needs`),
+  embedded into the CLI at build time; the Launcher and TUI read the same file. A command that needs an
+  app not yet installed answers so (exit 2, `{"error","needs"}` with `--json`).
+- `src/cli/main.cpp`: dispatch over the registry (longest match on names and aliases) and one handler
+  per command.
+- `apps.toml`, `toolkits.toml`: the app and toolkit registries (no apps yet; the five
+  `simplicial-toolkit-*` repos), installed to `share/paperboat/`.
 
 ## 3. Invariants
 
@@ -53,24 +59,26 @@ flowchart LR
    (tested: `a runtime added by file alone runs`).
 2. **Container first, native as fallback.** Backend order `podman, docker, native` unless the request
    or `PAPERBOAT_BACKENDS` says otherwise.
-3. **Pinned or refused.** A container backend runs `ref@digest`; an unpinned manifest is refused unless
+3. **Pulled when needed.** A runtime whose image is missing is pulled on first acquire (tested:
+   `a runtime's image is pulled automatically the first time it is needed`).
+4. **Pinned or refused.** A container backend runs `ref@digest`; an unpinned manifest is refused unless
    the request allows it.
-4. **Strictest by default.** `--network=none`, read-only root, tmpfs `/tmp`, `--cap-drop=all`,
+5. **Strictest by default.** `--network=none`, read-only root, tmpfs `/tmp`, `--cap-drop=all`,
    `no-new-privileges`, pid/memory/cpu limits, project read-only, rootless user mapping. Only a
    `Policy` weakens it, and each weakening is an event (`policy.weakened`).
-5. **SELinux:** the daemon's own folders (lease, deps, work) are relabelled `:Z`; a user's project is
+6. **SELinux:** the daemon's own folders (lease, deps, work) are relabelled `:Z`; a user's project is
    never relabelled, so mounting one turns labelling off for that container (`label=disable`).
-6. **No orphans.** Instances carry `paperboat.daemon=<boot id>:<pid>`. A forked cleaner removes them
+7. **No orphans.** Instances carry `paperboat.daemon=<boot id>:<pid>`. A forked cleaner removes them
    when the daemon ends in any way; a new daemon reaps instances whose daemon is gone; a client that
    disconnects releases its leases. Each is tested against podman.
-7. **Warm means a running process.** Station-mode instances stay running for the idle timeout and are
+8. **Warm means a running process.** Station-mode instances stay running for the idle timeout and are
    reused by key (runtime, mode, backend, project, policy); session and exec instances are never shared.
-8. **Clients only speak the protocols.** The CLI's `--json` output is the daemon's objects; an app
+9. **Clients only speak the protocols.** The CLI's `--json` output is the daemon's objects; an app
    talks to a runtime only through `paperboat-runtime/0`.
-9. **Data never crosses stdio.** Podman relays a container's stdio through conmon (+30–130 µs a call);
+10. **Data never crosses stdio.** Podman relays a container's stdio through conmon (+30–130 µs a call);
    the runtime listens on a socket in the lease's ipc folder, and hot calls use shared memory there.
-10. **Signed means verified.** A manifest that names `image.signer` runs only after `cosign verify` of
+11. **Signed means verified.** A manifest that names `image.signer` runs only after `cosign verify` of
     its digest succeeds (once per digest per daemon), unless the request allows it; the lease's
     `verified` says which (`signature`, `unsigned`, `skipped`, `native`) for the run record.
-11. **Children inherit nothing odd.** `ProcessRunner` clears the signal mask and ignored signals before
+12. **Children inherit nothing odd.** `ProcessRunner` clears the signal mask and ignored signals before
     exec: the daemon blocks SIGINT for its signal thread, and a runtime must still be interruptible.

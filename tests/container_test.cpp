@@ -192,3 +192,29 @@ TEST_CASE("stats come from the backend", "[podman]") {
   CHECK(s["memory_bytes"].get<long long>() > 0);
   CHECK(s["pids"].get<long long>() >= 1);
 }
+
+TEST_CASE("a runtime's image is pulled automatically the first time it is needed", "[podman]") {
+  NEED_PODMAN();
+  const std::string image = "docker.io/library/busybox@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec";
+  ProcessRunner::run_sync({"podman", "rmi", "-f", image}, {}, {}, 60s);  // not on this machine
+  REQUIRE_FALSE(ProcessRunner::run_sync({"podman", "image", "exists", image}, {}, {}, 20s).ok());
+  Daemon d;
+  std::ofstream(d.extra / "tiny.runtime.toml") << R"toml(
+name = "tiny"
+version = "1.37"
+protocol = "exec-only"
+modes = ["exec"]
+[image]
+ref = "docker.io/library/busybox:1.37"
+digest = "sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec"
+)toml";
+  d.start();
+  auto c = d.client();
+  bool pulled = false;
+  c->on_event = [&](const json& e) { pulled |= e["event"] == "runtime.pulled"; return true; };
+  const auto [code, out] = exec(*c, {{"runtime", "tiny"}, {"command", {"echo", "pulled and ran"}}});
+  CHECK(code == 0);
+  CHECK_THAT(out, ContainsSubstring("pulled and ran"));
+  CHECK(ProcessRunner::run_sync({"podman", "image", "exists", image}, {}, {}, 20s).ok());
+  ProcessRunner::run_sync({"podman", "rmi", "-f", image}, {}, {}, 60s);  // leave the machine as it was
+}

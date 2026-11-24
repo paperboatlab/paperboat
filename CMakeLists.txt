@@ -58,16 +58,22 @@ add_executable(paperboatd src/daemon/main.cpp)
 target_compile_definitions(paperboatd PRIVATE PAPERBOAT_VERSION="${PAPERBOAT_VERSION}")
 target_link_libraries(paperboatd PRIVATE paperboat::runtime paperboat_warnings)
 
-add_executable(paperboat src/cli/main.cpp)
+# The command registry (src/cli/commands.toml) is embedded: the CLI's dispatch, usage and help read it.
+file(READ src/cli/commands.toml PAPERBOAT_COMMANDS)
+configure_file(src/cli/commands.cpp.in ${CMAKE_CURRENT_BINARY_DIR}/commands.cpp @ONLY)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS src/cli/commands.toml)
+add_executable(paperboat src/cli/main.cpp ${CMAKE_CURRENT_BINARY_DIR}/commands.cpp)
 target_compile_definitions(paperboat PRIVATE PAPERBOAT_VERSION="${PAPERBOAT_VERSION}")
-target_link_libraries(paperboat PRIVATE paperboat::runtime paperboat_warnings)
+target_link_libraries(paperboat PRIVATE paperboat::runtime tomlplusplus::tomlplusplus paperboat_warnings)
 
 # A build tree finds the shipped manifests beside its binaries (catalog_dirs: <exe>/runtimes).
 add_custom_target(paperboat_runtimes ALL
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/runtimes ${CMAKE_CURRENT_BINARY_DIR}/runtimes)
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/runtimes ${CMAKE_CURRENT_BINARY_DIR}/runtimes
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/apps.toml ${CMAKE_CURRENT_SOURCE_DIR}/toolkits.toml ${CMAKE_CURRENT_BINARY_DIR}/)
 
 install(TARGETS paperboat paperboatd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY runtimes/ DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat/runtimes)
+install(FILES apps.toml toolkits.toml DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat)
 
 if(PAPERBOAT_BUILD_TESTS)
   FetchContent_Declare(Catch2

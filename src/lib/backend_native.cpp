@@ -77,6 +77,7 @@ class NativeBackend final : public Backend {
     a.push_back("PAPERBOAT_IPC=" + spec.ipc.string());
     a.push_back("PAPERBOAT_MODE=" + spec.mode);
     if (!spec.project.empty()) a.push_back("PAPERBOAT_PROJECT=" + spec.project.string());
+    if (!spec.deps.empty()) a.push_back("PAPERBOAT_DEPS=" + spec.deps.string());
     std::vector<std::string> argv;
     if (spec.mode == "exec") argv = spec.command;
     else if (const auto it = m.native_entry.find(spec.mode); it != m.native_entry.end()) argv = expand(it->second, vars);

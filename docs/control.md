@@ -96,5 +96,5 @@ hello_timeout = "60s"
 Placeholders in `entry`: `{ipc}`, `{project}`, `{deps}`, `{work}`, `{lib}` (container paths; host
 paths for native), `{lease}` (the instance name), `{runtime}` (native: the manifest's folder).
 `<manifest folder>/lib/`, when present, is the runtime library: copied by the daemon and mounted
-read-only at `mounts.lib` (default `/opt/pb`). The runtime gets `PAPERBOAT_IPC`, `PAPERBOAT_MODE` and,
-with a project, `PAPERBOAT_PROJECT`.
+read-only at `mounts.lib` (default `/opt/pb`). The runtime gets `PAPERBOAT_IPC`, `PAPERBOAT_MODE`,
+`PAPERBOAT_DEPS` (the project's package volume) and, with a project, `PAPERBOAT_PROJECT`.

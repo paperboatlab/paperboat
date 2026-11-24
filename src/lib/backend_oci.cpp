@@ -138,6 +138,7 @@ class OciBackend final : public Backend {
     for (const auto& [k, v] : m.env) a.insert(a.end(), {"-e", k + "=" + v});
     a.insert(a.end(), {"-e", "PAPERBOAT_IPC=" + m.mounts.at("ipc"), "-e", "PAPERBOAT_MODE=" + spec.mode});
     if (!spec.project.empty()) a.insert(a.end(), {"-e", "PAPERBOAT_PROJECT=" + m.mounts.at("project")});
+    if (!spec.deps.empty()) a.insert(a.end(), {"-e", "PAPERBOAT_DEPS=" + m.mounts.at("deps")});
     a.push_back(m.image());
     const std::map<std::string, std::string> vars = {{"ipc", m.mounts.at("ipc")}, {"project", m.mounts.at("project")},
                                                      {"deps", m.mounts.at("deps")}, {"work", m.mounts.at("work")},

@@ -1,0 +1,3 @@
+// Generated from src/cli/commands.toml (CMake configure_file): the command registry, embedded.
+extern const char* const kCommandsToml;
+const char* const kCommandsToml = R"pbcmd(@PAPERBOAT_COMMANDS@)pbcmd";
