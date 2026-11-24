@@ -3,9 +3,9 @@
 # base-image fixes land. After a publish, the manifest in runtimes/<name>/runtime.toml is pinned to the
 # new digest (never to a tag).
 [julia]
-version  = "1.11.6"
+version  = "1.11.9"
 revision = 1
-base     = "docker.io/library/julia:1.11.6-bookworm@sha256:1623eb4161dc20ee57bcf694e48cb16cfc2aed71507e79b2ff170a206ccd7803"
+base     = "docker.io/library/julia:1.11.9-bookworm@sha256:d291bad1d6ceb1c41571d50c3f382b9fa3588473d8564ef817675958f2dbb753"
 
 [python]
 version  = "3.12"

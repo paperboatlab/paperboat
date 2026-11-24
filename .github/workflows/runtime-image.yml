@@ -44,9 +44,12 @@ jobs:
           image-ref: ${{ inputs.base }}
           severity: CRITICAL
           ignore-unfixed: true
+          skip-dirs: "**/stdlib/*/*/test"  # Julia's stdlib test fixtures: Manifest.toml files never loaded
           exit-code: "1"
           format: sarif
           output: trivy.sarif
+        env:
+          TRIVY_IGNORE_POLICY: images/trivy/ignore.rego  # every other exception, each with its reason
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -84,8 +84,12 @@ flowchart LR
    talks to a runtime only through `paperboat-runtime/0`.
 10. **Data never crosses stdio.** Podman relays a container's stdio through conmon (+30–130 µs a call);
    the runtime listens on a socket in the lease's ipc folder, and hot calls use shared memory there.
-11. **Signed means verified.** A manifest that names `image.signer` runs only after `cosign verify` of
+11. **Scanned before it ships.** A runtime image's base is scanned (Trivy) and a fixable CRITICAL
+    issue fails the build. The fix is a newer pinned base (`images/images.toml` and the runtime's
+    `runtime.toml`, same digest); an issue that can't reach the image is ignored in
+    `images/trivy/ignore.rego` with its reason, never silenced in the workflow.
+12. **Signed means verified.** A manifest that names `image.signer` runs only after `cosign verify` of
     its digest succeeds (once per digest per daemon), unless the request allows it; the lease's
     `verified` says which (`signature`, `unsigned`, `skipped`, `native`) for the run record.
-12. **Children inherit nothing odd.** `ProcessRunner` clears the signal mask and ignored signals before
+13. **Children inherit nothing odd.** `ProcessRunner` clears the signal mask and ignored signals before
     exec: the daemon blocks SIGINT for its signal thread, and a runtime must still be interruptible.

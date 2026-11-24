@@ -18,7 +18,7 @@ Frames on the socket: `[u32 little-endian length][UTF-8 JSON]`. Each side may se
 
 ```text
 runtime → client, first:  {"type":"hello","protocol":"paperboat-runtime/0","mode":"session",
-                           "runtime":{"name":"julia","version":"1.11.6"},"pid":7,
+                           "runtime":{"name":"julia","version":"1.11.9"},"pid":7,
                            "transports":["shm","uds"],"ops":[...]}
 request                   {"id":1,"op":"eval","args":{...}}
 reply                     {"id":1,"ok":true,"result":...}

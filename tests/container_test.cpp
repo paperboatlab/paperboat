@@ -92,7 +92,7 @@ TEST_CASE("julia, python and omc run from their pinned images", "[podman]") {
   d.start();
   auto c = d.client();
   CHECK_THAT(exec(*c, {{"runtime", "julia@1.11"}, {"command", {"julia", "--startup-file=no", "-e", "println(VERSION)"}}}).second,
-             ContainsSubstring("1.11.6"));
+             ContainsSubstring("1.11.9"));
   CHECK_THAT(exec(*c, {{"runtime", "python@3.12"}, {"command", {"python3", "-V"}}}).second, ContainsSubstring("3.12"));
   CHECK_THAT(exec(*c, {{"runtime", "omc"}, {"command", {"omc", "--version"}}}).second, ContainsSubstring("1.27.1"));
 }

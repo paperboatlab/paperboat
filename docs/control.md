@@ -53,7 +53,7 @@ stopping), `runtime.exited` (`exit_code`, `state`, `error`), `runtime.failed` (a
 
 ```toml
 name     = "julia"                 # lowercase, digits, '-'
-version  = "1.11.6"
+version  = "1.11.9"
 protocol = "paperboat-runtime/0"
 modes    = ["station", "session", "exec"]
 

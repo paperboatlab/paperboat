@@ -3,13 +3,13 @@
 # session and station speak paperboat-runtime/0 through lib/ (PaperboatRuntime.jl, stdlib only), which
 # the daemon mounts at /opt/pb.
 name     = "julia"
-version  = "1.11.6"
+version  = "1.11.9"
 protocol = "paperboat-runtime/0"
 modes    = ["session", "station", "exec"]
 
 [image]
-ref    = "docker.io/library/julia:1.11.6-bookworm"  # until ghcr.io/paperboatlab/paperboat-runtime-julia (phase 1b)
-digest = "sha256:1623eb4161dc20ee57bcf694e48cb16cfc2aed71507e79b2ff170a206ccd7803"  # the multi-arch index
+ref    = "docker.io/library/julia:1.11.9-bookworm"  # until ghcr.io/paperboatlab/paperboat-runtime-julia (phase 1b)
+digest = "sha256:d291bad1d6ceb1c41571d50c3f382b9fa3588473d8564ef817675958f2dbb753"  # the multi-arch index
 arch   = ["amd64", "arm64"]
 
 [entry]
