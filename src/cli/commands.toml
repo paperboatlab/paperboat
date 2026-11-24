@@ -1,14 +1,14 @@
 # The command registry: every paperboat command, one entry each. The C++ CLI embeds this file
 # (dispatch, usage, `help`); @paperboat/client reads the same file for the Launcher's keys and Ctrl+K
 # palette and the TUI's menu and /help. A TUI command is the CLI's own words: `/app install x` is
-# `paperboat app install x`. Wording approved 2026-11-24 (plans/2026-11-24_19-43_launcher_and_tui_on_one_client.md §4).
+# `paperboat app install x`. An installed app adds its own commands (<home>/apps/<app>/commands.toml,
+# the same format plus `cli`, the program that runs them); this file names no app. Wording approved 2026-11-24 (plans/2026-11-24_19-43_launcher_and_tui_on_one_client.md §4).
 #
 #   name     the words after `paperboat`
 #   args     usage of the arguments (<required>, [optional], a|b choices)
 #   desc     one line: lists describe what they show, actions start with a verb; sentence case, no full stop
 #   group    Apps | Sessions | Stations | Toolkits | Runtimes | Packages | Paperboat
 #   alias    other words for the same command (a plural that lists)
-#   needs    what must be installed first; until then the command says so (simplicial: the Simplicial app)
 #   tui      true: the TUI only
 
 # ── Apps ──
@@ -83,88 +83,6 @@ args = "<session>|--all"
 desc = "Stop one session, or all of them"
 group = "Sessions"
 
-# ── Stations ──
-[[command]]
-id = "station.list"
-name = "station list"
-alias = ["stations"]
-args = "[--source all|example|installed|built-in]"
-desc = "Station projects you can run"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.run"
-name = "run"
-args = "<station> [--port <n>] [--no-build] [--clean] [--time <s>] [--var <k>=<v>]"
-desc = "Build if needed, start, and open in Simplicial"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.build"
-name = "build"
-args = "<station> [--clean]"
-desc = "Compile a C++ station"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.deps"
-name = "deps install"
-args = "<station>"
-desc = "Install a Python or Julia station's dependencies"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.check"
-name = "check"
-args = "<station> [--fast]"
-desc = "Verify a station: manifest, catalog, smoke and golden"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.pack"
-name = "pack"
-args = "<station>"
-desc = "Write a portable .pst package"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.new"
-name = "new"
-args = "<name> --cpp|--python|--julia"
-desc = "Create a station that passes check"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.open"
-name = "open"
-args = "<file.pst|file.psf|folder>"
-desc = "Open a station package, a project or a folder"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.examples"
-name = "station examples"
-desc = "Fetch the official example stations"
-group = "Stations"
-needs = "simplicial"
-
-[[command]]
-id = "station.uninstall"
-name = "station uninstall"
-args = "<station>"
-desc = "Remove an installed station"
-group = "Stations"
-needs = "simplicial"
-
-# ── Toolkits ──
 [[command]]
 id = "toolkit.list"
 name = "toolkit list"
@@ -172,39 +90,6 @@ alias = ["toolkits"]
 desc = "Built-in and optional toolkits"
 group = "Toolkits"
 
-[[command]]
-id = "toolkit.blocks"
-name = "toolkit blocks"
-args = "<toolkit> [--kind flow|station|board|analysis]"
-desc = "The blocks a toolkit adds"
-group = "Toolkits"
-needs = "simplicial"
-
-[[command]]
-id = "toolkit.install"
-name = "toolkit install"
-args = "<toolkit>[@<version>]|<git url>|<folder>"
-desc = "Build and install a toolkit as a plugin"
-group = "Toolkits"
-needs = "simplicial"
-
-[[command]]
-id = "toolkit.update"
-name = "toolkit update"
-args = "<toolkit>|--all"
-desc = "Update one toolkit, or all of them"
-group = "Toolkits"
-needs = "simplicial"
-
-[[command]]
-id = "toolkit.uninstall"
-name = "toolkit uninstall"
-args = "<toolkit>"
-desc = "Remove a toolkit and its blocks"
-group = "Toolkits"
-needs = "simplicial"
-
-# ── Runtimes ──
 [[command]]
 id = "runtime.list"
 name = "runtime list"

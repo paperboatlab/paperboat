@@ -9,3 +9,5 @@
 # runtimes    = ["julia@1.11", "python@3.12"]                  # resolved and pulled by paperboatd when used
 # launch      = "bin/malachite"                                # what `app open` starts
 # port        = 59210                                          # where it listens (127.0.0.1)
+# commands    = ["run", "build"]                               # words it adds: before it is installed,
+#                                                                # `paperboat run` answers "`paperboat app install …` adds it"

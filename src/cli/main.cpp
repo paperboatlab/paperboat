@@ -3,6 +3,9 @@
 // @paperboat/client). Runtime commands are paperboat-control/0 requests to paperboatd (started on
 // demand); with --json the CLI prints the daemon's objects unchanged, for scripts and the front ends.
 
+#include <cerrno>
+#include <cstring>
+#include <unistd.h>
 #include "paperboat/control.hpp"
 #include "paperboat/manifest.hpp"
 #include "paperboat/paths.hpp"
@@ -40,7 +43,9 @@ namespace {
 // ── the registry ──
 
 struct Command {
-  std::string id, name, args, desc, group, needs;
+  std::string id, name, args, desc, group;
+  std::string app;  // the installed app it came with ("" for the platform's own)
+  fs::path exec;    // that app's CLI, run with the words as typed
   std::vector<std::string> alias;
   bool tui = false;
 };
@@ -52,23 +57,42 @@ std::vector<std::string> words(const std::string& s) {
   return out;
 }
 
+void add_commands(std::vector<Command>& out, const toml::table& t, const std::string& app = {}, const fs::path& exec = {}) {
+  const auto* list = t["command"].as_array();
+  if (!list) return;
+  for (const auto& node : *list) {
+    const auto& c = *node.as_table();
+    Command cmd;
+    cmd.id = c["id"].value_or(std::string());
+    cmd.name = c["name"].value_or(std::string());
+    cmd.args = c["args"].value_or(std::string());
+    cmd.desc = c["desc"].value_or(std::string());
+    cmd.group = c["group"].value_or(std::string());
+    cmd.tui = c["tui"].value_or(false);
+    cmd.app = app;
+    cmd.exec = exec;
+    if (const auto* a = c["alias"].as_array())
+      for (const auto& x : *a) cmd.alias.push_back(*x.value<std::string>());
+    out.push_back(std::move(cmd));
+  }
+}
+
+// The platform's commands, then each installed app's (<home>/apps/<app>/commands.toml, its `cli` the
+// program that runs them). The platform's code names no app: an app brings its own commands.
 const std::vector<Command>& registry() {
   static const std::vector<Command> reg = [] {
     std::vector<Command> out;
-    const toml::table t = toml::parse(kCommandsToml);
-    for (const auto& node : *t["command"].as_array()) {
-      const auto& c = *node.as_table();
-      Command cmd;
-      cmd.id = c["id"].value_or(std::string());
-      cmd.name = c["name"].value_or(std::string());
-      cmd.args = c["args"].value_or(std::string());
-      cmd.desc = c["desc"].value_or(std::string());
-      cmd.group = c["group"].value_or(std::string());
-      cmd.needs = c["needs"].value_or(std::string());
-      cmd.tui = c["tui"].value_or(false);
-      if (const auto* a = c["alias"].as_array())
-        for (const auto& x : *a) cmd.alias.push_back(*x.value<std::string>());
-      out.push_back(std::move(cmd));
+    add_commands(out, toml::parse(kCommandsToml));
+    std::error_code ec;
+    for (const auto& app : fs::directory_iterator(paths::home() / "apps", ec)) {
+      const fs::path file = app.path() / "commands.toml";
+      if (!fs::exists(file)) continue;
+      try {
+        const toml::table t = toml::parse_file(file.string());
+        add_commands(out, t, app.path().filename().string(), app.path() / t["cli"].value_or(std::string()));
+      } catch (const std::exception& e) {
+        std::cerr << "paperboat: skipping " << file.string() << ": " << e.what() << "\n";
+      }
     }
     return out;
   }();
@@ -85,6 +109,7 @@ const Command* find_id(const std::string& id) {
 
 struct Args {
   const Command* cmd = nullptr;
+  std::vector<std::string> raw;              // every word as typed (an app's command gets them all)
   std::vector<std::string> pos;              // after the command's words
   std::map<std::string, std::string> opt;    // --flag value, or "1"
   bool json_out = false;
@@ -103,6 +128,7 @@ const std::vector<std::string> kValued = {"--project", "--backend", "--socket", 
 Args parse(int argc, char** argv) {
   Args a;
   std::vector<std::string> plain;
+  a.raw.assign(argv + 1, argv + argc);
   for (int i = 1; i < argc; ++i) {
     const std::string s = argv[i];
     if (s == "--json") a.json_out = true;
@@ -187,9 +213,40 @@ std::vector<toml::table> entries(const toml::table& t, const char* key) {
   return out;
 }
 
-// What `needs` names, when it is installed: an app's install marker. None is installable yet, so a
-// command that needs one says so.
+// An app's install marker.
 bool installed(const std::string& what) { return fs::exists(paths::home() / "apps" / what / ".installed"); }
+
+std::string app_of(const Command& c) { return c.app; }
+
+// An app's command runs its own CLI with every word as typed (`paperboat run x` → `<app>/bin/… run x`).
+int run_app_command(const Command& c, const std::vector<std::string>& raw) {
+  std::vector<std::string> argv{c.exec.string()};
+  argv.insert(argv.end(), raw.begin(), raw.end());
+  std::vector<char*> p;
+  for (auto& s : argv) p.push_back(s.data());
+  p.push_back(nullptr);
+  ::execv(p[0], p.data());
+  throw Failure(app_of(c) + "'s command line " + c.exec.string() + " could not start: " + std::strerror(errno), 1);
+}
+
+// A word no command has: if an app in the registry adds it (apps.toml `commands`), say which to install.
+Failure unknown_command(const std::vector<std::string>& pos) {
+  const std::string w = pos.empty() ? "" : pos[0];
+  try {
+    if (const auto* apps = load_toml("apps.toml")["apps"].as_array())
+      for (const auto& node : *apps) {
+        const auto& e = *node.as_table();
+        if (const auto* cmds = e["commands"].as_array())
+          for (const auto& c : *cmds)
+            if (c.value_or(std::string()) == w) {
+              const std::string app = e["name"].value_or(std::string());
+              return Failure("no command '" + w + "' · `paperboat app install " + app + "` adds it", 2, {{"app", app}});
+            }
+      }
+  } catch (const std::exception&) {  // no registry beside this build: just the plain answer
+  }
+  return Failure("no command '" + w + "' · paperboat help lists them", 2);
+}
 
 // ── the daemon ──
 
@@ -566,10 +623,10 @@ int paperboat_help(Args& a) {
     for (const auto& w : a.pos) q += (q.empty() ? "" : " ") + w;
     for (const auto& c : reg)
       if (c.name == q || std::ranges::find(c.alias, q) != c.alias.end()) {
-        if (a.json_out) return print_json({{"id", c.id}, {"name", c.name}, {"args", c.args}, {"desc", c.desc}, {"needs", c.needs}, {"alias", c.alias}}), 0;
+        if (a.json_out) return print_json({{"id", c.id}, {"name", c.name}, {"args", c.args}, {"desc", c.desc}, {"app", app_of(c)}, {"alias", c.alias}}), 0;
         std::cout << "paperboat " << c.name << (c.args.empty() ? "" : " " + c.args) << "\n  " << c.desc << "\n";
         if (!c.alias.empty()) std::cout << "  also: paperboat " << c.alias[0] << "\n";
-        if (!c.needs.empty()) std::cout << "  needs " << c.needs << " installed\n";
+        if (!c.exec.empty()) std::cout << "  from " << app_of(c) << "\n";
         return 0;
       }
     throw Failure("no command '" + q + "' · paperboat help lists them", 2);
@@ -577,7 +634,7 @@ int paperboat_help(Args& a) {
   if (a.json_out) {
     json out = json::array();
     for (const auto& c : reg)
-      out.push_back({{"id", c.id}, {"name", c.name}, {"args", c.args}, {"desc", c.desc}, {"group", c.group}, {"needs", c.needs},
+      out.push_back({{"id", c.id}, {"name", c.name}, {"args", c.args}, {"desc", c.desc}, {"group", c.group}, {"app", app_of(c)},
                      {"alias", c.alias}, {"tui", c.tui}});
     return print_json(out), 0;
   }
@@ -621,16 +678,13 @@ int main(int argc, char** argv) {
         a.cmd = find_id("paperboat.help");
         return paperboat_help(a);
       }
-      throw Failure("no command '" + a.pos[0] + "' · paperboat help lists them", 2);
+      throw unknown_command(a.pos);
     }
     if (a.has("--help")) {
       a.pos = words(a.cmd->name);
       return paperboat_help(a);
     }
-    if (!a.cmd->needs.empty() && !installed(a.cmd->needs)) {
-      const std::string what = a.cmd->needs == "simplicial" ? "Simplicial" : a.cmd->needs;
-      throw Failure("paperboat " + a.cmd->name + " needs " + what + ", which isn't installed yet", 2, {{"needs", a.cmd->needs}});
-    }
+    if (!a.cmd->exec.empty()) return run_app_command(*a.cmd, a.raw);
     const auto it = handlers().find(a.cmd->id);
     if (it == handlers().end()) throw Failure("paperboat " + a.cmd->name + " is not in this build", 2);
     return it->second(a);

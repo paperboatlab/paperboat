@@ -8,6 +8,7 @@
 #include <toml++/toml.hpp>
 
 #include <filesystem>
+#include <fstream>
 #include <random>
 
 using namespace paperboat;
@@ -38,7 +39,7 @@ TEST_CASE("help lists every command of the registry", "[cli]") {
     CHECK_THAT(r.stdout_text, ContainsSubstring(c["name"].value_or(std::string())));
     ++n;
   }
-  CHECK(n > 40);
+  CHECK(n > 20);
   const auto j = json::parse(cli({"help", "--json"}).stdout_text);
   CHECK(j.size() == reg["command"].as_array()->size());  // the TUI's own commands too
 }
@@ -48,12 +49,20 @@ TEST_CASE("aliases are the same command", "[cli]") {
   CHECK(cli({"toolkits", "--json"}).stdout_text == cli({"toolkit", "list", "--json"}).stdout_text);
 }
 
-TEST_CASE("a command that needs Simplicial says so", "[cli]") {
-  const auto r = cli({"run", "pendulum"});
-  CHECK(r.exit_code == 2);
-  CHECK_THAT(r.stderr_text, ContainsSubstring("needs Simplicial"));
-  const auto j = json::parse(cli({"check", "pendulum", "--json"}).stdout_text);
-  CHECK(j["needs"] == "simplicial");
+TEST_CASE("the platform names no app: an installed app brings its commands", "[cli]") {
+  CHECK(cli({"run", "pendulum"}).exit_code == 2);  // nobody offers `run` yet
+  const fs::path app = kHome / "apps" / "demo";
+  fs::create_directories(app / "bin");
+  std::ofstream(app / "commands.toml") << "cli = \"bin/demo\"\n[[command]]\nid = \"demo.run\"\nname = \"run\"\n"
+                                          "args = \"<station>\"\ndesc = \"Run a station\"\ngroup = \"Stations\"\n";
+  std::ofstream(app / "bin" / "demo") << "#!/bin/sh\necho \"demo got: $*\"\n";
+  fs::permissions(app / "bin" / "demo", fs::perms::owner_all);
+  const auto r = cli({"run", "pendulum", "--port", "7400"});
+  CHECK(r.ok());
+  CHECK(r.stdout_text == "demo got: run pendulum --port 7400\n");
+  CHECK_THAT(cli({"help"}).stdout_text, ContainsSubstring("run <station>"));
+  CHECK(json::parse(cli({"help", "run", "--json"}).stdout_text)["app"] == "demo");
+  fs::remove_all(app);
 }
 
 TEST_CASE("unknown commands and apps fail cleanly", "[cli]") {

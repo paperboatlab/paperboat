@@ -45,9 +45,11 @@ flowchart LR
   in, OCI labels) and `images.toml`; `.github/workflows/runtime-image.yml` (reusable) builds, scans
   (Trivy), attests (SBOM, SLSA provenance), signs (cosign keyless) and pushes from `main` only.
 - `src/daemon/main.cpp`: socket server, cleaner, signals, idle exit.
-- `src/cli/commands.toml`: the command registry (every command's words, usage, group, alias, `needs`),
-  embedded into the CLI at build time; the Launcher and TUI read the same file. A command that needs an
-  app not yet installed answers so (exit 2, `{"error","needs"}` with `--json`).
+- `src/cli/commands.toml`: the platform's command registry (every command's words, usage, group,
+  alias), embedded into the CLI at build time; the Launcher and TUI read the same file. An installed
+  app adds its own (`<home>/apps/<app>/commands.toml` plus `cli`, the program that runs them with every
+  word as typed); `apps.toml` lists the words each app adds, so `paperboat run` before Simplicial is
+  installed says which app to install. The platform's code names no app.
 - `src/cli/main.cpp`: dispatch over the registry (longest match on names and aliases) and one handler
   per command.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
