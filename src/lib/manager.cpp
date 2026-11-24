@@ -359,25 +359,26 @@ void Manager::tick() {
       if (l->state != "running" || !used.contains(l->backend)) continue;
       const auto it = seen.find(l->instance.name);
       if (it != seen.end() && it->second.state == "running") continue;
-      const int code = it == seen.end() ? -1 : it->second.exit_code;
-      // An exec runtime that finished with 0 did its job; anything else ending on its own failed.
-      l->state = code == 0 && l->mode == "exec" ? "exited" : "failed";
-      l->error = l->state == "exited" ? "" : l->runtime + " exited" + (code >= 0 ? " with code " + std::to_string(code) : "") +
-                 (code == 137 ? " (killed: out of memory or SIGKILL)" : "");
-      ended.push_back({l->id, l->backend, l->instance, code});
+      ended.push_back({l->id, l->backend, l->instance, it == seen.end() ? -1 : it->second.exit_code});
     }
   }
-  // The instance was kept until here so its exit code and output could be read; the lease stays for
-  // its holders to see until they release it.
+  // The instance was kept until here so its exit code and output could be read. The output is read
+  // before the lease says it ended: a holder that sees "exited" asks for the logs next and must get them.
+  // The lease stays for its holders to see until they release it.
   for (auto& e : ended) {
     Backend* b = backend_named(e.backend);
     const std::string log = b ? b->logs(e.instance.name, 200) : "";
     {
       std::lock_guard lock(mutex_);
-      if (const auto it = leases_.find(e.lease); it != leases_.end()) {
-        it->second->last_log = log;
-        emit({{"event", "runtime.exited"}, {"lease", e.lease}, {"runtime", it->second->runtime}, {"exit_code", e.code},
-              {"state", it->second->state}, {"error", it->second->error}});
+      if (const auto it = leases_.find(e.lease); it != leases_.end() && it->second->state == "running") {
+        auto& l = it->second;
+        // An exec runtime that finished with 0 did its job; anything else ending on its own failed.
+        l->state = e.code == 0 && l->mode == "exec" ? "exited" : "failed";
+        l->error = l->state == "exited" ? "" : l->runtime + " exited" + (e.code >= 0 ? " with code " + std::to_string(e.code) : "") +
+                   (e.code == 137 ? " (killed: out of memory or SIGKILL)" : "");
+        l->last_log = log;
+        emit({{"event", "runtime.exited"}, {"lease", e.lease}, {"runtime", l->runtime}, {"exit_code", e.code},
+              {"state", l->state}, {"error", l->error}});
       }
     }
     if (b) {
