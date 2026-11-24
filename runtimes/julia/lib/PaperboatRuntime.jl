@@ -375,7 +375,9 @@ function new!(st::Station, type::String, params)
     Dict("instance" => st.next)
 end
 
-methodof(obj, name) = getfield(parentmodule(typeof(obj)), Symbol(name))
+# the latest world: since Julia 1.12 bindings have world ages, and a station defines its methods after
+# the server loop started (a plain getfield there would still see Base.step, not the station's step)
+methodof(obj, name) = Base.invokelatest(getglobal, parentmodule(typeof(obj)), Symbol(name))
 
 call!(st::Station, instance::Int, method::String, args) =
     Base.invokelatest(methodof(st.instances[instance], method), st.instances[instance], (args === nothing ? () : args)...)

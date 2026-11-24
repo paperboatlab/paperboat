@@ -49,6 +49,10 @@ add_library(paperboat_runtime STATIC
   ${PAPERBOAT_PROCESS_SOURCE})
 add_library(paperboat::runtime ALIAS paperboat_runtime)
 set_target_properties(paperboat_runtime PROPERTIES EXPORT_NAME runtime)
+if(APPLE)  # Apple's libc++ keeps std::jthread and std::stop_token (process.hpp) behind this flag
+  target_compile_options(paperboat_runtime PUBLIC -fexperimental-library)
+  target_link_options(paperboat_runtime PUBLIC -fexperimental-library)
+endif()
 target_include_directories(paperboat_runtime PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(paperboat_runtime
