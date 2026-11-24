@@ -22,14 +22,14 @@ group = "Apps"
 [[command]]
 id = "app.open"
 name = "app open"
-args = "<app>"
+args = "<app> [<folder>] [--no-open]"
 desc = "Start an app if needed and open its window"
 group = "Apps"
 
 [[command]]
 id = "app.install"
 name = "app install"
-args = "<app>[@<version>]"
+args = "<app>[@<version>] | <app> --from <folder>"
 desc = "Install an app and the runtimes it uses"
 group = "Apps"
 

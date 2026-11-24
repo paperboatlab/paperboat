@@ -1,13 +1,23 @@
-# The app registry: the apps `paperboat app install <app>` can install. Empty for now: the apps
-# (Simplicial, Malachite, Julix, Articula) are added here as each is rebuilt on this platform.
+# The app registry: the apps `paperboat app install <app>` can install, added as each is rebuilt on
+# this platform (Simplicial, Julix and Articula follow Malachite).
 #
-# [[apps]]
-# name        = "malachite"                                    # what you type: app install malachite
-# label       = "Malachite"                                    # how the Launcher and the TUI show it
-# repo        = "https://github.com/paperboatlab/malachite.git"
-# description = "Engineering notebook in Julia and Python"
-# runtimes    = ["julia@1.11", "python@3.12"]                  # resolved and pulled by paperboatd when used
-# launch      = "bin/malachite"                                # what `app open` starts
-# port        = 59210                                          # where it listens (127.0.0.1)
-# commands    = ["run", "build"]                               # words it adds: before it is installed,
-#                                                                # `paperboat run` answers "`paperboat app install …` adds it"
+#   name         what you type: app install malachite
+#   label        how the Launcher and the TUI show it
+#   repo         its GitHub repository: a release carries `<name>-<version>.tar.gz` (one top folder),
+#                unpacked to <home>/apps/<name>; `app install <name> --from <folder>` links a checkout
+#   description  one line
+#   runtimes     pulled at install (paperboatd would pull them when first used anyway)
+#   launch       the app server, run as `<launch> <folder> --port <port>` by `app open`; ready when it
+#                listens on 127.0.0.1:<port>
+#   port         its first port; the next free one for each further folder
+#   commands     words it adds: before it is installed, `paperboat <word>` says to install it
+
+[[apps]]
+name        = "malachite"
+label       = "Malachite"
+repo        = "https://github.com/paperboatlab/malachite"
+description = "Engineering notebook in Julia and Python"
+runtimes    = ["julia@1.11", "python@3.12"]
+launch      = "bin/malachite"
+port        = 59210
+commands    = []
