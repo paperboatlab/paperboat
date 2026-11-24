@@ -32,6 +32,7 @@ struct LaunchSpec {
   std::vector<std::string> command;     // exec mode: the command to run
   std::string name;                     // the instance name: pb-<runtime>-<ver>-<projecthash>-<n>
   fs::path project, deps, work, ipc;    // host folders (project may be empty)
+  fs::path lib;                         // the runtime library (empty: none)
   Policy policy;
   std::map<std::string, std::string> labels;
   fs::path log;                         // native: where output goes
@@ -66,6 +67,8 @@ class Backend {
   virtual std::vector<Instance> list() = 0;            // every instance with a paperboat.daemon label
   virtual Stats stats(const std::string& name) = 0;
   virtual std::string logs(const std::string& name, int tail = 200) = 0;
+  // Deliver a signal to the runtime process (SIGINT interrupts a session's running cell).
+  virtual bool signal(const std::string& name, int sig) = 0;
   // The command a cleaner runs to remove an instance after the daemon is gone.
   virtual std::vector<std::string> remove_command(const Instance& i) const = 0;
 };

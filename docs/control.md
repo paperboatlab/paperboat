@@ -20,10 +20,11 @@ A lease belongs to the connection that acquired it: closing the connection relea
 | `backends` | – | `[{name, available, detail, rootless, selinux}]` |
 | `runtimes.list` | – | `{runtimes: [manifest + backends.<name>.{usable, ready}], errors, backends}` |
 | `pull` | `runtime`, `backend?` | `{runtime, backend, image}`; `pull.progress` events meanwhile |
-| `acquire` | `runtime`, `mode` (`station`\|`session`\|`exec`), `command?` (exec), `project?`, `work?`, `policy?`, `backend?`, `owner?`, `allow_unpinned?` | a lease |
+| `acquire` | `runtime`, `mode` (`station`\|`session`\|`exec`), `command?` (exec), `project?`, `work?`, `policy?`, `backend?`, `owner?`, `allow_unpinned?`, `allow_unverified?` | a lease |
 | `release` | `lease` | `{}` |
 | `ps` | – | `[lease]` |
 | `stats` | `lease` | `{lease, stats: {cpu_percent, memory_bytes, pids}}` (−1 = unavailable) |
+| `interrupt` | `lease` | `{delivered}`: SIGINT to the runtime process (podman/docker `kill`, or `kill(2)` natively) |
 | `logs` | `lease`, `tail?` | `{text}`; an ended lease keeps its last output |
 | `prune` | `dry_run?` | `{removed: [{path, project}], dry_run}` |
 | `subscribe` | – | `{}`; this connection now receives every event |
@@ -31,7 +32,8 @@ A lease belongs to the connection that acquired it: closing the connection relea
 
 A **lease**: `id`, `runtime`, `mode`, `owner`, `backend`, `state` (`starting`, `running`, `idle`,
 `exited`, `failed`), `error`, `instance`, `project`, `work`, `deps`, `ipc` (the host folder mounted at
-the manifest's `mounts.ipc`), `digest`, `isolation` (the flags in effect), `policy`, `weakened`,
+the manifest's `mounts.ipc`; the runtime listens there on `runtime.sock`), `digest`, `verified`
+(`signature`, `unsigned`, `skipped`, `native`), `isolation` (the flags in effect), `policy`, `weakened`,
 `holders`, `uptime_s`, `idle_s`. `digest`, `isolation` and the runtime id are what a run record keeps.
 
 A **policy** (only ever weakens the defaults): `network`, `devices` (`["/dev/video0"]`), `gpu`,
@@ -42,7 +44,7 @@ A **policy** (only ever weakens the defaults): `network`, `devices` (`["/dev/vid
 `lease.acquired` (`reused`), `lease.released`, `runtime.pulling`, `runtime.pulled`,
 `runtime.pull_failed`, `runtime.started`, `runtime.stopped` (`reason`: released, idle, daemon
 stopping), `runtime.exited` (`exit_code`, `state`, `error`), `runtime.failed` (a start that failed),
-`runtime.reaped`, `policy.weakened` (`what`).
+`runtime.reaped`, `runtime.verified`, `runtime.unverified` (`reason`), `policy.weakened` (`what`).
 
 ## Runtime manifests
 
@@ -59,9 +61,11 @@ modes    = ["station", "session", "exec"]
 ref    = "ghcr.io/paperboatlab/paperboat-runtime-julia:1.11.6-r1"
 digest = "sha256:…"                # the multi-arch index; what runs
 arch   = ["amd64", "arm64"]
+signer = "^https://github.com/paperboatlab/paperboat/"   # optional: cosign keyless identity (regexp)
+issuer = "https://token.actions.githubusercontent.com"   # the default
 
 [entry]                            # argv per mode; exec takes the caller's command
-station = ["julia", "/opt/pb/station.jl", "{ipc}/control.sock"]
+station = ["julia", "--startup-file=no", "--threads=2", "{lib}/serve.jl", "{ipc}/runtime.sock", "station"]
 
 [mounts]                           # defaults shown
 project = "/work/project"
@@ -83,11 +87,14 @@ granularities = ["step", "segment", "subgraph", "block"]
 
 [native]                           # the native backend's recipe
 requires = "julia"
-entry.station = ["julia", "{runtime}/station.jl", "{ipc}/control.sock"]
+entry.station = ["julia", "--startup-file=no", "--threads=2", "{lib}/serve.jl", "{ipc}/runtime.sock", "station"]
 
 [healthcheck]
 hello_timeout = "60s"
 ```
 
-Placeholders in `entry`: `{ipc}`, `{project}`, `{deps}`, `{work}` (container paths; host paths for
-native), `{lease}` (the instance name), `{runtime}` (native: the manifest's folder).
+Placeholders in `entry`: `{ipc}`, `{project}`, `{deps}`, `{work}`, `{lib}` (container paths; host
+paths for native), `{lease}` (the instance name), `{runtime}` (native: the manifest's folder).
+`<manifest folder>/lib/`, when present, is the runtime library: copied by the daemon and mounted
+read-only at `mounts.lib` (default `/opt/pb`). The runtime gets `PAPERBOAT_IPC`, `PAPERBOAT_MODE` and,
+with a project, `PAPERBOAT_PROJECT`.

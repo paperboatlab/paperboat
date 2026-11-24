@@ -77,6 +77,12 @@ void process_buffer_lines(std::string& buffer, std::string_view stream_name, con
 
 // In a forked child: move to `cwd`, then replace the process with `args`. Never returns.
 [[noreturn]] void exec_child(const std::vector<std::string>& args, const fs::path& cwd, const Env& env) {
+  // A signal mask and ignored signals survive exec: a parent that blocks SIGINT for a signal thread,
+  // or ignores SIGPIPE, would hand both to every child (a runtime that can never be interrupted).
+  sigset_t none;
+  sigemptyset(&none);
+  sigprocmask(SIG_SETMASK, &none, nullptr);
+  for (int s : {SIGINT, SIGTERM, SIGHUP, SIGPIPE, SIGQUIT}) signal(s, SIG_DFL);
   if (!cwd.empty()) {
     std::error_code ec;
     fs::current_path(cwd, ec);

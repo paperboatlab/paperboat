@@ -3,6 +3,7 @@
 
 #include "paperboat/control.hpp"
 #include "paperboat/paths.hpp"
+#include "paperboat/runtime.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -15,7 +16,10 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include <unistd.h>
 
 #ifndef PAPERBOAT_VERSION
 #define PAPERBOAT_VERSION "0.0.0-dev"
@@ -36,7 +40,9 @@ runtimes pull <runtime>            fetch a runtime's pinned image (julia, julia@
 runtimes run <runtime> [-- cmd]    start a runtime; with a command (exec mode) wait for it and
                                    print its output; else hold it until Ctrl-C
     --mode station|session|exec    (default: exec with a command, else station)
-    --project DIR  --backend NAME  --network  --allow-unpinned
+    --project DIR  --backend NAME  --network  --allow-unpinned  --allow-unverified
+runtimes repl <runtime>            an interactive session (julia, python); Ctrl-C interrupts
+    --project DIR  --backend NAME
 runtimes logs <lease> [--tail N]   a lease's output
 runtimes stats <lease>             CPU, memory, processes
 runtimes events                    follow runtime.* events
@@ -184,6 +190,60 @@ int cmd_runtimes(ControlClient& c, const Args& a) {
     c.listen();
     return 0;
   }
+  if (sub == "repl") {
+    if (arg.empty()) throw ControlError("repl needs a runtime");
+    json args = {{"runtime", arg}, {"mode", "session"}, {"owner", "cli"}};
+    if (a.has("--project")) args["project"] = fs::absolute(a.get("--project")).string();
+    if (a.has("--backend")) args["backend"] = a.get("--backend");
+    const json lease = c.call("acquire", args);
+    RuntimeClient rt(lease["ipc"].get<std::string>(), std::chrono::seconds(120));
+    std::cerr << rt.hello()["runtime"]["name"].get<std::string>() << " " << rt.hello()["runtime"]["version"].get<std::string>()
+              << " on " << lease["backend"].get<std::string>() << " (lease " << lease["id"].get<std::string>()
+              << "); Ctrl-D quits, Ctrl-C interrupts\n";
+    // Ctrl-C interrupts the running cell instead of ending the CLI: a thread waits for SIGINT.
+    sigset_t sigs;
+    sigemptyset(&sigs);
+    sigaddset(&sigs, SIGINT);
+    pthread_sigmask(SIG_BLOCK, &sigs, nullptr);
+    const std::string lease_id = lease["id"].get<std::string>();
+    std::thread([&c, lease_id, sigs] {  // the daemon signals the runtime: works however busy it is
+      for (int sig = 0;;) {
+        sigwait(&sigs, &sig);
+        try {
+          c.call("interrupt", {{"lease", lease_id}});
+        } catch (...) {
+          return;
+        }
+      }
+    }).detach();
+    const bool tty = ::isatty(0);
+    for (int n = 1;; ++n) {
+      if (tty) std::cout << "[" << n << "]> " << std::flush;
+      std::string code, line;
+      while (std::getline(std::cin, line)) {  // a line ending in '\' continues the cell
+        if (!line.empty() && line.back() == '\\') {
+          code += line.substr(0, line.size() - 1) + "\n";
+          if (tty) std::cout << "   . " << std::flush;
+          continue;
+        }
+        code += line;
+        break;
+      }
+      if (!std::cin && code.empty()) break;
+      if (code.find_first_not_of(" \t") == std::string::npos) continue;
+      try {
+        const json r = rt.request("eval", {{"code", code}, {"cell", "[" + std::to_string(n) + "]"}}, [](const json& m) {
+          if (m.value("type", "") == "stream") (m.value("name", "") == "stderr" ? std::cerr : std::cout) << m["text"].get<std::string>() << std::flush;
+          else if (m.value("type", "") == "display" && m["data"].is_object()) std::cout << m["data"].value("text/plain", "") << "\n";
+        });
+        if (r["data"].is_object()) std::cout << r["data"].value("text/plain", "") << "\n";
+      } catch (const RuntimeError& e) {
+        if (e.type == "Disconnected") throw;
+        std::cerr << e.type << ": " << e.what() << "\n";
+      }
+    }
+    return 0;
+  }
   if (sub == "run") {
     if (arg.empty()) throw ControlError("run needs a runtime");
     json args = {{"runtime", arg}, {"owner", "cli"}};
@@ -194,6 +254,7 @@ int cmd_runtimes(ControlClient& c, const Args& a) {
     if (a.has("--backend")) args["backend"] = a.get("--backend");
     if (a.has("--network")) args["policy"] = {{"network", true}};
     if (a.has("--allow-unpinned")) args["allow_unpinned"] = true;
+    if (a.has("--allow-unverified")) args["allow_unverified"] = true;
     c.call("subscribe");
     std::string lease_id;
     int exit_code = -1;

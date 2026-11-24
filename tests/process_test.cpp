@@ -222,3 +222,20 @@ TEST_CASE("process: is_alive is false for nothing") {
   CHECK_FALSE(ProcessRunner::is_alive(0));
   CHECK_FALSE(ProcessRunner::is_alive(-5));
 }
+
+#ifndef _WIN32
+TEST_CASE("a child starts with no blocked or ignored signals", "[process]") {
+  // paperboatd blocks SIGINT for its signal thread and ignores SIGPIPE; its runtimes must not inherit either.
+  sigset_t block, old;
+  sigemptyset(&block);
+  sigaddset(&block, SIGINT);
+  pthread_sigmask(SIG_BLOCK, &block, &old);
+  auto previous = std::signal(SIGPIPE, SIG_IGN);
+  const auto r = ProcessRunner::run_sync({"sh", "-c", "grep -E '^Sig(Blk|Ign)' /proc/self/status"});
+  pthread_sigmask(SIG_SETMASK, &old, nullptr);
+  std::signal(SIGPIPE, previous);
+  REQUIRE(r.ok());
+  CHECK(r.stdout_text.find("SigBlk:\t0000000000000000") != std::string::npos);
+  CHECK(r.stdout_text.find("SigIgn:\t0000000000000000") != std::string::npos);
+}
+#endif

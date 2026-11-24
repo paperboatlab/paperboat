@@ -36,10 +36,15 @@ struct Manifest {
   std::string image_ref;     // "ghcr.io/paperboatlab/paperboat-runtime-julia:1.11.6-r1"
   std::string image_digest;  // "sha256:<64 hex>": what runs; the tag is for humans
   std::vector<std::string> arch;
+  // Who must have signed the digest (cosign keyless): a certificate identity regexp, e.g. the
+  // publishing workflow; "" = no signature expected (upstream images, pinned by digest only).
+  std::string image_signer;
+  std::string image_issuer = "https://token.actions.githubusercontent.com";
 
-  // mode -> argv inside the image; {ipc} {project} {deps} {work} {lease} are filled in at start
+  // mode -> argv inside the image; {ipc} {project} {deps} {work} {lib} {lease} are filled in at start
   std::map<std::string, std::vector<std::string>> entry;
-  // project | deps | work | ipc -> path inside the container
+  // project | deps | work | ipc | lib -> path inside the container. lib: the runtime library shipped
+  // beside the manifest (<manifest folder>/lib), mounted read-only
   std::map<std::string, std::string> mounts;
   std::vector<std::pair<std::string, std::string>> env;
   Limits limits;
@@ -57,6 +62,7 @@ struct Manifest {
   std::string image() const;
   bool pinned() const { return !image_digest.empty(); }
   bool has_mode(std::string_view mode) const;
+  fs::path lib_dir() const { return source.parent_path() / "lib"; }  // may not exist
 };
 
 // Parse a runtime.toml. Every error names the file and the key.

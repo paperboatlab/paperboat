@@ -38,6 +38,7 @@ struct AcquireRequest {
   std::string backend;                  // "" = the manager's preference
   std::string owner;                    // "simplicial", "articula", "cli": shown in ps
   bool allow_unpinned = false;
+  bool allow_unverified = false;        // run a signed runtime whose signature cannot be checked
 };
 
 struct Lease {
@@ -48,6 +49,7 @@ struct Lease {
   std::set<int> holders;                // client ids
   std::chrono::steady_clock::time_point started, idle_since;
   std::string digest;
+  std::string verified;                 // "signature" | "unsigned" (none expected) | "skipped" (allowed) | "native"
   std::vector<std::string> isolation;   // the flags in effect
   std::string state = "starting";       // starting | running | idle | exited | failed
   std::string error;
@@ -61,7 +63,12 @@ struct ManagerOptions {
   std::vector<std::string> backend_order{"podman", "docker", "native"};  // container first
   std::string daemon_id;                // "<boot id>:<pid>"; the label every instance carries
   fs::path state;                       // lease folders, deps volumes
+  // Check a signed manifest's image; "" = verified, else why not. Default: cosign verify.
+  std::function<std::string(const Manifest&)> verify;
 };
+
+// `cosign verify` of the manifest's ref@digest against its signer and issuer.
+std::string verify_with_cosign(const Manifest& m);
 
 class Manager {
  public:
@@ -85,6 +92,8 @@ class Manager {
   nlohmann::json ps();
   nlohmann::json stats(const std::string& lease);
   std::string logs(const std::string& lease, int tail);
+  // SIGINT to the lease's runtime: interrupts a running cell whatever the runtime is doing.
+  bool interrupt(const std::string& lease);
   nlohmann::json pull(const std::string& runtime, const std::string& backend, ProcessOutputCallback progress);
   nlohmann::json prune(bool dry_run);   // unused deps volumes, lease folders of dead leases
   bool empty() const;
@@ -108,6 +117,8 @@ class Manager {
   mutable std::mutex mutex_;
   std::condition_variable started_;  // a lease left "starting"
   std::map<std::string, std::unique_ptr<Lease>> leases_;
+  std::set<std::string> libs_copied_;
+  std::set<std::string> verified_;  // digests checked by this daemon
   unsigned long long next_ = 0;
 };
 

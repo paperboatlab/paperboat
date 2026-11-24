@@ -5,7 +5,8 @@ Paperboat Launcher. It runs the language runtimes the Paperboat apps need (Julia
 OpenModelica) from pinned, isolated container images, with a native fallback. The apps themselves
 (Simplicial, Articula, Julix) live in their own repositories.
 
-**Design:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Protocol:** [docs/control.md](docs/control.md)
+**Design:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Protocols:** [docs/control.md](docs/control.md)
+(apps ↔ daemon), [docs/runtime.md](docs/runtime.md) (apps ↔ runtimes)
 
 ## Layout
 
@@ -14,7 +15,8 @@ include/paperboat/   the runtime manager's API (manifest, catalog, policy, backe
 src/lib/             its implementation
 src/daemon/          paperboatd
 src/cli/             paperboat
-runtimes/            the shipped runtime manifests (one runtime.toml each)
+runtimes/            the shipped runtimes: runtime.toml and lib/ (the runtime library) each
+images/              the runtime images' recipe and versions (published by CI to ghcr.io)
 tests/               unit tests, and container tests against real podman
 ```
 
@@ -31,6 +33,7 @@ cmake -S . -B build -G Ninja && ninja -C build
 ```sh
 ./build/paperboat runtimes list
 ./build/paperboat runtimes run julia -- julia -e 'println(VERSION)'
+./build/paperboat runtimes repl julia       # a live session over paperboat-runtime/0
 ./build/paperboat runtimes ps
 ```
 

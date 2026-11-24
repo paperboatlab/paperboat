@@ -1,0 +1,43 @@
+# The runtime images listed in images/images.toml. Weekly too, so base-image fixes land.
+name: images
+on:
+  push:
+    branches: [main]
+    paths: [images/**, runtimes/*/lib/**, .github/workflows/runtime-image.yml, .github/workflows/images.yml]
+  pull_request:
+    paths: [images/**, runtimes/*/lib/**, .github/workflows/runtime-image.yml, .github/workflows/images.yml]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+jobs:
+  list:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.read.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'PY'
+          import json, tomllib
+          images = tomllib.load(open("images/images.toml", "rb"))
+          rows = [{"name": n, "version": v["version"], "revision": str(v["revision"]), "base": v["base"]} for n, v in images.items()]
+          print("matrix=" + json.dumps({"include": rows}))
+          PY
+  image:
+    needs: list
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
+    uses: ./.github/workflows/runtime-image.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    with:
+      name: ${{ matrix.name }}
+      version: ${{ matrix.version }}
+      revision: ${{ matrix.revision }}
+      base: ${{ matrix.base }}

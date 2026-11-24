@@ -58,13 +58,17 @@ class NativeBackend final : public Backend {
     for (const auto& k : kScrubbed) a.insert(a.end(), {"-u", k});
     const std::map<std::string, std::string> vars = {{"ipc", spec.ipc.string()}, {"project", spec.project.string()},
                                                      {"deps", spec.deps.string()}, {"work", spec.work.string()},
-                                                     {"lease", spec.name}, {"runtime", m.source.parent_path().string()}};
+                                                     {"lease", spec.name}, {"runtime", m.source.parent_path().string()},
+                                                     {"lib", spec.lib.string()}};
     // The image's env names container paths; natively the same variables point at host folders.
     for (const auto& [k, v] : m.env) {
+      // The image's identity variables describe the container, not this host: a native runtime keeps
+      // the user's (HOME=/tmp would send juliaup and pip to the wrong place).
+      if (k == "HOME" || k == "USER" || k == "PATH") continue;
       std::string value = v;
       for (const auto& [mount, inside] : m.mounts) {
         const std::string host = mount == "ipc" ? spec.ipc.string() : mount == "project" ? spec.project.string()
-                                 : mount == "deps" ? spec.deps.string() : spec.work.string();
+                                 : mount == "deps" ? spec.deps.string() : mount == "lib" ? spec.lib.string() : spec.work.string();
         for (auto at = value.find(inside); at != std::string::npos; at = value.find(inside, at + host.size()))
           value.replace(at, inside.size(), host);
       }
@@ -72,6 +76,7 @@ class NativeBackend final : public Backend {
     }
     a.push_back("PAPERBOAT_IPC=" + spec.ipc.string());
     a.push_back("PAPERBOAT_MODE=" + spec.mode);
+    if (!spec.project.empty()) a.push_back("PAPERBOAT_PROJECT=" + spec.project.string());
     std::vector<std::string> argv;
     if (spec.mode == "exec") argv = spec.command;
     else if (const auto it = m.native_entry.find(spec.mode); it != m.native_entry.end()) argv = expand(it->second, vars);
@@ -178,6 +183,17 @@ class NativeBackend final : public Backend {
     for (std::size_t i = lines.size() > static_cast<std::size_t>(tail) ? lines.size() - tail : 0; i < lines.size(); ++i)
       out += lines[i] + "\n";
     return out;
+  }
+
+  bool signal(const std::string& name, int sig) override {
+#ifdef _WIN32
+    (void)name;
+    (void)sig;
+    return false;
+#else
+    const auto rec = read(name);
+    return rec && rec->pid > 0 && ::kill(rec->pid, sig) == 0;  // the runtime itself (env execs into it)
+#endif
   }
 
   std::vector<std::string> remove_command(const Instance& i) const override {

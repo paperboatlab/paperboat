@@ -137,10 +137,11 @@ class OciBackend final : public Backend {
     for (auto& f : isolation_flags(spec, engine_, selinux_)) a.push_back(std::move(f));
     for (const auto& [k, v] : m.env) a.insert(a.end(), {"-e", k + "=" + v});
     a.insert(a.end(), {"-e", "PAPERBOAT_IPC=" + m.mounts.at("ipc"), "-e", "PAPERBOAT_MODE=" + spec.mode});
+    if (!spec.project.empty()) a.insert(a.end(), {"-e", "PAPERBOAT_PROJECT=" + m.mounts.at("project")});
     a.push_back(m.image());
     const std::map<std::string, std::string> vars = {{"ipc", m.mounts.at("ipc")}, {"project", m.mounts.at("project")},
                                                      {"deps", m.mounts.at("deps")}, {"work", m.mounts.at("work")},
-                                                     {"lease", spec.name}};
+                                                     {"lib", m.mounts.at("lib")}, {"lease", spec.name}};
     const auto argv = spec.mode == "exec" ? spec.command : expand(m.entry.at(spec.mode), vars);
     a.insert(a.end(), argv.begin(), argv.end());
     return a;
@@ -226,6 +227,11 @@ class OciBackend final : public Backend {
     return r.stdout_text + r.stderr_text;
   }
 
+  bool signal(const std::string& name, int sig) override {
+    // --init: the container's PID 1 is podman's init, which forwards the signal to the runtime
+    return ProcessRunner::run_sync({exe_, "kill", "--signal", std::to_string(sig), name}, {}, {}, kQuick).ok();
+  }
+
   std::vector<std::string> remove_command(const Instance& i) const override { return {exe_, "rm", "-f", "-t", "1", i.name}; }
 
  private:
@@ -266,6 +272,9 @@ std::vector<std::string> isolation_flags(const LaunchSpec& spec, const std::stri
   if (!spec.deps.empty()) a.insert(a.end(), {"-v", spec.deps.string() + ":" + m.mounts.at("deps") + ":rw" + own});
   if (!spec.work.empty()) a.insert(a.end(), {"-v", spec.work.string() + ":" + m.mounts.at("work") + ":rw" + own});
   if (!spec.ipc.empty()) a.insert(a.end(), {"-v", spec.ipc.string() + ":" + m.mounts.at("ipc") + ":rw" + own});
+  // The library is the daemon's copy, shared by every instance of the runtime: ":z", not ":Z".
+  if (!spec.lib.empty())
+    a.insert(a.end(), {"-v", spec.lib.string() + ":" + m.mounts.at("lib") + ":ro" + (own.empty() ? "" : ",z")});
   for (const auto& d : p.devices) a.insert(a.end(), {"--device", d});
   if (p.gpu) {
     if (engine == "podman") a.insert(a.end(), {"--device", "nvidia.com/gpu=all"});

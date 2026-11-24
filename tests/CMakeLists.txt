@@ -7,7 +7,7 @@ target_include_directories(paperboat_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(paperboat_tests PRIVATE PAPERBOAT_SOURCE_RUNTIMES="${PROJECT_SOURCE_DIR}/runtimes")
 
 # Against a real engine: tagged [podman], skipped (and reported) when podman is missing.
-add_executable(paperboat_container_tests container_test.cpp)
+add_executable(paperboat_container_tests container_test.cpp runtime_test.cpp)
 target_link_libraries(paperboat_container_tests PRIVATE paperboat::runtime Catch2::Catch2WithMain paperboat_warnings)
 target_compile_definitions(paperboat_container_tests PRIVATE
   PAPERBOAT_BIN_DIR="$<TARGET_FILE_DIR:paperboatd>"

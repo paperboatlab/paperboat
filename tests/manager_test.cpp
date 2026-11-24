@@ -53,6 +53,11 @@ struct Fake final : Backend {
   }
   Stats stats(const std::string&) override { return {1.5, 1024, 2}; }
   std::string logs(const std::string& n, int) override { return "log of " + n + "\n"; }
+  bool signal(const std::string& n, int sig) override {
+    signals.emplace_back(n, sig);
+    return true;
+  }
+  std::vector<std::pair<std::string, int>> signals;
   std::vector<std::string> remove_command(const Instance& i) const override { return {"rm", i.name}; }
 
   std::string name_;
@@ -307,4 +312,37 @@ TEST_CASE("prune removes dependency volumes of projects that are gone", "[manage
   CHECK(fs::exists(l["deps"].get<std::string>()));
   rig.manager->prune(false);
   CHECK_FALSE(fs::exists(l["deps"].get<std::string>()));
+}
+
+TEST_CASE("a signed runtime is verified once per digest, and refused when it cannot be", "[manager]") {
+  Catalog c;
+  Manifest m = manifest("signed");
+  m.image_signer = "^https://github.com/paperboatlab/";
+  c.add(m);
+  std::vector<std::unique_ptr<Backend>> b;
+  b.push_back(std::make_unique<Fake>("podman"));
+  ManagerOptions o;
+  o.daemon_id = "boot:1";
+  o.state = fs::temp_directory_path() / "pb-verify-test";
+  int checks = 0;
+  std::string answer = "no matching signatures";
+  o.verify = [&](const Manifest&) { ++checks; return answer; };
+  Manager mgr(std::move(c), std::move(b), o);
+  AcquireRequest r;
+  r.runtime = "signed";
+  r.mode = "session";
+  CHECK_THROWS_WITH(mgr.acquire(r, 1), ContainsSubstring("could not be verified: no matching signatures"));
+  r.allow_unverified = true;
+  CHECK(mgr.acquire(r, 1)["verified"] == "skipped");
+  r.allow_unverified = false;
+  answer = "";
+  CHECK(mgr.acquire(r, 2)["verified"] == "signature");
+  CHECK(mgr.acquire(r, 3)["verified"] == "signature");
+  CHECK(checks == 3);  // the last acquire did not check again
+  fs::remove_all(o.state);
+}
+
+TEST_CASE("unsigned upstream images and native runtimes say so", "[manager]") {
+  Rig rig;
+  CHECK(rig.manager->acquire(rig.req(), 1)["verified"] == "unsigned");
 }

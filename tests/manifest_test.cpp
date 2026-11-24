@@ -172,3 +172,30 @@ TEST_CASE("the OCI command carries labels, env and the entry", "[backend]") {
   CHECK(cmd.back() == "--lease=pb-tiny-1-2-3-none-1");
   CHECK(has(cmd, "/run/pb/control.sock"));
 }
+
+TEST_CASE("a native runtime keeps the user's HOME, USER and PATH", "[backend]") {
+  Manifest m = parse_manifest(R"(
+name = "n"
+version = "1"
+protocol = "p"
+modes = ["session"]
+[env]
+HOME = "/tmp"
+USER = "omc"
+DEPOT = "/work/deps:"
+[native]
+requires = "sh"
+entry.session = ["sh", "{lib}/x"]
+)");
+  auto b = make_native_backend(fs::temp_directory_path());
+  LaunchSpec spec;
+  spec.manifest = &m;
+  spec.mode = "session";
+  spec.deps = "/state/deps/n";
+  spec.lib = "/state/lib/n";
+  const auto cmd = b->command(spec);
+  CHECK_FALSE(has(cmd, "HOME=/tmp"));
+  CHECK_FALSE(has(cmd, "USER=omc"));
+  CHECK(has(cmd, "DEPOT=/state/deps/n:"));  // container paths become host paths
+  CHECK(cmd.back() == "/state/lib/n/x");
+}

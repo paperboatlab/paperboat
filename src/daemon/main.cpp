@@ -142,6 +142,7 @@ AcquireRequest acquire_request(const json& a, const std::string& fallback_owner)
   r.backend = a.value("backend", std::string());
   r.owner = a.value("owner", fallback_owner);
   r.allow_unpinned = a.value("allow_unpinned", false);
+  r.allow_unverified = a.value("allow_unverified", false);
   return r;
 }
 
@@ -157,6 +158,7 @@ json handle(Manager& m, Client& c, const std::string& op, const json& args, cons
   if (op == "backends") return m.backends();
   if (op == "ps") return m.ps();
   if (op == "stats") return m.stats(args.at("lease").get<std::string>());
+  if (op == "interrupt") return {{"delivered", m.interrupt(args.at("lease").get<std::string>())}};
   if (op == "logs") return {{"text", m.logs(args.at("lease").get<std::string>(), args.value("tail", 200))}};
   if (op == "pull")
     return m.pull(args.at("runtime").get<std::string>(), args.value("backend", std::string()),

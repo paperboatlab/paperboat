@@ -33,7 +33,17 @@ flowchart LR
 - `manager.hpp`, `src/lib/manager.cpp`: `Manager`, `Lease`, `AcquireRequest`: acquire/release,
   the warm pool, `tick` (idle expiry, ended instances), `reap`, `prune`, events.
 - `control.hpp`, `src/lib/control.cpp`: `ControlClient` (starts the daemon on demand).
-- `process.hpp`, `src/lib/process*.cpp`: `ProcessRunner`, from the Paperboat engine, unchanged.
+- `process.hpp`, `src/lib/process*.cpp`: `ProcessRunner`, from the Paperboat engine (plus a clean signal state for children).
+- `runtime.hpp`, `src/lib/runtime_client.cpp`: `RuntimeClient`, the app side of
+  `paperboat-runtime/0` (docs/runtime.md): JSON frames over `<ipc>/runtime.sock`, `interrupt`, and the
+  shared-memory fast path (`open_fast`, `bind`, `call_fast`).
+- `runtimes/<name>/runtime.toml` + `runtimes/<name>/lib/`: a runtime and its library. The library
+  (Julia `PaperboatRuntime.jl`, Python `paperboat_runtime`, both stdlib only) is copied by the daemon to
+  `<state>/lib/<runtime>` and mounted read-only at `/opt/pb`, so the upstream image works unchanged
+  and a library fix needs no image rebuild.
+- `images/`: one `Containerfile` for every runtime image (upstream base pinned by digest, library baked
+  in, OCI labels) and `images.toml`; `.github/workflows/runtime-image.yml` (reusable) builds, scans
+  (Trivy), attests (SBOM, SLSA provenance), signs (cosign keyless) and pushes from `main` only.
 - `src/daemon/main.cpp`: socket server, cleaner, signals, idle exit.
 - `src/cli/main.cpp`: `paperboat runtimes …`, `paperboat daemon …`.
 
@@ -55,4 +65,12 @@ flowchart LR
    disconnects releases its leases. Each is tested against podman.
 7. **Warm means a running process.** Station-mode instances stay running for the idle timeout and are
    reused by key (runtime, mode, backend, project, policy); session and exec instances are never shared.
-8. **Clients only speak the protocol.** The CLI's `--json` output is the daemon's objects.
+8. **Clients only speak the protocols.** The CLI's `--json` output is the daemon's objects; an app
+   talks to a runtime only through `paperboat-runtime/0`.
+9. **Data never crosses stdio.** Podman relays a container's stdio through conmon (+30–130 µs a call);
+   the runtime listens on a socket in the lease's ipc folder, and hot calls use shared memory there.
+10. **Signed means verified.** A manifest that names `image.signer` runs only after `cosign verify` of
+    its digest succeeds (once per digest per daemon), unless the request allows it; the lease's
+    `verified` says which (`signature`, `unsigned`, `skipped`, `native`) for the run record.
+11. **Children inherit nothing odd.** `ProcessRunner` clears the signal mask and ignored signals before
+    exec: the daemon blocks SIGINT for its signal thread, and a runtime must still be interruptible.

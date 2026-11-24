@@ -1,0 +1,18 @@
+# The runtime images CI publishes to ghcr.io/paperboatlab/paperboat-runtime-<name>:<version>-r<revision>
+# (and :<version>). Bump `revision` to rebuild on the same toolchain; a weekly job rebuilds anyway so
+# base-image fixes land. After a publish, the manifest in runtimes/<name>/runtime.toml is pinned to the
+# new digest (never to a tag).
+[julia]
+version  = "1.11.6"
+revision = 1
+base     = "docker.io/library/julia:1.11.6-bookworm@sha256:1623eb4161dc20ee57bcf694e48cb16cfc2aed71507e79b2ff170a206ccd7803"
+
+[python]
+version  = "3.12"
+revision = 1
+base     = "docker.io/library/python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b"
+
+[omc]
+version  = "1.27.1"
+revision = 1
+base     = "docker.io/openmodelica/openmodelica:v1.27.1-minimal@sha256:ac9a0223e69b8055d444b42f58ccb9680342b56848c68b81385bf83d7c0ba824"

@@ -13,7 +13,7 @@ namespace paperboat {
 namespace {
 
 const std::vector<std::string> kModes = {"station", "session", "exec"};
-const std::vector<std::string> kMounts = {"project", "deps", "work", "ipc"};
+const std::vector<std::string> kMounts = {"project", "deps", "work", "ipc", "lib"};
 
 [[noreturn]] void fail(const fs::path& source, const std::string& key, const std::string& what) {
   throw ManifestError(source.string() + ": " + key + ": " + what);
@@ -126,6 +126,9 @@ Manifest parse_manifest(std::string_view text, const fs::path& source) {
     if (!m.image_digest.empty() && !std::regex_match(m.image_digest, digest_re))
       fail(source, "image.digest", "must be sha256:<64 lowercase hex>");
     m.arch = strings(image->get("arch"), source, "image.arch");
+    m.image_signer = str(*image, "signer", source, false);
+    m.image_issuer = str(*image, "issuer", source, false, m.image_issuer);
+    if (!m.image_signer.empty() && m.image_digest.empty()) fail(source, "image.signer", "a signed image must be pinned (image.digest)");
   }
 
   m.entry = entries(t["entry"].as_table(), source, "entry");
@@ -133,11 +136,11 @@ Manifest parse_manifest(std::string_view text, const fs::path& source) {
     if (mode != "exec" && !m.image_ref.empty() && !m.entry.contains(mode))
       fail(source, "entry." + mode, "missing: the command for mode " + mode);
 
-  m.mounts = {{"project", "/work/project"}, {"deps", "/work/deps"}, {"work", "/work/out"}, {"ipc", "/run/pb"}};
+  m.mounts = {{"project", "/work/project"}, {"deps", "/work/deps"}, {"work", "/work/out"}, {"ipc", "/run/pb"}, {"lib", "/opt/pb"}};
   if (const auto* mounts = t["mounts"].as_table())
     for (const auto& [k, v] : *mounts) {
       const std::string key(k.str());
-      if (std::ranges::find(kMounts, key) == kMounts.end()) fail(source, "mounts." + key, "unknown mount (project, deps, work, ipc)");
+      if (std::ranges::find(kMounts, key) == kMounts.end()) fail(source, "mounts." + key, "unknown mount (project, deps, work, ipc, lib)");
       if (!v.is_string() || !v.value<std::string>()->starts_with("/")) fail(source, "mounts." + key, "an absolute path");
       m.mounts[key] = *v.value<std::string>();
     }
@@ -181,7 +184,7 @@ nlohmann::json to_json(const Manifest& m) {
           {"version", m.version},
           {"protocol", m.protocol},
           {"modes", m.modes},
-          {"image", {{"ref", m.image_ref}, {"digest", m.image_digest}, {"arch", m.arch}, {"run", m.image()}}},
+          {"image", {{"ref", m.image_ref}, {"digest", m.image_digest}, {"arch", m.arch}, {"run", m.image()}, {"signer", m.image_signer}}},
           {"pinned", m.pinned()},
           {"native", {{"requires", m.native_requires}, {"modes", [&] {
                         std::vector<std::string> modes;

@@ -62,6 +62,7 @@ json to_json(const Lease& l) {
           {"deps", l.deps.string()},
           {"ipc", (l.dir / "ipc").string()},
           {"digest", l.digest},
+          {"verified", l.verified},
           {"isolation", l.isolation},
           {"policy", to_json(l.policy)},
           {"weakened", l.policy.weakened()},
@@ -199,6 +200,19 @@ json Manager::acquire(const AcquireRequest& req, int client) {
   spec.ipc = l.dir / "ipc";
   spec.policy = req.policy;
   spec.log = l.dir / "log.txt";
+  if (fs::is_directory(m->lib_dir())) {
+    // The daemon's own copy: relabelled for containers on SELinux, never the user's (or the
+    // installation's) files, and unchanged under a running instance if paperboat is updated.
+    spec.lib = options_.state / "lib" / sanitize(m->id());
+    if (!libs_copied_.contains(m->id())) {
+      std::error_code ec;
+      fs::remove_all(spec.lib, ec);
+      fs::create_directories(spec.lib);
+      fs::copy(m->lib_dir(), spec.lib, fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
+      if (ec) throw std::runtime_error("cannot copy " + m->lib_dir().string() + ": " + ec.message());
+      libs_copied_.insert(m->id());
+    }
+  }
   spec.labels = {{"paperboat.daemon", options_.daemon_id}, {"paperboat.lease", l.id}, {"paperboat.runtime", m->id()},
                  {"paperboat.mode", req.mode}, {"paperboat.owner", l.owner}, {"paperboat.digest", m->image_digest}};
   l.instance.name = spec.name;
@@ -210,9 +224,32 @@ json Manager::acquire(const AcquireRequest& req, int client) {
 
   // Pull and start outside the lock: a pull can take minutes, a start about a second.
   lock.unlock();
-  std::string error;
+  std::string error, verified;
   Instance instance;
   try {
+    if (backend->name() == "native") {
+      verified = "native";
+    } else if (m->image_signer.empty()) {
+      verified = "unsigned";
+    } else {
+      bool known;
+      {
+        std::lock_guard vlock(mutex_);
+        known = verified_.contains(m->image_digest);
+      }
+      const std::string problem = known ? "" : (options_.verify ? options_.verify : verify_with_cosign)(*m);
+      if (problem.empty()) {
+        verified = "signature";
+        std::lock_guard vlock(mutex_);
+        if (!known) emit({{"event", "runtime.verified"}, {"runtime", m->id()}, {"digest", m->image_digest}});
+        verified_.insert(m->image_digest);
+      } else if (req.allow_unverified) {
+        verified = "skipped";
+        emit({{"event", "runtime.unverified"}, {"runtime", m->id()}, {"reason", problem}});
+      } else {
+        throw std::runtime_error("the signature of " + m->image() + " could not be verified: " + problem);
+      }
+    }
     if (!backend->has_image(*m)) {
       emit({{"event", "runtime.pulling"}, {"runtime", m->id()}, {"backend", backend->name()}});
       const auto r = backend->pull(*m);
@@ -238,6 +275,7 @@ json Manager::acquire(const AcquireRequest& req, int client) {
     throw std::runtime_error(error);
   }
   done.instance = instance;
+  done.verified = verified;
   done.state = "running";
   started_.notify_all();
   emit({{"event", "runtime.started"}, {"lease", done.id}, {"runtime", done.runtime}, {"backend", done.backend},
@@ -445,6 +483,20 @@ std::string Manager::logs(const std::string& id, int tail) {
   return b ? b->logs(name, tail) : "";
 }
 
+bool Manager::interrupt(const std::string& id) {
+  std::string backend, name;
+  {
+    std::lock_guard lock(mutex_);
+    const auto it = leases_.find(id);
+    if (it == leases_.end()) throw std::runtime_error("no lease " + id);
+    if (it->second->state != "running") return false;
+    backend = it->second->backend;
+    name = it->second->instance.name;
+  }
+  Backend* b = backend_named(backend);
+  return b && b->signal(name, 2 /*SIGINT*/);
+}
+
 json Manager::pull(const std::string& runtime, const std::string& backend, ProcessOutputCallback progress) {
   const Manifest* m = catalog_.resolve(runtime);
   if (!m) throw std::runtime_error("unknown runtime \"" + runtime + "\"");
@@ -480,6 +532,18 @@ json Manager::prune(bool dry_run) {
       if (!dry_run) fs::remove_all(vol.path(), ec);
     }
   return {{"removed", removed}, {"dry_run", dry_run}};
+}
+
+std::string verify_with_cosign(const Manifest& m) {
+  const std::string cosign = which("cosign");
+  if (cosign.empty()) return "cosign is not installed (https://docs.sigstore.dev/cosign/system_config/installation/)";
+  const auto r = ProcessRunner::run_sync({cosign, "verify", "--certificate-identity-regexp", m.image_signer,
+                                          "--certificate-oidc-issuer", m.image_issuer, m.image()},
+                                         {}, {}, std::chrono::seconds(120));
+  if (r.ok()) return "";
+  std::string why = r.stderr_text.empty() ? r.stdout_text : r.stderr_text;
+  while (!why.empty() && std::isspace(static_cast<unsigned char>(why.back()))) why.pop_back();
+  return why.empty() ? "cosign verify failed" : why;
 }
 
 }  // namespace paperboat

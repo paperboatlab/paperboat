@@ -1,0 +1,23 @@
+# One recipe for every paperboat runtime image: the upstream toolchain image (pinned by digest in
+# images.toml), the runtime library baked in at /opt/pb (the daemon still mounts the installed one over
+# it, so an image works with any paperboat of the same protocol), and the traceability labels.
+#
+#   podman build --build-arg BASE=docker.io/library/julia@sha256:... --build-arg RUNTIME=julia \
+#                -f images/Containerfile -t paperboat-runtime-julia:dev .
+ARG BASE
+FROM ${BASE}
+ARG RUNTIME
+ARG VERSION
+ARG REVISION=dev
+ARG SOURCE=https://github.com/paperboatlab/paperboat
+ARG COMMIT=unknown
+ARG BASE
+COPY runtimes/${RUNTIME}/lib/ /opt/pb/
+LABEL org.opencontainers.image.title="paperboat-runtime-${RUNTIME}" \
+      org.opencontainers.image.version="${VERSION}-r${REVISION}" \
+      org.opencontainers.image.source="${SOURCE}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      org.opencontainers.image.base.name="${BASE}" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
+      io.paperboat.protocol="paperboat-runtime/0" \
+      io.paperboat.runtime="${RUNTIME}"

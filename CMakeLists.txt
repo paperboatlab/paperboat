@@ -45,6 +45,7 @@ add_library(paperboat_runtime STATIC
   src/lib/backend_native.cpp
   src/lib/manager.cpp
   src/lib/control.cpp
+  src/lib/runtime_client.cpp
   ${PAPERBOAT_PROCESS_SOURCE})
 add_library(paperboat::runtime ALIAS paperboat_runtime)
 target_include_directories(paperboat_runtime PUBLIC
