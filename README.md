@@ -41,13 +41,13 @@ cmake -S . -B build -G Ninja && ninja -C build
 ./build/paperboat runtime ps
 ```
 
+`paperboat` starts `paperboatd` on demand; `paperboat daemon stop` stops it.
+
 ## Packages
 
 `cd build && cpack -G RPM` (Linux) or `cpack -G productbuild` (macOS) makes `paperboat-cli` (the CLI,
 the daemon, runtimes, registries) and `paperboat-devel` (headers, library, `find_package(paperboat)`);
 the CLI requires devel. CI builds rpm x86_64 and macOS arm64 ([package.yml](.github/workflows/package.yml)).
-
-`paperboat` starts `paperboatd` on demand; `paperboat daemon stop` stops it.
 
 ## License
 
