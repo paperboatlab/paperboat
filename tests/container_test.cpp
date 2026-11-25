@@ -2,6 +2,7 @@
 // is skipped with a message when podman is not available.
 
 #include "daemon.hpp"
+#include "paperboat/runtime.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -95,6 +96,21 @@ TEST_CASE("julia, python and omc run from their pinned images", "[podman]") {
              ContainsSubstring("1.11.9"));
   CHECK_THAT(exec(*c, {{"runtime", "python@3.12"}, {"command", {"python3", "-V"}}}).second, ContainsSubstring("3.12"));
   CHECK_THAT(exec(*c, {{"runtime", "omc"}, {"command", {"omc", "--version"}}}).second, ContainsSubstring("1.27.1"));
+}
+
+TEST_CASE("omc serves a session through its bridge, network off", "[podman]") {
+  NEED_PODMAN();
+  Daemon d;
+  d.start();
+  auto c = d.client();
+  const json lease = c->call("acquire", {{"runtime", "omc"}, {"mode", "session"}, {"owner", "test"}});
+  RuntimeClient rt(lease["ipc"].get<std::string>(), 5min);  // the first start may pull the image
+  CHECK(rt.hello()["runtime"]["name"] == "omc");
+  CHECK(rt.request("eval", {{"code", "1+1"}})["data"]["text/plain"] == "2");
+  CHECK(rt.request("eval", {{"code", "loadString(\"model M Real x(start=1); equation der(x) = -x; end M;\")"}})["data"]["text/plain"] == "true");
+  CHECK(rt.request("eval", {{"code", "getClassNames()"}})["data"]["text/plain"] == "{M}");
+  CHECK_THROWS_AS(rt.request("nope"), RuntimeError);
+  c->call("release", {{"lease", lease["id"]}});
 }
 
 TEST_CASE("a crashing runtime fails its lease with its exit code", "[podman]") {

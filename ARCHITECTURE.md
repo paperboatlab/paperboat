@@ -38,7 +38,8 @@ flowchart LR
   `paperboat-runtime/0` (docs/runtime.md): JSON frames over `<ipc>/runtime.sock`, `interrupt`, and the
   shared-memory fast path (`open_fast`, `bind`, `call_fast`).
 - `runtimes/<name>/runtime.toml` + `runtimes/<name>/lib/`: a runtime and its library. The library
-  (Julia `PaperboatRuntime.jl`, Python `paperboat_runtime`, both stdlib only) is copied by the daemon to
+  (Julia `PaperboatRuntime.jl`, Python `paperboat_runtime`, both stdlib only; OpenModelica `serve.pl`,
+  a session bridge in core Perl that speaks ZeroMQ to omc on the container's loopback) is copied by the daemon to
   `<state>/lib/<runtime>` and mounted read-only at `/opt/pb`, so the upstream image works unchanged
   and a library fix needs no image rebuild.
 - `images/`: one `Containerfile` for every runtime image (upstream base pinned by digest, library baked

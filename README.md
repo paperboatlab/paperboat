@@ -43,6 +43,7 @@ cmake -S . -B build -G Ninja && ninja -C build
 ./build/paperboat help                     # every command (src/cli/commands.toml)
 ./build/paperboat runtimes                 # runtimes and where they can run
 ./build/paperboat package add python six --project ~/demo   # pulls the image if missing
+./build/paperboat package add omc Modelica --project ~/demo  # Modelica libraries are omc's packages
 ./build/paperboat runtime ps
 ```
 

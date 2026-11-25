@@ -12,6 +12,15 @@ Two modes, one library per language:
   process, so a client that reconnects finds its variables. Never pooled, never shared between leases.
 - **station**: domain objects (Simplicial blocks). Each connection has its own objects.
 
+**OpenModelica** (`omc`) has session mode only: `runtimes/omc/lib/serve.pl` starts omc's own interactive
+server (ZeroMQ, TCP on the container's loopback, so the container keeps `--network=none`) and serves the
+socket like any runtime. `eval`'s `code` is one omc expression (`loadModel(Modelica)`, `simulate(M)`);
+the result's `text/plain` is omc's reply as it wrote it (`true`, `"…"`, `{…}`). omc answers one call at a
+time, so requests from every connection run in arrival order; it can't stop a call, so `interrupt` ends
+the session. Its working directory is `/`: `cd("/work/out")` before a build. Modelica libraries are its
+packages (`paperboat package add omc Modelica --project <dir>`, into the package volume, which is omc's
+`HOME`).
+
 ## Control plane
 
 Frames on the socket: `[u32 little-endian length][UTF-8 JSON]`. Each side may send at any time.
