@@ -11,10 +11,13 @@ const here = new URL('.', import.meta.url).pathname;
 const bin = process.env.PAPERBOAT_BIN || join(here, '../../../build/paperboat');
 const home = mkdtempSync(join(tmpdir(), 'pb-launcher-'));
 const checkout = join(home, 'demo-src'), project = join(home, 'hub'), data = join(home, 'data');
+// one Launcher through the steps: a failed step skips the rest instead of starting them on a fresh home
+test.describe.configure({mode: 'serial'});
 let app: ElectronApplication;
 let page: Page;
 
-const shot = (name: string) => page.screenshot({path: join(here, '../test-results', `launcher-${name}.png`)});
+// for people to look at, not a check: a screen that can't be captured (Xvfb without a GPU) fails nothing
+const shot = (name: string) => page.screenshot({path: join(here, '../test-results', `launcher-${name}.png`)}).catch(() => {});
 const answerFolder = (dir: string) =>
   app.evaluate(({dialog}, d) => {
     dialog.showOpenDialog = (async () => ({canceled: false, filePaths: [d]})) as typeof dialog.showOpenDialog;
@@ -27,7 +30,8 @@ test.beforeAll(async () => {
   chmodSync(join(checkout, 'bin/serve'), 0o755);
   writeFileSync(join(project, 'index.html'), '<title>demo hub</title>');
   app = await electron.launch({
-    args: [join(here, '..'), ...(process.env.CI ? ['--no-sandbox'] : [])],  // CI runners can't use Chromium's setuid sandbox helper
+    // CI runners: no setuid sandbox helper, no GPU under Xvfb
+    args: [join(here, '..'), ...(process.env.CI ? ['--no-sandbox', '--disable-gpu'] : [])],
     env: {...process.env, PAPERBOAT_BIN: bin, PAPERBOAT_HOME: home, PAPERBOAT_RUNTIME_DIR: join(home, 'run'), PAPERBOAT_DATA_DIR: data, PAPERBOAT_BACKENDS: 'native'},
   });
   page = await app.firstWindow();
@@ -35,11 +39,12 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  try {
-    execFileSync(bin, ['session', 'stop', '--all'], {env: {...process.env, PAPERBOAT_HOME: home, PAPERBOAT_RUNTIME_DIR: join(home, 'run')}});
-    execFileSync(bin, ['daemon', 'stop'], {env: {...process.env, PAPERBOAT_HOME: home, PAPERBOAT_RUNTIME_DIR: join(home, 'run')}});
-  } catch {}
-  await app?.close();
+  const env = {...process.env, PAPERBOAT_HOME: home, PAPERBOAT_RUNTIME_DIR: join(home, 'run')};
+  for (const args of [['session', 'stop', '--all'], ['daemon', 'stop']])
+    try {
+      execFileSync(bin, args, {env, timeout: 15_000});
+    } catch {}
+  await Promise.race([app?.close(), new Promise(r => setTimeout(r, 15_000))]);
   rmSync(home, {recursive: true, force: true});
 });
 
