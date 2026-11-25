@@ -896,7 +896,7 @@ int paperboat_update(Args& a) {
 }
 
 int paperboat_about(Args& a) {
-  json about = {{"paperboat", PAPERBOAT_VERSION}, {"channel", channel()}, {"daemon", nullptr}, {"apps", json::array()}, {"toolkits", json::array()}};
+  json about = {{"paperboat", PAPERBOAT_VERSION}, {"channel", channel()}, {"daemon", nullptr}, {"home", paths::home().string()}, {"apps", json::array()}, {"toolkits", json::array()}};
   try {
     ControlClient c(a.socket, false);
     const json h = c.call("hello");

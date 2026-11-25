@@ -2,12 +2,12 @@
 // the terminal's scrollback through <Static>), the prompt with registry completion, and a status line.
 // It owns no logic: every command is @paperboat/client's run(line), i.e. the CLI's own words.
 
-import {Box, Static, useApp, useInput, useWindowSize} from 'ink';
+import {Box, Static, useApp, useInput, useWindowSize, type Key} from 'ink';
 import {readdirSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {resolve} from 'node:path';
 import {useEffect, useReducer, useRef, useState} from 'react';
-import {complete, edit, findCommand, ghost as ghostOf, remember, splitWords, type Choice, type Client, type Job, type Line as InputLine, type Sources, type State} from '@paperboat/client';
+import {complete, edit, findCommand, ghost as ghostOf, remember, searchHistory, splitWords, type Choice, type Client, type Job, type Line as InputLine, type Sources, type State} from '@paperboat/client';
 import {useStore} from '@paperboat/client/react';
 import {box, fit, seg, type Line} from './grid.ts';
 import {Lines} from './Lines.tsx';
@@ -19,6 +19,7 @@ export interface About {
   paperboat: string;
   channel: string;
   daemon: {version: string; runtimes: number} | null;
+  home?: string;
 }
 
 interface Entry {
@@ -44,6 +45,7 @@ const KEYS: Line[] = [
   ['/', 'the commands (the registry)'],
   ['Tab  →', 'take the suggestion'],
   ['↑ ↓', 'choose in the menu; history on an empty menu'],
+  ['Ctrl+R', 'search the history (again: older; Enter runs, Tab edits)'],
   ['Enter', 'run (or fill in the chosen command)'],
   ['Esc', 'clear the line; stop following events'],
   ['Ctrl+A E U K W', 'start, end, cut before, cut after, cut a word'],
@@ -72,13 +74,21 @@ function sources(s: State, cwd: string): Sources {
   return {commands: s.commands, args, listDir};
 }
 
-export function App({client, about, cwd, glyphs}: {client: Client; about: About | null; cwd: string; glyphs: boolean}) {
+export function App({client, about, cwd, glyphs, history = [], onHistory}: {
+  client: Client;
+  about: About | null;
+  cwd: string;
+  glyphs: boolean;
+  /** The lines kept from earlier runs, oldest first; `onHistory` gets each new one to keep. */
+  history?: string[];
+  onHistory?: (line: string) => void;
+}) {
   const {exit} = useApp();
   const {columns} = useWindowSize();
   const w = Math.max(40, Math.min(columns || 80, 120));
   const state = useStore(client, s => s);
   // The prompt lives in a ref: keys can come faster than renders, and each must see the last one's line.
-  const ui = useRef({line: {text: '', cursor: 0} as InputLine, menu: 0, history: [] as string[], hi: -1});
+  const ui = useRef({line: {text: '', cursor: 0} as InputLine, menu: 0, history, hi: -1, search: null as null | {query: string; n: number; before: InputLine}});
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   const set = (patch: Partial<typeof ui.current>) => {
     Object.assign(ui.current, patch);
@@ -125,7 +135,9 @@ export function App({client, about, cwd, glyphs}: {client: Client; about: About 
   async function exec(input: string) {
     const t = input.trim().replace(/^\//, '');
     if (!t) return;
-    set({history: remember(ui.current.history, '/' + t), hi: -1});
+    const h = remember(ui.current.history, '/' + t);
+    if (h !== ui.current.history) onHistory?.('/' + t);
+    set({history: h, hi: -1});
     const head: Line = [seg('› ', C.mu), seg('/' + t, C.fg, true)];
     const cmd = findCommand(client.getState().commands, splitWords(t))?.cmd;
     if (cmd?.id === 'paperboat.quit') return exit();
@@ -151,7 +163,15 @@ export function App({client, about, cwd, glyphs}: {client: Client; about: About 
     setDone(d => [...d, {key, lines: [head, ...indent(jobLines(job, client.getState(), w - 2)), []]}]);
   }
 
+  // A paste (or keys faster than the terminal reads) comes as one chunk: Enter inside it runs the line.
   useInput((input, key) => {
+    if (input.length < 2 || !/[\r\n]/.test(input)) return onKey(input, key);
+    for (const part of input.split(/(\r\n|\r|\n)/))
+      if (/^[\r\n]+$/.test(part)) onKey('', {...key, return: true});
+      else if (part) onKey(part, key);
+  });
+
+  function onKey(input: string, key: Key) {
     const {line, text, src, shown, pick, fill, ghost} = derive();
     const {history, hi} = ui.current;
     if (key.ctrl && input === 'c') {
@@ -162,6 +182,8 @@ export function App({client, about, cwd, glyphs}: {client: Client; about: About 
       return;
     }
     setQuitting(false);
+    if (ui.current.search) return searchKey(input, key);
+    if (key.ctrl && input === 'r') return set({search: {query: '', n: 0, before: line}});
     if (key.return) {
       const c = shown[pick];
       const f = c && fill(c.value);
@@ -209,7 +231,28 @@ export function App({client, about, cwd, glyphs}: {client: Client; about: About 
       setLine(next);
       setMenu(0);
     }
-  });
+  }
+
+  // Ctrl+R: the newest history line containing the query; Ctrl+R again goes older.
+  const found = () => {
+    const s = ui.current.search!;
+    const all = searchHistory(ui.current.history, s.query);
+    return all[Math.min(s.n, all.length - 1)] ?? '';
+  };
+  function searchKey(input: string, key: Key) {
+    const s = ui.current.search!;
+    const hit = found();
+    if (key.ctrl && input === 'r') return set({search: {...s, n: Math.min(s.n + 1, searchHistory(ui.current.history, s.query).length - 1)}});
+    if (key.escape || (key.ctrl && input === 'g')) return set({search: null, line: s.before});
+    if (key.return) {
+      set({search: null, line: {text: '', cursor: 0}});
+      return void exec(hit);
+    }
+    if (key.backspace || key.delete) return set({search: {...s, query: s.query.slice(0, -1), n: 0}});
+    if (input && !key.ctrl && !key.meta && !key.tab) return set({search: {...s, query: s.query + input, n: 0}});
+    // Tab, an arrow or any other key: take the line to edit it.
+    set({search: null, line: {text: hit || s.before.text, cursor: (hit || s.before.text).length}});
+  }
 
   const {line, text, src, shown, pick, ghost} = derive();
   const live: Line[] = [
@@ -223,7 +266,11 @@ export function App({client, about, cwd, glyphs}: {client: Client; about: About 
   const before = text.slice(0, line.cursor);
   const at = text[line.cursor] ?? ghost[0] ?? ' ';
   const after = line.cursor < text.length ? text.slice(line.cursor + 1) : ghost.slice(1);
-  const prompt = box('', '', [[seg('› ', C.p), seg(before), {text: at, color: C.screen, bg: C.fg}, seg(after, line.cursor < text.length ? C.fg : C.mu)]], w);
+  const search = ui.current.search;
+  const hit = search ? found() : '';
+  const prompt = search
+    ? box('', '', [[seg('search ', C.mu), seg(search.query, C.fg, true), {text: ' ', color: C.screen, bg: C.fg}, seg(hit ? '  ' + hit : '  no match', hit ? C.fg : C.mu)]], w)
+    : box('', '', [[seg('› ', C.p), seg(before), {text: at, color: C.screen, bg: C.fg}, seg(after, line.cursor < text.length ? C.fg : C.mu)]], w);
   const menuLines: Line[] = shown.map((c, i) => {
     const sel = i === pick ? C.selbg : undefined;
     const cmd = src.commands.find(x => x.name === c.value);
@@ -238,7 +285,7 @@ export function App({client, about, cwd, glyphs}: {client: Client; about: About 
     seg(nSessions ? `${nSessions} running` : 'nothing running', nSessions ? accent(state.sessions[0].app) : C.mu),
     seg(` · ${about?.channel ?? 'release'} ${about?.paperboat ?? ''} · ${tilde(cwd)}`, C.mu),
     seg('   '),
-    seg(quitting ? 'ctrl-c again quits' : '? keys · ctrl-c twice quits', quitting ? C.fg : C.ln),
+    seg(search ? 'ctrl-r older · enter runs · tab edits · esc cancels' : quitting ? 'ctrl-c again quits' : '? keys · ctrl-c twice quits', quitting || search ? C.fg : C.ln),
   ];
 
   return (
@@ -248,7 +295,7 @@ export function App({client, about, cwd, glyphs}: {client: Client; about: About 
       </Static>
       <Lines lines={live} />
       <Lines lines={prompt} />
-      <Lines lines={menuLines.length ? menuLines : [status]} />
+      <Lines lines={menuLines.length && !search ? menuLines : [status]} />
     </Box>
   );
 }

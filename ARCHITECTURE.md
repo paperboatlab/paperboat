@@ -69,6 +69,7 @@ flowchart LR
   `apps/cli/dist/main.js`; `PAPERBOAT_TUI` overrides, `PAPERBOAT_NO_TUI` turns it off) with
   `PAPERBOAT_BIN` set; without node it prints the help. Lists are drawn from `--json` (`views.ts`),
   every other command shows the CLI's own words; finished output goes to the scrollback (`<Static>`).
+  History is `<home>/history` (the home from `paperboat about --json`), searched with Ctrl+R.
   `npm run build -w @paperboat/cli` bundles it into one file (esbuild) for the packages.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
