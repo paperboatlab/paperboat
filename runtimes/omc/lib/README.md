@@ -1,2 +1,3 @@
-The OpenModelica runtime's library: empty for now. Articula's session bridge (omc's ZMQ server
-reached over the lease's Unix socket, so the container keeps `--network=none`) lands here.
+The OpenModelica runtime's library: `serve.pl`, session mode (paperboat-runtime/0) in front of omc's
+ZeroMQ server, so the container keeps `--network=none`. Perl with core modules only: the upstream omc
+image has no Python.

@@ -1,18 +1,23 @@
-# OpenModelica's compiler. exec only for now: omc's interactive server listens on TCP (ZMQ), which a
-# --network=none container cannot offer the host; Articula's session mode (phase 5) bridges it over the
-# lease's Unix socket instead of opening the network.
+# OpenModelica's compiler. Session mode is omc's interactive server behind lib/serve.pl, which speaks
+# paperboat-runtime/0 on the lease's socket and ZeroMQ to omc on the container's loopback, so the
+# container keeps --network=none (Articula's line to omc). `eval` takes one omc expression.
+# Modelica libraries (`paperboat package add omc Modelica`) install into the project's deps volume:
+# HOME is there, and omc keeps them in ~/.openmodelica/libraries.
 name     = "omc"
 version  = "1.27.1"
-protocol = "omc-zmq"
-modes    = ["exec"]
+protocol = "paperboat-runtime/0"
+modes    = ["session", "exec"]
 
 [image]
 ref    = "docker.io/openmodelica/openmodelica:v1.27.1-minimal"  # until ghcr.io/paperboatlab/paperboat-runtime-omc
 digest = "sha256:ac9a0223e69b8055d444b42f58ccb9680342b56848c68b81385bf83d7c0ba824"  # the multi-arch index
 arch   = ["amd64", "arm64"]
 
+[entry]
+session = ["perl", "{lib}/serve.pl", "{ipc}/runtime.sock"]
+
 [env]
-HOME = "/tmp"
+HOME = "/work/deps"
 USER = "omc"
 
 [limits]
@@ -22,3 +27,4 @@ pids   = 1024
 
 [native]
 requires = "omc"
+entry.session = ["perl", "{lib}/serve.pl", "{ipc}/runtime.sock"]

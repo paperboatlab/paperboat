@@ -76,9 +76,10 @@ TEST_CASE("unknown commands and apps fail cleanly", "[cli]") {
 
 TEST_CASE("the registries: the apps, the five toolkits", "[cli]") {
   const auto apps = json::parse(cli({"apps", "--json"}).stdout_text);
-  REQUIRE(apps.size() >= 2);
+  REQUIRE(apps.size() >= 3);
   CHECK(apps[0]["name"] == "malachite");
   CHECK(apps[1]["name"] == "julix");
+  CHECK(apps[2]["name"] == "articula");
   for (const auto& a : apps) {
     CHECK(a["installed"].is_null());
     CHECK(a["label"].is_string());

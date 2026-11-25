@@ -786,13 +786,12 @@ int runtime_events(Args& a) {
   return 0;
 }
 
-// ── packages: Julia's Pkg in the project, or a venv in the project's package volume ──
+// ── packages: Julia's Pkg in the project, a venv or omc's libraries in the project's package volume ──
 
-bool is_julia(const std::string& runtime) {
+std::string language(const std::string& runtime) {
   const std::string name = runtime.substr(0, runtime.find('@'));
-  if (name == "julia") return true;
-  if (name == "python") return false;
-  throw Failure("packages are for the julia and python runtimes, not " + name, 2);
+  if (name == "julia" || name == "python" || name == "omc") return name;
+  throw Failure("packages are for the julia, python and omc runtimes, not " + name, 2);
 }
 
 // "Plots@1.40" -> ("Plots", "1.40")
@@ -813,7 +812,7 @@ int packages(Args& a, const std::string& op) {
   if (runtime.empty() || !a.has("--project")) throw Failure("usage: paperboat " + a.cmd->name + " " + a.cmd->args, 2);
   const fs::path project = fs::absolute(a.get("--project"));
   if (!fs::is_directory(project)) throw Failure("no project folder " + project.string(), 2);
-  const bool julia = is_julia(runtime);
+  const std::string lang = language(runtime);
   std::string name, version;
   if (op != "list") {
     std::tie(name, version) = spec(a.arg(1));
@@ -821,7 +820,7 @@ int packages(Args& a, const std::string& op) {
   }
   json policy = json::object();
   std::vector<std::string> cmd;
-  if (julia) {
+  if (lang == "julia") {
     // the project's Project.toml/Manifest.toml change, so the project is writable for add and remove
     std::string body = "import Pkg; Pkg.activate(ENV[\"PAPERBOAT_PROJECT\"]; io=devnull); ";
     if (op == "add") {
@@ -833,6 +832,20 @@ int packages(Args& a, const std::string& op) {
     }
     body += "for p in values(Pkg.dependencies()); p.is_direct_dep && println(\"PKG \", p.name, \" \", something(p.version, \"\")); end";
     cmd = {"julia", "--startup-file=no", "-e", body};
+  } else if (lang == "omc") {
+    // Modelica libraries: omc's package manager into ~/.openmodelica/libraries (HOME is the package
+    // volume in the image; natively the user's own). omc can't uninstall: remove deletes the folders.
+    std::string body = "L=\"$HOME/.openmodelica/libraries\"; ";
+    if (op == "add") {
+      body += "printf '%s\\n' 'if not installPackage(" + name + ", \"" + version + "\", exactMatch=" + (version.empty() ? "false" : "true") +
+              ") then print(getErrorString()); exit(1); end if;' > /tmp/pb-add.mos && omc /tmp/pb-add.mos || exit 1; ";
+      policy = {{"network", true}};
+    } else if (op == "remove") {
+      const std::string glob = "\"$L/" + name + " " + version + "\"*";
+      body += "ls -d " + glob + " >/dev/null 2>&1 || { echo 'no " + name + (version.empty() ? "" : " " + version) + " installed'; exit 1; }; rm -rf " + glob + " || exit 1; ";
+    }
+    body += "[ -d \"$L\" ] && for d in \"$L\"/*/; do d=${d%/}; d=${d##*/}; echo \"PKG ${d%% *} ${d#* }\"; done; exit 0";
+    cmd = {"sh", "-c", body};
   } else {
     // a venv in the project's package volume, made inside the image so wheels match its libc
     std::string body = "V=\"$PAPERBOAT_DEPS/venv\"; ";

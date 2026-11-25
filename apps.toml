@@ -31,3 +31,13 @@ runtimes    = ["julia@1.11"]
 launch      = "bin/julix"
 port        = 59220
 commands    = []
+
+[[apps]]
+name        = "articula"
+label       = "Articula"
+repo        = "https://github.com/paperboatlab/articula"
+description = "Acausal modelling: an OpenModelica editor"
+runtimes    = ["omc@1.27"]
+launch      = "bin/articula"
+port        = 59240
+commands    = []
