@@ -1,5 +1,5 @@
 # The app registry: the apps `paperboat app install <app>` can install, added as each is rebuilt on
-# this platform (Simplicial, Julix and Articula follow Malachite).
+# this platform (Simplicial and Articula follow Malachite and Julix).
 #
 #   name         what you type: app install malachite
 #   label        how the Launcher and the TUI show it
@@ -20,4 +20,14 @@ description = "Engineering notebook in Julia and Python"
 runtimes    = ["julia@1.11", "python@3.12"]
 launch      = "bin/malachite"
 port        = 59210
+commands    = []
+
+[[apps]]
+name        = "julix"
+label       = "Julix"
+repo        = "https://github.com/paperboatlab/julix"
+description = "Julia workbench: scripts, a console, variables and figures"
+runtimes    = ["julia@1.11"]
+launch      = "bin/julix"
+port        = 59220
 commands    = []
