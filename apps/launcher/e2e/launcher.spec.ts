@@ -2,7 +2,7 @@
 // demo app whose launcher serves its folder over HTTP. Native folder dialogs are answered in the main process.
 
 import {_electron as electron, expect, test, type ElectronApplication, type Page} from '@playwright/test';
-import {chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -134,4 +134,16 @@ test('console: a command line with completion, the CLI words back', async () => 
   await input.press('Enter');
   await expect(page.locator('.transcript .entry').last()).toContainText('no app named nope');
   await shot('console-run');
+});
+
+test('about: the versions, from the rail foot', async () => {
+  const version = execFileSync(bin, ['--version']).toString().trim().replace(/^paperboat /, '');
+  await page.getByRole('button', {name: 'About', exact: true}).click();
+  const about = page.getByRole('dialog', {name: 'About'});
+  await expect(about).toContainText(`Version ${version}`);
+  await expect(about).toContainText(`Launcher ${JSON.parse(readFileSync(join(here, '../package.json'), 'utf8')).version}`);
+  await expect(about).toContainText('Electron');
+  await shot('about');
+  await page.keyboard.press('Escape');
+  await expect(about).toHaveCount(0);
 });
