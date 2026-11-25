@@ -1,4 +1,9 @@
-# Paperboat
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/readme/banner-dark.gif">
+    <img src=".github/readme/banner-light.gif" width="248" alt="Paperboat">
+  </picture>
+</h1>
 
 The Paperboat platform: the `paperboat` CLI, the per-user runtime daemon `paperboatd`, and (soon) the
 Paperboat Launcher. It runs the language runtimes the Paperboat apps need (Julia, Python,
