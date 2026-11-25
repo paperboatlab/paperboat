@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@paperboat/client": "*",
-    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#ba11a4587c323209f291cd2c5d969a9a5d037b8c",
+    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#a7433b83f4068cc0bea92ab587251cf33a0c83a6",
     "@playwright/test": "^1.65.1",
     "@types/node": "^22.19.0",
     "@types/react": "^19.3.0",
