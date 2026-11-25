@@ -153,8 +153,9 @@ function Packages({client, act, rt}: {client: Client; act: Act; rt: Runtime}) {
   };
   const change = async (op: 'add' | 'remove', pkg: string) => {
     if (!project || !pkg) return;
-    setBusy(`${op === 'add' ? 'Adding' : 'Removing'} ${pkg}`);
-    await act(`package ${op} ${rt.name} ${pkg} --project "${project}"`, `${op === 'add' ? 'Added' : 'Removed'} ${pkg}`);
+    const what = `${op === 'add' ? 'Adding' : 'Removing'} ${pkg}`;
+    setBusy(what);
+    await act(`package ${op} ${rt.name} ${pkg} --project "${project}"`, what);
     setBusy('');
     setName('');
     load(project);

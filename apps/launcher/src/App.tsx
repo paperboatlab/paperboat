@@ -2,8 +2,8 @@
 // them, Toolkits, Runtimes, Console), the pages, Ctrl+K over the whole registry. A view of
 // @paperboat/client: every key runs a command line, the CLI's own words.
 
-import {useEffect, useMemo, useState} from 'react';
-import {AppMark, Key, Pill, Rail, Search, Segmented, ThemePicker, Toasts, chordMatches, readStored, useTheme, useToasts, writeStored, type RailItem, type SearchItem, type Theme} from '@paperboatlab/ui';
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {AppMark, Key, Notifications, Pill, Rail, Search, Segmented, ThemePicker, Toasts, chordMatches, readStored, useTheme, useToasts, writeStored, type RailItem, type SearchItem, type Theme} from '@paperboatlab/ui';
 import type {Client} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
 import {makeAct} from './act.ts';
@@ -25,7 +25,8 @@ export function App({client}: {client: Client}) {
   const [search, setSearch] = useState(false);
   const [line, setLine] = useState<string | null>(null);  // a command for the Console to fill in
   const [about, setAbout] = useState<{paperboat: string; channel: string} | null>(null);
-  const {toasts, show, dismiss} = useToasts();
+  const notes = useToasts();
+  const {toasts, show, dismiss} = notes;
   const act = useMemo(() => makeAct(client, show), [client, show]);
   useEffect(() => writeStored('paperboat.theme', theme), [theme]);
   useEffect(() => writeStored('paperboat.launcher.rail.wide', wide), [wide]);
@@ -36,6 +37,16 @@ export function App({client}: {client: Client}) {
     const t = setInterval(() => void client.refresh(), 5000);  // sessions end on their own
     return () => (stop(), clearInterval(t));
   }, [client]);
+  // paperboatd: a failure when it stops answering, the same toast turns done when it answers again
+  const daemon = state.errors.runtimes ?? state.errors.instances;
+  const daemonNote = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (daemon) daemonNote.current = show({id: daemonNote.current, title: 'paperboatd does not answer', detail: daemon, state: 'failed'});
+    else if (daemonNote.current !== undefined) {
+      show({id: daemonNote.current, title: 'paperboatd answers again', state: 'done'});
+      daemonNote.current = undefined;
+    }
+  }, [daemon, show]);
   const loadAbout = () => void client.run('about').then(j => j.state === 'done' && setAbout(j.result as {paperboat: string; channel: string}));
   useEffect(loadAbout, [client]);
 
@@ -105,6 +116,7 @@ export function App({client}: {client: Client}) {
             </>
           )}
           {page === 'runtimes' && <Pill state={running ? 'live' : 'idle'} label={running ? `${running} running` : 'nothing running'} />}
+          <Notifications {...notes} />
           <ThemePicker theme={theme} onChange={setTheme} />
         </span>
       </header>
