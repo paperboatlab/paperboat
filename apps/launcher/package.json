@@ -1,0 +1,31 @@
+{
+  "name": "@paperboat/launcher",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Paperboat Launcher: apps, runtimes and every command, a view of @paperboat/client in Electron",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test -c e2e/playwright.config.ts"
+  },
+  "devDependencies": {
+    "@paperboat/client": "*",
+    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#0359af20e3b4c8cbfd2fdaac82f9dd9c185add2c",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "electron": "^45.5.0",
+    "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2"
+  }
+}

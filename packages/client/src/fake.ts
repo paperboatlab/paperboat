@@ -1,6 +1,6 @@
 // A transport for tests: answers by command line, records what was called.
 
-import {CliError, type Transport} from './transport.ts';
+import {CliError, type Transport} from './error.ts';
 
 export type Answer = unknown | ((argv: string[], onLine?: (l: string) => void, json?: boolean) => unknown);
 

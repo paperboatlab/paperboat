@@ -517,9 +517,13 @@ int app_list(Args& a) {
   const auto running = sessions();
   for (const auto& e : entries(load_toml("apps.toml"), "apps")) {
     const std::string name = e["name"].value_or(std::string());
+    json rts = json::array();
+    if (const auto* r = e["runtimes"].as_array())
+      for (const auto& x : *r) rts.push_back(x.value_or(std::string()));
     out.push_back({{"name", name}, {"label", e["label"].value_or(std::string())},
                    {"description", e["description"].value_or(std::string())}, {"installed", installed(name)},
-                   {"sessions", std::ranges::count_if(running, [&](const json& s) { return s["app"] == name; })}});
+                   {"sessions", std::ranges::count_if(running, [&](const json& s) { return s["app"] == name; })},
+                   {"runtimes", rts}, {"repo", e["repo"].value_or(std::string())}});
   }
   if (a.json_out) return print_json(out), 0;
   if (out.empty()) return std::cout << "No apps in the registry yet.\n", 0;

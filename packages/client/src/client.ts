@@ -4,7 +4,7 @@
 
 import {findCommand, splitWords} from './completion.ts';
 import type {App, Command, Lease, RuntimeEvent, RuntimeList, Session} from './types.ts';
-import {CliError, type Transport} from './transport.ts';
+import {CliError, type Transport} from './error.ts';
 
 export interface Job {
   id: number;

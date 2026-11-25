@@ -5,7 +5,7 @@ import {fakeTransport} from '../src/fake.ts';
 import {CliError} from '../src/transport.ts';
 
 const help = [{id: 'app.install', name: 'app install', args: '<app>', desc: '', group: 'Apps', app: '', alias: [], tui: false}];
-const apps = [{name: 'malachite', label: 'Malachite', description: '', installed: null, sessions: 0}];
+const apps = [{name: 'malachite', label: 'Malachite', description: '', installed: null, sessions: 0, runtimes: [], repo: ''}];
 
 test('refresh fills the lists; a failing one keeps its error', async () => {
   const t = fakeTransport({help, 'app list': apps, 'session list': () => { throw new CliError('boom', 1); }});

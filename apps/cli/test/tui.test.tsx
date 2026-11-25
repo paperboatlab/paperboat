@@ -13,7 +13,7 @@ const help = [
   {id: 'app.open', name: 'app open', args: '<app> [<folder>]', desc: 'Open an app', group: 'Apps', app: '', alias: [], tui: false},
   {id: 'paperboat.clear', name: 'clear', args: '', desc: 'Clear', group: 'Paperboat', app: '', alias: [], tui: true},
 ];
-const apps = [{name: 'malachite', label: 'Malachite', description: 'Engineering notebook', installed: {version: '0.1.0', from: ''}, sessions: 0}];
+const apps = [{name: 'malachite', label: 'Malachite', description: 'Engineering notebook', installed: {version: '0.1.0', from: ''}, sessions: 0, runtimes: ['julia@1.11'], repo: ''}];
 const about = {paperboat: '0.2.0', channel: 'release', daemon: null};
 const tick = (ms = 50) => new Promise(r => setTimeout(r, ms));
 /** Until the frame matches (a loaded machine is slow), then the frame. */

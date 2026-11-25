@@ -59,7 +59,8 @@ flowchart LR
   `<runtime dir>/sessions/<app>-<port>.json` with its log beside it; a session whose process is gone is
   dropped when listed. App servers are native processes; only runtimes go through paperboatd.
 - `packages/client/` (`@paperboat/client`, TypeScript run by Node directly): the Launcher's and the TUI's
-  one client. `transport.ts` runs the CLI with `--json` (the only way in); `client.ts` holds the state
+  one client. `transport.ts` runs the CLI with `--json` (the only way in; `browser.ts` is the client
+  without it, for a page whose transport is a bridge); `client.ts` holds the state
   (commands from `help --json`, apps, sessions, runtimes, instances, events) and runs any command line as
   a job, then refreshes; `completion.ts` completes names, then argument values by the usage's
   `<placeholder>`; `react.ts` the hooks. It names no command: the registry is the CLI's. `test/cli.test.ts`
@@ -70,6 +71,12 @@ flowchart LR
   `PAPERBOAT_BIN` set; without node it prints the help. Lists are drawn from `--json` (`views.ts`),
   every other command shows the CLI's own words; finished output goes to the scrollback (`<Static>`).
   `npm run build -w @paperboat/cli` bundles it into one file (esbuild) for the packages.
+- `apps/launcher/` (`@paperboat/launcher`, Electron): the Launcher, a view of the client. The main process
+  (`electron/main.ts`) runs the CLI through `cliTransport` and is the sandboxed page's only door
+  (`preload.ts`: `call`, `stream`, `openWindow` for an app server on 127.0.0.1, `pickFolder`); the page
+  (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
+  Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group); Ctrl+K lists every
+  registry command. `e2e/` drives it with Playwright against the real CLI.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
 - Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` (with the
