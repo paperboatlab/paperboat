@@ -18,8 +18,9 @@ jobs:
     runs-on: ubuntu-24.04
     container: fedora:43
     steps:
-      - run: dnf -y install git cmake ninja-build gcc-c++ rpm-build
+      - run: dnf -y install git cmake ninja-build gcc-c++ rpm-build nodejs npm
       - uses: actions/checkout@v4
+      - run: npm ci && npm run build -w @paperboat/cli
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPAPERBOAT_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr
       - run: ninja -C build
       - run: cd build && cpack -G RPM
@@ -27,6 +28,7 @@ jobs:
         run: |
           dnf -y install build/paperboat-cli-*.rpm build/paperboat-devel-*.rpm
           paperboat help >/dev/null && paperboat toolkits
+          test -f /usr/share/paperboat/cli/main.js
           mkdir -p /tmp/c && cd /tmp/c
           printf 'cmake_minimum_required(VERSION 3.25)\nproject(c CXX)\nset(CMAKE_CXX_STANDARD 20)\nfind_package(paperboat REQUIRED)\nadd_executable(c c.cpp)\ntarget_link_libraries(c PRIVATE paperboat::runtime)\n' > CMakeLists.txt
           printf '#include <paperboat/paths.hpp>\n#include <iostream>\nint main() { std::cout << paperboat::paths::control_socket() << "\\n"; }\n' > c.cpp
@@ -39,6 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: brew install ninja
+      - run: npm ci && npm run build -w @paperboat/cli
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
       - run: ninja -C build
       - run: ./build/tests/paperboat_tests && ./build/tests/paperboat_cli_tests

@@ -16,3 +16,13 @@ jobs:
       - run: ./build/tests/paperboat_tests
       - name: container tests (rootless podman)
         run: ./build/tests/paperboat_container_tests
+      - run: ./build/tests/paperboat_cli_tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: client (typecheck, tests with the contract against build/paperboat)
+        run: npm run typecheck -w @paperboat/client && npm test -w @paperboat/client
+      - name: terminal UI (typecheck, tests, bundle)
+        run: npm run typecheck -w @paperboat/cli && npm test -w @paperboat/cli && npm run build -w @paperboat/cli

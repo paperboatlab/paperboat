@@ -52,13 +52,32 @@ flowchart LR
   installed says which app to install. The platform's code names no app.
 - `src/cli/main.cpp`: dispatch over the registry (longest match on names and aliases) and one handler
   per command.
+- App lifecycle (in `src/cli/main.cpp`, no daemon): `app install` unpacks a GitHub release's
+  `<app>-<version>.tar.gz` to `<home>/apps/<app>`, or links a checkout (`--from`); `<home>/apps/<app>.toml`
+  records the version or the checkout. `app open <app> [<folder>]` starts the app server detached
+  (`<launch> <folder> --port <port>`, its own process group) and records a **session** in
+  `<runtime dir>/sessions/<app>-<port>.json` with its log beside it; a session whose process is gone is
+  dropped when listed. App servers are native processes; only runtimes go through paperboatd.
+- `packages/client/` (`@paperboat/client`, TypeScript run by Node directly): the Launcher's and the TUI's
+  one client. `transport.ts` runs the CLI with `--json` (the only way in); `client.ts` holds the state
+  (commands from `help --json`, apps, sessions, runtimes, instances, events) and runs any command line as
+  a job, then refreshes; `completion.ts` completes names, then argument values by the usage's
+  `<placeholder>`; `react.ts` the hooks. It names no command: the registry is the CLI's. `test/cli.test.ts`
+  is the contract against the real binary.
+- `apps/cli/` (`@paperboat/cli`, Ink): the terminal UI, a view of the client. `paperboat` with no
+  command on a terminal execs `node share/paperboat/cli/main.js` (a checkout's build:
+  `apps/cli/dist/main.js`; `PAPERBOAT_TUI` overrides, `PAPERBOAT_NO_TUI` turns it off) with
+  `PAPERBOAT_BIN` set; without node it prints the help. Lists are drawn from `--json` (`views.ts`),
+  every other command shows the CLI's own words; finished output goes to the scrollback (`<Static>`).
+  `npm run build -w @paperboat/cli` bundles it into one file (esbuild) for the packages.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
-- Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` and
-  `devel`; rpm `paperboat-cli` Requires `paperboat-devel`; macOS one `.pkg` with both. The Launcher's
+- Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` (with the
+  TUI bundle) and `devel`; rpm `paperboat-cli` Requires `paperboat-devel`; macOS one `.pkg` with both. The Launcher's
   package will Require `paperboat-cli`.
-- `apps.toml`, `toolkits.toml`: the app and toolkit registries (no apps yet; the five
-  `simplicial-toolkit-*` repos), installed to `share/paperboat/`.
+- `apps.toml`, `toolkits.toml`: the app and toolkit registries (Malachite; the five
+  `simplicial-toolkit-*` repos), installed to `share/paperboat/`; `$PAPERBOAT_DATA_DIR` is searched
+  first (tests, a private registry).
 
 ## 3. Invariants
 
