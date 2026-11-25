@@ -13,7 +13,7 @@ const commands = [
 ];
 const sources: Sources = {
   commands,
-  args: {app: [{value: 'malachite', detail: 'installed'}, {value: 'simplicial', detail: 'available'}], session: [{value: 'malachite-59210', detail: ''}]},
+  args: {app: [{value: 'malachite', detail: 'installed'}, {value: 'simplicial', detail: 'available'}], session: [{value: 'malachite-30474', detail: ''}]},
   listDir: dir => (dir === 'pro/' ? [{value: 'hub/', detail: ''}, {value: 'notes/', detail: ''}] : [{value: 'pro/', detail: ''}]),
 };
 
@@ -45,7 +45,7 @@ test('complete: command names, then argument values, flags and folders', () => {
   assert.equal(complete('app open ', sources).candidates.length, 2);
   assert.deepEqual(complete('app open malachite pro/', sources).candidates.map(c => c.value), ['pro/hub/', 'pro/notes/']);
   assert.deepEqual(complete('app open malachite --no', sources).candidates.map(c => c.value), ['--no-open']);
-  assert.deepEqual(complete('session stop m', sources).candidates.map(c => c.value), ['malachite-59210']);
+  assert.deepEqual(complete('session stop m', sources).candidates.map(c => c.value), ['malachite-30474']);
   assert.equal(complete('runtime pull ', sources).candidates.length, 0);  // no values known: nothing offered
 });
 
