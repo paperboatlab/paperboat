@@ -74,11 +74,15 @@ TEST_CASE("unknown commands and apps fail cleanly", "[cli]") {
   CHECK_THAT(cli({"app", "open", "malachite"}).stderr_text, ContainsSubstring("paperboat app install malachite"));
 }
 
-TEST_CASE("the registries: Malachite, the five toolkits", "[cli]") {
+TEST_CASE("the registries: the apps, the five toolkits", "[cli]") {
   const auto apps = json::parse(cli({"apps", "--json"}).stdout_text);
-  REQUIRE(apps.size() == 1);
+  REQUIRE(apps.size() >= 2);
   CHECK(apps[0]["name"] == "malachite");
-  CHECK(apps[0]["installed"].is_null());
+  CHECK(apps[1]["name"] == "julix");
+  for (const auto& a : apps) {
+    CHECK(a["installed"].is_null());
+    CHECK(a["label"].is_string());
+  }
   const auto t = json::parse(cli({"toolkits", "--json"}).stdout_text);
   REQUIRE(t.size() == 5);
   for (const auto& k : t) CHECK_THAT(k["repo"].get<std::string>(), ContainsSubstring("/simplicial-toolkit-"));

@@ -75,7 +75,7 @@ flowchart LR
 - Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` (with the
   TUI bundle) and `devel`; rpm `paperboat-cli` Requires `paperboat-devel`; macOS one `.pkg` with both. The Launcher's
   package will Require `paperboat-cli`.
-- `apps.toml`, `toolkits.toml`: the app and toolkit registries (Malachite; the five
+- `apps.toml`, `toolkits.toml`: the app and toolkit registries (Malachite, Julix; the five
   `simplicial-toolkit-*` repos), installed to `share/paperboat/`; `$PAPERBOAT_DATA_DIR` is searched
   first (tests, a private registry).
 
