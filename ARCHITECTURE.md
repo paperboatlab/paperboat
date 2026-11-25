@@ -52,13 +52,20 @@ flowchart LR
   installed says which app to install. The platform's code names no app.
 - `src/cli/main.cpp`: dispatch over the registry (longest match on names and aliases) and one handler
   per command.
+- App lifecycle (in `src/cli/main.cpp`, no daemon): `app install` unpacks a GitHub release's
+  `<app>-<version>.tar.gz` to `<home>/apps/<app>`, or links a checkout (`--from`); `<home>/apps/<app>.toml`
+  records the version or the checkout. `app open <app> [<folder>]` starts the app server detached
+  (`<launch> <folder> --port <port>`, its own process group) and records a **session** in
+  `<runtime dir>/sessions/<app>-<port>.json` with its log beside it; a session whose process is gone is
+  dropped when listed. App servers are native processes; only runtimes go through paperboatd.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
 - Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` and
   `devel`; rpm `paperboat-cli` Requires `paperboat-devel`; macOS one `.pkg` with both. The Launcher's
   package will Require `paperboat-cli`.
-- `apps.toml`, `toolkits.toml`: the app and toolkit registries (no apps yet; the five
-  `simplicial-toolkit-*` repos), installed to `share/paperboat/`.
+- `apps.toml`, `toolkits.toml`: the app and toolkit registries (Malachite; the five
+  `simplicial-toolkit-*` repos), installed to `share/paperboat/`; `$PAPERBOAT_DATA_DIR` is searched
+  first (tests, a private registry).
 
 ## 3. Invariants
 

@@ -5,6 +5,10 @@
 
 #include <cerrno>
 #include <cstring>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include "paperboat/control.hpp"
 #include "paperboat/manifest.hpp"
@@ -15,7 +19,9 @@
 #include <toml++/toml.hpp>
 
 #include <algorithm>
+#include <csignal>
 #include <cstdio>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -25,6 +31,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <vector>
 
@@ -122,7 +129,7 @@ struct Args {
   std::string arg(std::size_t i) const { return i < pos.size() ? pos[i] : ""; }
 };
 
-const std::vector<std::string> kValued = {"--project", "--backend", "--socket", "--tail", "--source", "--kind", "--port", "--time", "--var"};
+const std::vector<std::string> kValued = {"--project", "--from", "--backend", "--socket", "--tail", "--source", "--kind", "--port", "--time", "--var"};
 
 // The longest registered name (or alias) the words start with; the rest are its arguments.
 Args parse(int argc, char** argv) {
@@ -198,8 +205,11 @@ std::string fmt_secs(double s) {
 
 // ── shipped data: the registries beside the binary (installed: share/paperboat; a build: the build dir) ──
 
+// $PAPERBOAT_DATA_DIR first: tests (and a private registry) put their own apps.toml there.
 fs::path data_file(const std::string& name) {
-  for (const fs::path& d : {paths::exe_dir().parent_path() / "share" / "paperboat", paths::exe_dir()})
+  std::vector<fs::path> dirs = {paths::exe_dir().parent_path() / "share" / "paperboat", paths::exe_dir()};
+  if (const char* d = std::getenv("PAPERBOAT_DATA_DIR"); d && *d) dirs.insert(dirs.begin(), d);
+  for (const fs::path& d : dirs)
     if (fs::exists(d / name)) return d / name;
   throw Failure(name + " is missing from this installation");
 }
@@ -213,8 +223,18 @@ std::vector<toml::table> entries(const toml::table& t, const char* key) {
   return out;
 }
 
-// An app's install marker.
-bool installed(const std::string& what) { return fs::exists(paths::home() / "apps" / what / ".installed"); }
+// ── installed apps: <home>/apps/<app> (the release, or a link to a checkout) and <home>/apps/<app>.toml ──
+
+fs::path app_dir(const std::string& app) { return paths::home() / "apps" / app; }
+fs::path app_marker(const std::string& app) { return paths::home() / "apps" / (app + ".toml"); }
+
+// {version, from} of an installed app, or null.
+json installed(const std::string& app) {
+  std::error_code ec;
+  if (!fs::exists(app_marker(app), ec)) return nullptr;
+  const toml::table t = toml::parse_file(app_marker(app).string());
+  return {{"version", t["version"].value_or(std::string())}, {"from", t["from"].value_or(std::string())}};
+}
 
 std::string app_of(const Command& c) { return c.app; }
 
@@ -233,16 +253,14 @@ int run_app_command(const Command& c, const std::vector<std::string>& raw) {
 Failure unknown_command(const std::vector<std::string>& pos) {
   const std::string w = pos.empty() ? "" : pos[0];
   try {
-    if (const auto* apps = load_toml("apps.toml")["apps"].as_array())
-      for (const auto& node : *apps) {
-        const auto& e = *node.as_table();
+    for (const auto& e : entries(load_toml("apps.toml"), "apps")) {
         if (const auto* cmds = e["commands"].as_array())
           for (const auto& c : *cmds)
             if (c.value_or(std::string()) == w) {
               const std::string app = e["name"].value_or(std::string());
               return Failure("no command '" + w + "' · `paperboat app install " + app + "` adds it", 2, {{"app", app}});
             }
-      }
+    }
   } catch (const std::exception&) {  // no registry beside this build: just the plain answer
   }
   return Failure("no command '" + w + "' · paperboat help lists them", 2);
@@ -287,40 +305,368 @@ std::pair<int, std::string> run_in(Args& a, const json& args) {
 
 using Handler = std::function<int(Args&)>;
 
+fs::path config_file() { return paths::home() / "config.toml"; }
+
+std::string channel() {
+  std::error_code ec;
+  if (!fs::exists(config_file(), ec)) return "release";
+  try {
+    return toml::parse_file(config_file().string())["channel"].value_or(std::string("release"));
+  } catch (...) {
+    return "release";
+  }
+}
+
+// ── apps and sessions ──
+
+toml::table registry_entry(const std::string& app) {
+  for (auto& e : entries(load_toml("apps.toml"), "apps"))
+    if (e["name"].value_or(std::string()) == app) return e;
+  throw Failure("no app named " + app + " in the registry; paperboat app list shows them", 2);
+}
+
+std::string need_arg(Args& a, const char* what) {
+  if (a.arg(0).empty()) throw Failure(std::string("which ") + what + "? paperboat " + a.cmd->name + " " + a.cmd->args, 2);
+  return a.arg(0);
+}
+
+// The last n lines of a file.
+std::string tail(const fs::path& file, std::size_t n) {
+  std::ifstream in(file);
+  std::vector<std::string> lines;
+  for (std::string l; std::getline(in, l);) lines.push_back(std::move(l));
+  std::string out;
+  for (std::size_t i = lines.size() > n ? lines.size() - n : 0; i < lines.size(); ++i) out += lines[i] + "\n";
+  return out;
+}
+
+// GitHub's newest release of `repo` (a GitHub URL or owner/name) on the channel, or the one tagged
+// v<want>: {version, url, assets: {name: download url}}, or null.
+json newest_release(std::string repo, const std::string& want = "") {
+  for (const std::string p : {"https://github.com/", "http://github.com/"})
+    if (repo.starts_with(p)) repo.erase(0, p.size());
+  if (repo.ends_with(".git")) repo.resize(repo.size() - 4);
+  const auto r = ProcessRunner::run_sync({"curl", "-fsSL", "-H", "Accept: application/vnd.github+json",
+                                          "https://api.github.com/repos/" + repo + "/releases?per_page=30"},
+                                         {}, {}, std::chrono::seconds(20));
+  if (!r.ok()) throw Failure("could not reach GitHub for the releases of " + repo);
+  const std::string ch = channel();
+  json newest = nullptr;
+  for (const auto& rel : json::parse(r.stdout_text)) {
+    std::string tag = rel.value("tag_name", std::string());
+    if (tag.starts_with('v')) tag.erase(0, 1);
+    if (rel.value("draft", false)) continue;
+    if (want.empty() ? (ch == "release" && rel.value("prerelease", false)) : tag != want) continue;
+    if (!newest.is_null() && compare_versions(tag, newest["version"].get<std::string>()) <= 0) continue;
+    json assets = json::object();
+    for (const auto& x : rel.value("assets", json::array())) assets[x.value("name", "")] = x.value("browser_download_url", "");
+    newest = {{"version", tag}, {"url", rel.value("html_url", std::string())}, {"assets", assets}};
+  }
+  return newest;
+}
+
+// A session: an app server paperboat started, one record in <runtime dir>/sessions.
+fs::path sessions_dir() { return paths::runtime_dir() / "sessions"; }
+
+// The sessions still running; the record of one that ended is dropped (its log stays).
+std::vector<json> sessions() {
+  std::vector<json> out;
+  std::error_code ec;
+  for (const auto& f : fs::directory_iterator(sessions_dir(), ec)) {
+    if (f.path().extension() != ".json") continue;
+    json s;
+    try {
+      s = json::parse(std::ifstream(f.path()));
+    } catch (const std::exception&) {
+      continue;
+    }
+    if (ProcessRunner::is_alive(s["pid"].get<int>())) out.push_back(std::move(s));
+    else fs::remove(f.path(), ec);
+  }
+  std::ranges::sort(out, {}, [](const json& s) { return s["id"].get<std::string>(); });
+  return out;
+}
+
+json find_session(const std::string& id) {
+  for (auto& s : sessions())
+    if (s["id"] == id) return s;
+  throw Failure("no session named " + id + "; paperboat session list shows them", 2);
+}
+
+sockaddr_in loopback(int port) {
+  sockaddr_in sa{};
+  sa.sin_family = AF_INET;
+  sa.sin_port = htons(static_cast<uint16_t>(port));
+  sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  return sa;
+}
+
+bool listening(int port) {
+  const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  const sockaddr_in sa = loopback(port);
+  const bool ok = ::connect(fd, reinterpret_cast<const sockaddr*>(&sa), sizeof sa) == 0;
+  ::close(fd);
+  return ok;
+}
+
+bool port_free(int port) {
+  const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  const int one = 1;
+  ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+  const sockaddr_in sa = loopback(port);
+  const bool ok = ::bind(fd, reinterpret_cast<const sockaddr*>(&sa), sizeof sa) == 0;
+  ::close(fd);
+  return ok;
+}
+
+// Start <app>'s server on a folder: `<launch> <folder> --port <port>`, detached, its output in a log.
+// The registry's port, or the next free one; ready once it listens.
+json start_session(const std::string& app, const fs::path& project, int port = 0) {
+  const toml::table e = registry_entry(app);
+  const int base = port ? port : e["port"].value_or(0);
+  if (base <= 0) throw Failure(app + " has no port in the registry");
+  std::vector<int> taken;
+  for (const auto& s : sessions()) taken.push_back(s["port"].get<int>());
+  int p = base;
+  while (std::ranges::find(taken, p) != taken.end() || !port_free(p))
+    if (++p > base + 100) throw Failure("no free port from " + std::to_string(base) + " to " + std::to_string(base + 100));
+  const std::string id = app + "-" + std::to_string(p);
+  const fs::path log = sessions_dir() / (id + ".log");
+  std::error_code ec;
+  fs::create_directories(sessions_dir());
+  fs::remove(log, ec);
+  const fs::path exe = app_dir(app) / e["launch"].value_or(std::string());
+  const int pid = ProcessRunner::run_detached({exe.string(), project.string(), "--port", std::to_string(p)}, project, {}, log);
+  if (pid < 0) throw Failure("could not start " + exe.string());
+  for (int i = 0; i < 300 && !listening(p); ++i) {
+    int st = 0;
+    if (::waitpid(pid, &st, WNOHANG) == pid) throw Failure(app + " ended while starting:\n" + tail(log, 20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  if (!listening(p)) {
+    ProcessRunner::kill_pgid(pid);
+    throw Failure(app + " did not listen on port " + std::to_string(p) + " within 30 s:\n" + tail(log, 20));
+  }
+  const json s = {{"id", id},   {"app", app}, {"project", project.string()}, {"port", p}, {"pid", pid},
+                  {"url", "http://127.0.0.1:" + std::to_string(p) + "/"}, {"log", log.string()}, {"started", std::time(nullptr)}};
+  std::ofstream(sessions_dir() / (id + ".json")) << s.dump(2);
+  return s;
+}
+
+// A session's whole process group, then its record.
+void stop_session(const json& s) {
+  ProcessRunner::kill_pgid(s["pid"].get<int>(), SIGTERM, 3000);
+  std::error_code ec;
+  fs::remove(sessions_dir() / (s["id"].get<std::string>() + ".json"), ec);
+}
+
+std::vector<json> sessions_of(const std::string& app) {
+  std::vector<json> out;
+  for (auto& s : sessions())
+    if (s["app"] == app) out.push_back(s);
+  return out;
+}
+
+void open_url(const std::string& url) {
+#ifdef __APPLE__
+  ProcessRunner::run_detached({"open", url});
+#else
+  ProcessRunner::run_detached({"xdg-open", url});
+#endif
+}
+
+// The runtimes an app uses, pulled now so its first cell doesn't wait; they would be pulled when needed anyway.
+void pull_runtimes(Args& a, const toml::table& e) {
+  if (const auto* rts = e["runtimes"].as_array())
+    for (const auto& r : *rts) {
+      const std::string rt = r.value_or(std::string());
+      try {
+        if (!a.json_out) std::cerr << "pulling " << rt << "…\n";
+        daemon(a).call("pull", {{"runtime", rt}});
+      } catch (const std::exception& ex) {
+        std::cerr << "paperboat: " << rt << " not pulled (" << ex.what() << "); it is pulled when first used\n";
+      }
+    }
+}
+
+// Unpack a release's `<app>-<version>.tar.gz` (one top folder) over <home>/apps/<app>.
+void install_release(const std::string& app, const json& rel) {
+  const std::string asset = app + "-" + rel["version"].get<std::string>() + ".tar.gz";
+  if (!rel["assets"].contains(asset)) throw Failure(app + " " + rel["version"].get<std::string>() + " has no " + asset + " (" + rel["url"].get<std::string>() + ")");
+  const fs::path tgz = paths::home() / "apps" / ("." + asset), fresh = paths::home() / "apps" / ("." + app + ".new");
+  std::error_code ec;
+  fs::remove_all(fresh, ec);
+  fs::create_directories(fresh);
+  if (!ProcessRunner::run_sync({"curl", "-fsSL", "-o", tgz.string(), rel["assets"][asset].get<std::string>()}, {}, {}, std::chrono::minutes(10)).ok())
+    throw Failure("could not download " + asset);
+  const auto x = ProcessRunner::run_sync({"tar", "-xzf", tgz.string(), "-C", fresh.string(), "--strip-components=1"});
+  fs::remove(tgz, ec);
+  if (!x.ok()) throw Failure("could not unpack " + asset + ": " + x.stderr_text);
+  fs::remove_all(app_dir(app), ec);  // a link to a checkout: only the link goes
+  fs::rename(fresh, app_dir(app));
+}
+
+void write_marker(const std::string& app, const std::string& version, const std::string& from) {
+  toml::table t{{"version", version}};
+  if (!from.empty()) t.insert("from", from);
+  std::ofstream(app_marker(app)) << t << "\n";
+}
+
 int app_list(Args& a) {
   json out = json::array();
-  for (const auto& e : entries(load_toml("apps.toml"), "apps"))
-    out.push_back({{"name", e["name"].value_or(std::string())}, {"label", e["label"].value_or(std::string())},
-                   {"description", e["description"].value_or(std::string())},
-                   {"installed", installed(e["name"].value_or(std::string()))}});
+  const auto running = sessions();
+  for (const auto& e : entries(load_toml("apps.toml"), "apps")) {
+    const std::string name = e["name"].value_or(std::string());
+    out.push_back({{"name", name}, {"label", e["label"].value_or(std::string())},
+                   {"description", e["description"].value_or(std::string())}, {"installed", installed(name)},
+                   {"sessions", std::ranges::count_if(running, [&](const json& s) { return s["app"] == name; })}});
+  }
   if (a.json_out) return print_json(out), 0;
   if (out.empty()) return std::cout << "No apps in the registry yet.\n", 0;
   std::vector<std::vector<std::string>> rows;
-  for (const auto& x : out) rows.push_back({x["name"], x["installed"].get<bool>() ? "installed" : "available", x["description"]});
-  print_table({"APP", "STATE", "DESCRIPTION"}, rows);
+  for (const auto& x : out) {
+    const json& i = x["installed"];
+    const std::string state = x["sessions"].get<int>() ? "running" : i.is_null() ? "available" : "installed";
+    const std::string ver = i.is_null() ? "" : !i["from"].get<std::string>().empty() ? "checkout" : i["version"].get<std::string>();
+    rows.push_back({x["name"], state, ver, x["description"]});
+  }
+  print_table({"APP", "STATE", "VERSION", "DESCRIPTION"}, rows);
   return 0;
 }
 
-int app_one(Args& a) {
-  const std::string name = a.arg(0);
-  if (name.empty()) throw Failure("which app? paperboat " + a.cmd->name + " " + a.cmd->args, 2);
-  const auto apps = entries(load_toml("apps.toml"), "apps");
-  const std::string bare = name.substr(0, name.find('@'));
-  const bool known = std::ranges::any_of(apps, [&](const toml::table& e) { return e["name"].value_or(std::string()) == bare; });
-  if (!known) throw Failure("no app named " + bare + " in the registry" + (apps.empty() ? " (it has none yet)" : "; paperboat app list shows them"), 2);
-  throw Failure("paperboat " + a.cmd->name + " arrives with the first app in the registry", 2);
+int app_install(Args& a) {
+  const std::string spec = need_arg(a, "app");
+  const std::string app = spec.substr(0, spec.find('@'));
+  const std::string want = spec.find('@') == std::string::npos ? "" : spec.substr(spec.find('@') + 1);
+  const toml::table e = registry_entry(app);
+  if (!sessions_of(app).empty()) throw Failure(app + " is running; paperboat app stop " + app + " first", 2);
+  fs::create_directories(paths::home() / "apps");
+  std::string version, from;
+  if (a.has("--from")) {  // a checkout, linked: what you build there is what runs
+    std::error_code ec;
+    const fs::path dir = fs::canonical(a.get("--from"), ec);
+    const std::string launch = e["launch"].value_or(std::string());
+    if (ec || !fs::exists(dir / launch)) throw Failure(a.get("--from") + " has no " + launch + ": is it a checkout of " + app + "?", 2);
+    fs::remove_all(app_dir(app), ec);
+    fs::create_directory_symlink(dir, app_dir(app));
+    from = dir.string();
+  } else {
+    const json rel = newest_release(e["repo"].value_or(std::string()), want);
+    if (rel.is_null())
+      throw Failure(want.empty() ? app + " has no release on the " + channel() + " channel yet; --from <folder> installs a checkout"
+                                 : "no release " + want + " of " + app, 2);
+    install_release(app, rel);
+    version = rel["version"].get<std::string>();
+  }
+  write_marker(app, version, from);
+  pull_runtimes(a, e);
+  if (a.json_out) return print_json({{"name", app}, {"installed", installed(app)}}), 0;
+  std::cout << "installed " << app << (from.empty() ? " " + version : " from " + from) << " · paperboat app open " << app << "\n";
+  return 0;
+}
+
+int app_update(Args& a) {
+  const std::string app = need_arg(a, "app");
+  const toml::table e = registry_entry(app);
+  const json i = installed(app);
+  if (i.is_null()) throw Failure(app + " is not installed · paperboat app install " + app, 2);
+  if (!i["from"].get<std::string>().empty()) {
+    if (a.json_out) return print_json({{"name", app}, {"installed", i}, {"updated", false}}), 0;
+    return std::cout << app << " runs your checkout " << i["from"].get<std::string>() << ": update it there\n", 0;
+  }
+  const json rel = newest_release(e["repo"].value_or(std::string()));
+  const bool newer = !rel.is_null() && compare_versions(rel["version"].get<std::string>(), i["version"].get<std::string>()) > 0;
+  if (newer) {
+    if (!sessions_of(app).empty()) throw Failure(app + " is running; paperboat app stop " + app + " first", 2);
+    install_release(app, rel);
+    write_marker(app, rel["version"].get<std::string>(), "");
+  }
+  if (a.json_out) return print_json({{"name", app}, {"installed", installed(app)}, {"updated", newer}}), 0;
+  std::cout << app << " " << installed(app)["version"].get<std::string>() << (newer ? " installed\n" : " is the newest on " + channel() + "\n");
+  return 0;
+}
+
+int app_uninstall(Args& a) {
+  const std::string app = need_arg(a, "app");
+  if (installed(app).is_null()) throw Failure(app + " is not installed", 2);
+  for (const auto& s : sessions_of(app)) stop_session(s);
+  std::error_code ec;
+  fs::remove_all(app_dir(app), ec);  // a link to a checkout: only the link goes
+  fs::remove(app_marker(app), ec);
+  if (a.json_out) return print_json({{"name", app}, {"installed", nullptr}}), 0;
+  std::cout << "removed " << app << "; your projects stay\n";
+  return 0;
+}
+
+// Open an app on a folder (the current one by default): its running session, or a new one.
+int app_open(Args& a) {
+  const std::string app = need_arg(a, "app");
+  registry_entry(app);
+  if (installed(app).is_null()) throw Failure(app + " is not installed · paperboat app install " + app, 2);
+  const fs::path project = fs::absolute(a.arg(1).empty() ? fs::current_path() : fs::path(a.arg(1))).lexically_normal();
+  if (!fs::is_directory(project)) throw Failure(project.string() + " is not a folder", 2);
+  json s = nullptr;
+  for (const auto& x : sessions_of(app))
+    if (x["project"] == project.string()) s = x;
+  const bool fresh = s.is_null();
+  if (fresh) s = start_session(app, project, a.has("--port") ? std::stoi(a.get("--port")) : 0);
+  if (!a.has("--no-open")) open_url(s["url"]);
+  if (a.json_out) return print_json(s), 0;
+  std::cout << (fresh ? "started " : "running ") << s["id"].get<std::string>() << " on " << project.string() << " · "
+            << s["url"].get<std::string>() << "\n";
+  return 0;
+}
+
+int app_stop(Args& a) {
+  const std::string app = need_arg(a, "app");
+  const auto ss = sessions_of(app);
+  for (const auto& s : ss) stop_session(s);
+  if (a.json_out) return print_json({{"stopped", ss}}), 0;
+  std::cout << (ss.empty() ? app + " is not running\n" : "stopped " + app + "\n");
+  return 0;
 }
 
 int session_list(Args& a) {
-  // Sessions are apps and stations running; with no app installed, nothing can be.
-  if (a.json_out) return print_json(json::array()), 0;
-  std::cout << "Nothing is running.\n";
+  const auto ss = sessions();
+  if (a.json_out) return print_json(ss), 0;
+  if (ss.empty()) return std::cout << "Nothing is running.\n", 0;
+  std::vector<std::vector<std::string>> rows;
+  for (const auto& s : ss)
+    rows.push_back({s["id"], s["app"], s["url"], fmt_secs(static_cast<double>(std::time(nullptr) - s["started"].get<std::time_t>())),
+                    s["project"]});
+  print_table({"SESSION", "APP", "URL", "UP", "FOLDER"}, rows);
   return 0;
 }
 
-int session_one(Args& a) {
-  if (a.has("--all")) return a.json_out ? (print_json(json::object()), 0) : (std::cout << "Nothing is running.\n", 0);
-  throw Failure("no session named " + (a.arg(0).empty() ? std::string("<session>") : a.arg(0)) + "; paperboat session list shows them", 2);
+// The last lines, then follows (tail -F); --json: the last lines only.
+int session_logs(Args& a) {
+  const std::string id = need_arg(a, "session");
+  const fs::path log = sessions_dir() / (id + ".log");
+  if (!fs::exists(log)) throw Failure("no session named " + id + "; paperboat session list shows them", 2);
+  const std::string n = a.get("--tail", "200");
+  if (a.json_out) return print_json({{"id", id}, {"text", tail(log, std::stoul(n))}}), 0;
+  ::execlp("tail", "tail", "-n", n.c_str(), "-F", log.c_str(), static_cast<char*>(nullptr));
+  throw Failure(std::string("tail could not start: ") + std::strerror(errno));
+}
+
+int session_restart(Args& a) {
+  const json old = find_session(need_arg(a, "session"));
+  stop_session(old);
+  const json s = start_session(old["app"], old["project"].get<std::string>(), old["port"].get<int>());
+  if (a.json_out) return print_json(s), 0;
+  std::cout << "restarted " << s["id"].get<std::string>() << " · " << s["url"].get<std::string>() << "\n";
+  return 0;
+}
+
+int session_stop(Args& a) {
+  std::vector<json> ss;
+  if (a.has("--all")) ss = sessions();
+  else ss.push_back(find_session(need_arg(a, "session")));
+  for (const auto& s : ss) stop_session(s);
+  if (a.json_out) return print_json({{"stopped", ss}}), 0;
+  if (ss.empty()) std::cout << "Nothing is running.\n";
+  for (const auto& s : ss) std::cout << "stopped " << s["id"].get<std::string>() << "\n";
+  return 0;
 }
 
 int toolkit_list(Args& a) {
@@ -522,18 +868,6 @@ int packages(Args& a, const std::string& op) {
 
 // ── Paperboat ──
 
-fs::path config_file() { return paths::home() / "config.toml"; }
-
-std::string channel() {
-  std::error_code ec;
-  if (!fs::exists(config_file(), ec)) return "release";
-  try {
-    return toml::parse_file(config_file().string())["channel"].value_or(std::string("release"));
-  } catch (...) {
-    return "release";
-  }
-}
-
 int paperboat_channel(Args& a) {
   const std::string want = a.arg(0);
   if (!want.empty()) {
@@ -549,20 +883,7 @@ int paperboat_channel(Args& a) {
 int paperboat_update(Args& a) {
   // Releases are packages (rpm, pkg): the package manager installs them; this finds the newest.
   const std::string ch = channel();
-  json newest = nullptr;
-  if (ch != "dev") {
-    const auto r = ProcessRunner::run_sync({"curl", "-fsSL", "-H", "Accept: application/vnd.github+json",
-                                            "https://api.github.com/repos/paperboatlab/paperboat/releases?per_page=30"},
-                                           {}, {}, std::chrono::seconds(20));
-    if (!r.ok()) throw Failure("could not reach GitHub to check for updates");
-    for (const auto& rel : json::parse(r.stdout_text)) {
-      if (rel.value("draft", false) || (ch == "release" && rel.value("prerelease", false))) continue;
-      std::string tag = rel.value("tag_name", std::string());
-      if (tag.starts_with('v')) tag.erase(0, 1);
-      if (newest.is_null() || compare_versions(tag, newest["version"].get<std::string>()) > 0)
-        newest = {{"version", tag}, {"url", rel.value("html_url", std::string())}};
-    }
-  }
+  const json newest = ch == "dev" ? json(nullptr) : newest_release("paperboatlab/paperboat");
   const bool behind = !newest.is_null() && compare_versions(newest["version"].get<std::string>(), PAPERBOAT_VERSION) > 0;
   if (a.json_out) return print_json({{"channel", ch}, {"current", PAPERBOAT_VERSION}, {"newest", newest}, {"update", behind}}), 0;
   if (ch == "dev") return std::cout << "The dev channel builds from main: update your checkout.\n", 0;
@@ -582,11 +903,15 @@ int paperboat_about(Args& a) {
     about["daemon"] = {{"version", h["version"]}, {"pid", h["pid"]}, {"runtimes", c.call("runtimes.list")["runtimes"].size()}};
   } catch (const ControlError&) {
   }
+  for (const auto& e : entries(load_toml("apps.toml"), "apps"))
+    if (json i = installed(e["name"].value_or(std::string())); !i.is_null()) about["apps"].push_back({{"name", e["name"].value_or(std::string())}, {"version", i["version"]}, {"from", i["from"]}});
   if (a.json_out) return print_json(about), 0;
   std::cout << "paperboat " << PAPERBOAT_VERSION << " (" << channel() << ")\n";
   if (about["daemon"].is_null()) std::cout << "paperboatd not running (it starts when needed)\n";
   else std::cout << "paperboatd " << about["daemon"]["version"].get<std::string>() << ", " << about["daemon"]["runtimes"].get<std::size_t>() << " runtimes\n";
-  std::cout << "apps: none installed\ntoolkits: none installed\n";
+  std::cout << "apps:";
+  for (const auto& x : about["apps"]) std::cout << " " << x["name"].get<std::string>() << " " << (x["from"].get<std::string>().empty() ? x["version"].get<std::string>() : "(checkout)");
+  std::cout << (about["apps"].empty() ? " none installed\n" : "\n") << "toolkits: none installed\n";
   return 0;
 }
 
@@ -652,9 +977,9 @@ int paperboat_help(Args& a) {
 
 const std::map<std::string, Handler>& handlers() {
   static const std::map<std::string, Handler> h = {
-      {"app.list", app_list}, {"app.open", app_one}, {"app.install", app_one}, {"app.update", app_one},
-      {"app.uninstall", app_one}, {"app.stop", app_one}, {"session.list", session_list}, {"session.logs", session_one},
-      {"session.restart", session_one}, {"session.stop", session_one}, {"toolkit.list", toolkit_list},
+      {"app.list", app_list}, {"app.open", app_open}, {"app.install", app_install}, {"app.update", app_update},
+      {"app.uninstall", app_uninstall}, {"app.stop", app_stop}, {"session.list", session_list}, {"session.logs", session_logs},
+      {"session.restart", session_restart}, {"session.stop", session_stop}, {"toolkit.list", toolkit_list},
       {"runtime.list", runtime_list}, {"runtime.pull", runtime_pull}, {"runtime.ps", runtime_ps}, {"runtime.stats", runtime_stats},
       {"runtime.logs", runtime_logs}, {"runtime.interrupt", runtime_interrupt}, {"runtime.prune", runtime_prune},
       {"runtime.events", runtime_events}, {"package.list", [](Args& a) { return packages(a, "list"); }},
