@@ -24,3 +24,5 @@ jobs:
       - run: npm ci
       - name: client (typecheck, tests with the contract against build/paperboat)
         run: npm run typecheck -w @paperboat/client && npm test -w @paperboat/client
+      - name: terminal UI (typecheck, tests, bundle)
+        run: npm run typecheck -w @paperboat/cli && npm test -w @paperboat/cli && npm run build -w @paperboat/cli

@@ -975,6 +975,28 @@ int paperboat_help(Args& a) {
   return 0;
 }
 
+// The terminal UI (apps/cli, bundled to share/paperboat/cli/main.js; dist/main.js in a checkout's
+// build): exec node on it with PAPERBOAT_BIN set. Returns only when it can't run: then the help.
+void launch_tui() {
+  if (!::isatty(0) || !::isatty(1) || std::getenv("PAPERBOAT_NO_TUI")) return;
+  fs::path script;
+  if (const char* env = std::getenv("PAPERBOAT_TUI"); env && *env) script = env;
+  else
+    for (const fs::path& p : {paths::exe_dir().parent_path() / "share" / "paperboat" / "cli" / "main.js",
+                              paths::exe_dir().parent_path() / "apps" / "cli" / "dist" / "main.js"})
+      if (fs::is_regular_file(p)) {
+        script = p;
+        break;
+      }
+  if (script.empty() || !fs::is_regular_file(script)) return;
+  const std::string self = (paths::exe_dir() / "paperboat").string();
+  ::setenv("PAPERBOAT_BIN", self.c_str(), 1);
+  std::string node = "node", path = script.string();
+  char* argv[] = {node.data(), path.data(), nullptr};
+  ::execvp("node", argv);
+  std::cerr << "paperboat: the terminal UI needs node (22 or newer) on PATH; the commands:\n\n";
+}
+
 const std::map<std::string, Handler>& handlers() {
   static const std::map<std::string, Handler> h = {
       {"app.list", app_list}, {"app.open", app_open}, {"app.install", app_install}, {"app.update", app_update},
@@ -999,7 +1021,8 @@ int main(int argc, char** argv) {
       return 0;
     }
     if (!a.cmd) {
-      if (a.pos.empty()) {  // no command: the help (the TUI takes this over on a terminal, phase 3)
+      if (a.pos.empty() && !a.json_out) {  // no command: the TUI on a terminal, else the help
+        launch_tui();
         a.cmd = find_id("paperboat.help");
         return paperboat_help(a);
       }

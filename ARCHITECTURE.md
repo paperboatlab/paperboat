@@ -64,10 +64,16 @@ flowchart LR
   a job, then refreshes; `completion.ts` completes names, then argument values by the usage's
   `<placeholder>`; `react.ts` the hooks. It names no command: the registry is the CLI's. `test/cli.test.ts`
   is the contract against the real binary.
+- `apps/cli/` (`@paperboat/cli`, Ink): the terminal UI, a view of the client. `paperboat` with no
+  command on a terminal execs `node share/paperboat/cli/main.js` (a checkout's build:
+  `apps/cli/dist/main.js`; `PAPERBOAT_TUI` overrides, `PAPERBOAT_NO_TUI` turns it off) with
+  `PAPERBOAT_BIN` set; without node it prints the help. Lists are drawn from `--json` (`views.ts`),
+  every other command shows the CLI's own words; finished output goes to the scrollback (`<Static>`).
+  `npm run build -w @paperboat/cli` bundles it into one file (esbuild) for the packages.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
-- Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` and
-  `devel`; rpm `paperboat-cli` Requires `paperboat-devel`; macOS one `.pkg` with both. The Launcher's
+- Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` (with the
+  TUI bundle) and `devel`; rpm `paperboat-cli` Requires `paperboat-devel`; macOS one `.pkg` with both. The Launcher's
   package will Require `paperboat-cli`.
 - `apps.toml`, `toolkits.toml`: the app and toolkit registries (Malachite; the five
   `simplicial-toolkit-*` repos), installed to `share/paperboat/`; `$PAPERBOAT_DATA_DIR` is searched
