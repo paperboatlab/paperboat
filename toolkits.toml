@@ -1,12 +1,13 @@
-# The toolkit registry: Simplicial's toolkits, each its own repository (simplicial-toolkit-<name>).
+# The toolkit registry: Simplicial's toolkits. The base one is built into Simplicial; each optional one is its
+# own repository (simplicial-toolkit-<name>).
 # `paperboat toolkit install <name>` builds one as a plugin against Simplicial's SDK, so the toolkit
 # commands need Simplicial installed. kind: base (every station has it) or optional.
 
 [[toolkits]]
 name = "base"
 kind = "base"
-repo = "https://github.com/paperboatlab/simplicial-toolkit-base.git"
-description = "The eight packages every station can use: base, signal, math, board, step, string, group and list."
+repo = "https://github.com/paperboatlab/simplicial.git"
+description = "The eight packages every station can use: base, signal, math, board, step, string, group and list. Built into Simplicial (engine/toolkit/src)."
 
 [[toolkits]]
 name = "control"

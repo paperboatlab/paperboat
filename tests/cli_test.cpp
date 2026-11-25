@@ -86,7 +86,8 @@ TEST_CASE("the registries: the apps, the five toolkits", "[cli]") {
   }
   const auto t = json::parse(cli({"toolkits", "--json"}).stdout_text);
   REQUIRE(t.size() == 5);
-  for (const auto& k : t) CHECK_THAT(k["repo"].get<std::string>(), ContainsSubstring("/simplicial-toolkit-"));
+  for (const auto& k : t)  // the base toolkit is built into Simplicial; the optional ones are their own repositories
+    CHECK_THAT(k["repo"].get<std::string>(), ContainsSubstring(k["kind"] == "base" ? "/simplicial.git" : "/simplicial-toolkit-"));
 }
 
 TEST_CASE("the channel is kept", "[cli]") {
