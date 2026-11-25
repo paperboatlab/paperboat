@@ -185,6 +185,7 @@ TEST_CASE("session mode", "[runtime]") {
     CHECK(s1["line"] == 3);
     REQUIRE(s1["frames"].size() == 2);  // f, then top-level
     CHECK(s1["frames"][0]["name"] == "f");
+    CHECK(s1["frames"][1]["line"] == 6);  // the top-level frame is at the call, b = f(a)
     CHECK(std::ranges::any_of(s1["locals"], [](const json& v) { return v["name"] == "x" && v["summary"] == "1"; }));
     other.request("debug", {{"command", "over"}});
     const json s2 = stopped(2);

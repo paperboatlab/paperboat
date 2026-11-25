@@ -443,6 +443,7 @@ end
 
 function check!(line::Int, file::String, locals_fn::Function)
     STATE.active || return nothing
+    isempty(STATE.frames) || (STATE.frames[end].line = line)   # where each frame is, for the call stack
     STATE.stop_requested && throw(DebugStopException())
 
     # Periodically yield so the stdin reader task can deliver pause/stop/breakpoint commands mid-loop.
