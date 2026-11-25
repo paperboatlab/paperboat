@@ -25,6 +25,9 @@ export interface App {
   /** null when not installed; `from` is the linked checkout, "" for a release. */
   installed: {version: string; from: string} | null;
   sessions: number;
+  /** The runtimes it uses (`julia@1.11`). */
+  runtimes: string[];
+  repo: string;
 }
 
 /** An app server paperboat started on a folder. */

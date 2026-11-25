@@ -4,24 +4,8 @@
 import {spawn} from 'node:child_process';
 import {createInterface} from 'node:readline';
 
-export class CliError extends Error {
-  readonly code: number;
-  /** The rest of the CLI's error object (`app` for an unknown word an app adds). */
-  readonly extra: Record<string, unknown>;
-  constructor(message: string, code: number, extra: Record<string, unknown> = {}) {
-    super(message);
-    this.code = code;
-    this.extra = extra;
-  }
-}
-
-export interface Transport {
-  /** `paperboat <argv> --json`: its output parsed; `json: false`, the CLI's own text. Progress lines
-   * (stderr) go to `onLine`. */
-  call(argv: string[], onLine?: (line: string) => void, json?: boolean): Promise<unknown>;
-  /** A command printing one JSON object a line until stopped (`runtime events`). */
-  stream(argv: string[], onItem: (item: unknown) => void): {stop(): void; done: Promise<void>};
-}
+export {CliError, type Transport} from './error.ts';
+import {CliError, type Transport} from './error.ts';
 
 /** The CLI at `bin` (default: $PAPERBOAT_BIN, else `paperboat` on PATH). */
 export function cliTransport(bin = process.env.PAPERBOAT_BIN || 'paperboat', env: NodeJS.ProcessEnv = process.env): Transport {

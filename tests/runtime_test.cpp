@@ -108,6 +108,14 @@ TEST_CASE("session mode", "[runtime]") {
                [&](const json& m) { if (m["type"] == "display") shown.push_back(m["data"]); });
     REQUIRE(shown.size() == 1);
     CHECK(shown[0]["text/plain"] == "42");
+    if (jl) {  // a figure goes as itself, with no images rendered beside it
+      const json r = rt.request("eval", {{"code",
+        "struct Fig end; Base.show(io::IO, ::MIME\"application/vnd.paperboat.figure+json\", ::Fig) = print(io, \"{\\\"scene\\\":{}}\"); "
+        "Base.show(io::IO, ::MIME\"image/svg+xml\", ::Fig) = error(\"rendered\"); Fig()"}});
+      CHECK(r["data"]["application/vnd.paperboat.figure+json"] == "{\"scene\":{}}");
+      CHECK_FALSE(r["data"].contains("image/svg+xml"));
+      CHECK(text(rt.request("eval", {{"code", "Base.active_project() == joinpath(ENV[\"PAPERBOAT_PROJECT\"], \"Project.toml\")"}})) == "true");
+    }
     rt.request("eval", {{"code", jl ? "answer_value = 41 + 1;" : "answer_value = 41 + 1"}});
     const json vars = rt.request("variables");
     CHECK(std::ranges::any_of(vars, [](const json& v) { return v["name"] == "answer_value"; }));

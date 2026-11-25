@@ -248,9 +248,17 @@ struct PBDisplay <: AbstractDisplay end
 Base.display(::PBDisplay, x) = TARGET.conn === nothing ? throw(MethodError(display, (x,))) :
     send(TARGET.conn, Dict("type" => "display", "id" => TARGET.id, "data" => mime(x)))
 
+# A figure an app draws itself (docs/runtime.md "Figures"): JSON with its scene, from a plotting library
+# (JulixPlot). Sent instead of the value's images: each of those costs a render, and the app exports on demand.
+const FIGURE = MIME"application/vnd.paperboat.figure+json"()
+
 function mime(x)
     x === nothing && return nothing
     d = Dict{String,Any}("text/plain" => repr(MIME"text/plain"(), x; context = :limit => true))
+    if showable(FIGURE, x)
+        d[string(FIGURE)] = sprint(show, FIGURE, x)
+        return d
+    end
     for (m, key) in ((MIME"text/html"(), "text/html"), (MIME"image/svg+xml"(), "image/svg+xml"))
         showable(m, x) && (d[key] = repr(m, x))
     end
@@ -303,7 +311,7 @@ end
 function answer(s::Session, code::String, value)
     REPL.ends_with_semicolon(code) && (value = nothing)
     value === nothing || Core.eval(s.mod, :(ans = $(QuoteNode(value))))
-    Dict("data" => mime(value))
+    Dict("data" => Base.invokelatest(mime, value))  # the latest world: a cell may define the show it returns
 end
 
 # --- debugging (docs/runtime.md "Debugging") ---
@@ -619,6 +627,9 @@ function serve(path::String, mode::String)
     session = mode == "session" ? Session() : nothing
     if session !== nothing
         pushdisplay(PBDisplay())
+        # the project's environment, as `julia --project`: what `paperboat add julia …` put there loads with `using`
+        project = get(ENV, "PAPERBOAT_PROJECT", "")
+        isempty(project) || (Base.ACTIVE_PROJECT[] = project)
     end
     @async begin
         while !stop.set

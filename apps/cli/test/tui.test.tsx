@@ -13,7 +13,7 @@ const help = [
   {id: 'app.open', name: 'app open', args: '<app> [<folder>]', desc: 'Open an app', group: 'Apps', app: '', alias: [], tui: false},
   {id: 'paperboat.clear', name: 'clear', args: '', desc: 'Clear', group: 'Paperboat', app: '', alias: [], tui: true},
 ];
-const apps = [{name: 'malachite', label: 'Malachite', description: 'Engineering notebook', installed: {version: '0.1.0', from: ''}, sessions: 0}];
+const apps = [{name: 'malachite', label: 'Malachite', description: 'Engineering notebook', installed: {version: '0.1.0', from: ''}, sessions: 0, runtimes: ['julia@1.11'], repo: ''}];
 const about = {paperboat: '0.2.0', channel: 'release', daemon: null};
 const tick = (ms = 50) => new Promise(r => setTimeout(r, ms));
 /** Until the frame matches (a loaded machine is slow), then the frame. */
@@ -23,7 +23,7 @@ async function until(frame: () => string | undefined, re: RegExp, ms = 5000) {
 }
 const text = (lines: ReturnType<typeof jobLines>) => lines.map(plain).join('\n');
 
-async function tui() {
+async function tui(history: string[] = [], onHistory?: (l: string) => void) {
   const t = fakeTransport({
     help,
     'app list': apps,
@@ -35,7 +35,7 @@ async function tui() {
   });
   const client = createClient(t);
   await client.refresh();
-  const r = render(<App client={client} about={about} cwd="/hub" glyphs={false} />);
+  const r = render(<App client={client} about={about} cwd="/hub" glyphs={false} history={history} onHistory={onHistory} />);
   await tick();
   return {...r, t};
 }
@@ -97,5 +97,36 @@ test('the TUI: a failure, then history', async () => {
   stdin.write('\x1b[A');  // ↑
   await tick();
   assert.match(lastFrame()!, /› \/app open nope/);
+  unmount();
+});
+
+test('the TUI: history from earlier runs, Ctrl+R search, new lines kept', async () => {
+  const kept: string[] = [];
+  const {lastFrame, stdin, t, unmount} = await tui(['/app open malachite', '/apps', '/session list'], l => kept.push(l));
+  stdin.write('\x12');  // Ctrl+R
+  for (const ch of 'mal') stdin.write(ch);
+  assert.match(await until(lastFrame, /search mal/), /search mal .*\/app open malachite/);
+  stdin.write('\x12');  // older: none, stays on the only match
+  for (const ch of 'xyz') stdin.write(ch);
+  assert.match(await until(lastFrame, /no match/), /search malxyz .*no match/);
+  stdin.write('\x1b');  // Esc gives the line back
+  await tick();
+  assert.doesNotMatch(lastFrame()!, /search/);
+  stdin.write('\x12');
+  for (const ch of 'op') stdin.write(ch);
+  assert.match(await until(lastFrame, /search op /), /\/app open malachite/);
+  stdin.write('\r');
+  await until(lastFrame, /started malachite/);
+  assert.deepEqual(kept, ['/app open malachite']);  // a repeat of the newest line isn't kept twice
+  assert.ok(t.calls.some(c => c.startsWith('app open malachite')));
+  unmount();
+});
+
+test('the TUI: a paste with Enter in it runs each line', async () => {
+  const {lastFrame, stdin, t, unmount} = await tui();
+  stdin.write('/app open malachite\r/apps\r');
+  const f = await until(lastFrame, /› \/apps[\s\S]*Malachite/);
+  assert.match(f, /› \/app open malachite\n.*started malachite[\s\S]*› \/apps\n/);
+  assert.ok(t.calls.some(c => c.startsWith('app open malachite')));
   unmount();
 });

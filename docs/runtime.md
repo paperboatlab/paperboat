@@ -69,6 +69,14 @@ the lease, acquire a new one).
 `data` always has `text/plain`; it adds `text/html`, `image/png` (base64) or `image/svg+xml` when the
 value can show itself that way (Julia `showable`; Python `_repr_html_`, `_repr_png_`, `_repr_svg_`).
 
+**Figures:** a value that shows itself as `application/vnd.paperboat.figure+json` (JulixPlot's `Figure`)
+is sent as that and `text/plain` only, with no images: the app draws the scene itself and exports images
+on demand. The JSON is `{"scene": {...}, "buffers": "<base64>"}`; the scene's large arrays are
+`{"buf": true, "dtype": "f32" | "u32" | "u8", "offset", "length"}` into the decoded buffers.
+
+A session's **project** is active (as `julia --project`), so packages `paperboat add julia …` put in it
+load with `using`.
+
 **Debugging** (Julia; Python answers `debug` with `UnknownOp`): `eval` with `debug: true` runs the cell's
 top-level statements one by one, instrumented (hooks before each statement and around each function, so
 code runs at full speed between stops), in a `top-level` frame. `breakpoints` is `[{"line", "enabled"?,

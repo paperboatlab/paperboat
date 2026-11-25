@@ -26,3 +26,7 @@ jobs:
         run: npm run typecheck -w @paperboat/client && npm test -w @paperboat/client
       - name: terminal UI (typecheck, tests, bundle)
         run: npm run typecheck -w @paperboat/cli && npm test -w @paperboat/cli && npm run build -w @paperboat/cli
+      - name: launcher (typecheck, build, e2e on Electron against build/paperboat)
+        run: |
+          npm run typecheck -w @paperboat/launcher && npm run build -w @paperboat/launcher
+          xvfb-run -a npm run e2e -w @paperboat/launcher
