@@ -12,6 +12,7 @@
 use strict;
 use warnings;
 use IO::Socket::INET;
+use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use IO::Socket::UNIX;
 use IO::Select;
 use JSON::PP;
@@ -40,6 +41,7 @@ for (1 .. 600) {   # up to 60 s: omc reads its settings before it binds
 }
 die "omc did not listen on $port\n" unless $z;
 binmode $z;
+setsockopt($z, IPPROTO_TCP, TCP_NODELAY, 1);   # a request is two frames: never wait for an ACK between them
 
 sub zread { my $n = shift; my $buf = ''; while (length $buf < $n) { my $r = sysread($z, $buf, $n - length $buf, length $buf); die "omc went away\n" unless $r } $buf }
 sub zframe {   # (flags, body)
@@ -47,19 +49,19 @@ sub zframe {   # (flags, body)
   my $n = $f & 2 ? unpack('Q>', zread(8)) : unpack('C', zread(1));
   return ($f, $n ? zread($n) : '');
 }
-sub zsend { my ($flags, $body) = @_; my $n = length $body; syswrite $z, $n > 255 ? pack('CQ>', $flags | 2, $n) . $body : pack('CC', $flags, $n) . $body }
+sub zframe_out { my ($flags, $body) = @_; my $n = length $body; $n > 255 ? pack('CQ>', $flags | 2, $n) . $body : pack('CC', $flags, $n) . $body }
+sub zsend { syswrite $z, join '', map { zframe_out(@$_) } @_ }
 
 # greeting: signature, version 3.0, NULL, client; then READY with our socket type
 syswrite $z, "\xFF" . ("\0" x 8) . "\x7F" . "\x03\x00" . pack('a20', 'NULL') . "\0" . ("\0" x 31);
 zread(64);
-zsend(4, "\x05READY" . "\x0BSocket-Type" . pack('N', 3) . 'REQ');
+zsend([4, "\x05READY" . "\x0BSocket-Type" . pack('N', 3) . 'REQ']);
 my ($f) = zframe();
 die "omc did not say READY\n" unless $f & 4;
 
 sub omc {   # one expression, omc's reply with its trailing newline cut
   my $expr = shift;
-  zsend(1, '');   # REQ's empty delimiter
-  zsend(0, $expr);
+  zsend([1, ''], [0, $expr]);   # REQ's empty delimiter, then the expression, in one write
   my $out = '';
   for (;;) {
     my ($fl, $body) = zframe();
