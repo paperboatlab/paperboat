@@ -1,5 +1,5 @@
 # The app registry: the apps `paperboat app install <app>` can install, added as each is rebuilt on
-# this platform (Simplicial and Articula follow Malachite and Julix).
+# this platform (Malachite, Julix, Articula, then Simplicial).
 #
 #   name         what you type: app install malachite
 #   label        how the Launcher and the TUI show it
@@ -9,8 +9,8 @@
 #   runtimes     pulled at install (paperboatd would pull them when first used anyway)
 #   launch       the app server, run as `<launch> <folder> --port <port>` by `app open`; ready when it
 #                listens on 127.0.0.1:<port>
-#   port         its home port, one per app in order of arrival: 30470 is Paperboat's, 30471 Simplicial's
-#                (not listed yet), so the next app takes 30475; up to 30499. Further folders of any app
+#   port         its home port, one per app in order of arrival: 30470 is Paperboat's, 30471 Simplicial's,
+#                so the next app takes 30475; up to 30499. Further folders of any app
 #                take the first free port in 30500-30599
 #   commands     words it adds: before it is installed, `paperboat <word>` says to install it
 
@@ -43,3 +43,15 @@ runtimes    = ["omc@1.27"]
 launch      = "bin/articula"
 port        = 30472
 commands    = []
+
+# Listed so its manual is published (paperboatlab.github.io/apps/simplicial/). It has no release and no
+# bin/simplicial yet: `app install simplicial` says so until it ships its launcher. Its stations use 51301 and up.
+[[apps]]
+name        = "simplicial"
+label       = "Simplicial"
+repo        = "https://github.com/paperboatlab/simplicial"
+description = "Visual flow, station and block-diagram simulation"
+runtimes    = []
+launch      = "bin/simplicial"
+port        = 30471
+commands    = ["station", "run"]
