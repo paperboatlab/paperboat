@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <chrono>
 #include <future>
+#include <mutex>
 #include <numeric>
 
 using namespace test;
@@ -152,6 +153,55 @@ TEST_CASE("session mode", "[runtime]") {
     }
     CHECK(busy.get() == "InterruptException");
     CHECK(text(rt.request("eval", {{"code", "1 + 1"}})) == "2");
+  }
+
+  SECTION("debug: a breakpoint, locals, step over, eval in the frame, continue; stop") {
+    if (!jl) SKIP("no debugger for " + runtime + " yet");
+    std::mutex m;
+    std::vector<json> events;
+    auto debug_run = [&](const std::string& code, json breakpoints) {
+      return std::async(std::launch::async, [&, code, breakpoints] {
+        return rt.request("eval", {{"code", code}, {"cell", "dbg.jl"}, {"debug", true}, {"breakpoints", breakpoints}},
+                          [&](const json& msg) { if (msg["type"] == "debug") { std::lock_guard l(m); events.push_back(msg); } });
+      });
+    };
+    auto stopped = [&](size_t n) {  // waits for the n-th "stopped"
+      for (int i = 0; i < 300; i++) {
+        {
+          std::lock_guard l(m);
+          std::vector<json> s;
+          for (const auto& e : events) if (e["event"] == "stopped") s.push_back(e);
+          if (s.size() >= n) return s[n - 1];
+        }
+        std::this_thread::sleep_for(100ms);
+      }
+      FAIL("no stop");
+      return json();
+    };
+    RuntimeClient other(rig.lease["ipc"].get<std::string>());
+    auto run = debug_run("a = 1\nfunction f(x)\n    y = x * 2\n    y + 1\nend\nb = f(a)\nc = b + 1", json::array({{{"line", 3}}}));
+    const json s1 = stopped(1);
+    CHECK(s1["reason"] == "breakpoint");
+    CHECK(s1["line"] == 3);
+    REQUIRE(s1["frames"].size() == 2);  // f, then top-level
+    CHECK(s1["frames"][0]["name"] == "f");
+    CHECK(std::ranges::any_of(s1["locals"], [](const json& v) { return v["name"] == "x" && v["summary"] == "1"; }));
+    other.request("debug", {{"command", "over"}});
+    const json s2 = stopped(2);
+    CHECK(s2["line"] == 4);
+    CHECK(std::ranges::any_of(s2["locals"], [](const json& v) { return v["name"] == "y" && v["summary"] == "2"; }));
+    CHECK(other.request("debug", {{"command", "eval"}, {"frame", s2["frames"][0]["id"]}, {"code", "y + 10"}})["summary"] == "12");
+    other.request("debug", {{"command", "continue"}});
+    REQUIRE(run.wait_for(20s) == std::future_status::ready);
+    CHECK(text(run.get()) == "4");
+    CHECK(text(rt.request("eval", {{"code", "c"}})) == "4");
+
+    auto halted = debug_run("p = 1\nq = 2", json::array({{{"line", 1}}}));
+    stopped(3);
+    other.request("debug", {{"command", "stop"}});
+    REQUIRE(halted.wait_for(20s) == std::future_status::ready);
+    CHECK(halted.get()["stopped"] == true);
+    CHECK(text(rt.request("eval", {{"code", "isdefined(@__MODULE__, :q)"}})) == "false");  // stopped before line 2
   }
 
   SECTION("a reconnecting client finds its namespace") {
