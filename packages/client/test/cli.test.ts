@@ -26,6 +26,7 @@ test('help, apps and sessions have the shapes the client reads', {skip}, async (
   assert.ok(m);
   assert.equal(m.installed, null);
   assert.equal(m.sessions, 0);
+  assert.deepEqual(m.runtimes, ['julia@1.11', 'python@3.12']);
   assert.deepEqual(s.sessions, []);
 });
 
