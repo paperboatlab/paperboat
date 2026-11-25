@@ -50,14 +50,35 @@ the lease, acquire a new one).
 
 | op | args | result |
 | --- | --- | --- |
-| `eval` | `code`, `cell?` (a label for tracebacks) | `{"data": {mime: text}}` or `{"data": null}` (no value / `nothing` / `None`); output arrives as `stream` and `display` notifications |
+| `eval` | `code`, `cell?` (a label for tracebacks), `debug?`, `breakpoints?` (Julia; see Debugging) | `{"data": {mime: text}}` or `{"data": null}` (no value / `nothing` / `None`); output arrives as `stream` and `display` notifications |
 | `complete` | `code`, `pos` (byte offset) | `{"matches": [...], "start": n, "end": n}` |
 | `lint` | `code` | `{"problems": [{"from", "to", "severity", "message"}]}`: byte offsets; `severity` `error`, `warning` or `info`. From the language's own parser (Julia: JuliaSyntax; Python: `compile`, with its `SyntaxWarning`s). It only parses, so it answers at once, even while a cell runs; offered in both modes |
 | `variables` | – | `[{"name", "type", "summary", "size"?}]` |
 | `reset` | – | `{}`: a fresh namespace |
+| `debug` | `command`, … (Julia; see Debugging) | answered at once, never queued behind the eval it steers |
 
 `data` always has `text/plain`; it adds `text/html`, `image/png` (base64) or `image/svg+xml` when the
 value can show itself that way (Julia `showable`; Python `_repr_html_`, `_repr_png_`, `_repr_svg_`).
+
+**Debugging** (Julia; Python answers `debug` with `UnknownOp`): `eval` with `debug: true` runs the cell's
+top-level statements one by one, instrumented (hooks before each statement and around each function, so
+code runs at full speed between stops), in a `top-level` frame. `breakpoints` is `[{"line", "enabled"?,
+"condition"?}]` for the cell's label; a condition is Julia code, read in the frame. While the eval waits,
+the runtime sends `{"type": "debug", "id", "event": "stopped", "reason": "breakpoint" | "step" | "pause",
+"file", "line", "frames": [{"id", "name", "line"}] (innermost first), "locals": [{"name", "type",
+"summary"}]}` (the `top-level` frame's locals are the session's variables), and `{"type": "debug", "id",
+"event": "resumed"}` when it goes on. The `debug` op's `command`:
+
+| command | args | result |
+| --- | --- | --- |
+| `continue`, `over`, `into`, `out` | – | `{"running": bool}`: go on, or step (over a call, into it, out of the frame) |
+| `pause`, `stop` | – | `{"running": bool}`: stop at the next statement; end the run (its `eval` answers `{"data": null, "stopped": true}`) |
+| `breakpoints` | `file`, `breakpoints` | `{}`: replaces the file's, also while it runs |
+| `locals` | `frame` | `{"locals": [...]}` of a frame while paused |
+| `eval` | `frame`, `code` | `{"type", "summary"}`: the code read in the frame's locals, while paused |
+
+A busy loop checks for `pause` and `stop` every 256 statements. Functions a debug eval defines keep their
+hooks, which cost a branch when no debug eval runs; a later plain eval of the same code removes them.
 
 ### Station
 

@@ -226,6 +226,8 @@ errdict(e, bt = catch_backtrace()) = e isa LoadError ? errdict(e.error, bt) : Di
     "traceback" => sprint(Base.show_backtrace, bt),
 )
 
+include(joinpath(@__DIR__, "Debugger.jl"))
+
 # --- station registry ---
 
 const TYPES = Dict{String,Tuple{Any,Dict{String,Any}}}()
@@ -265,7 +267,8 @@ end
 newmodule() = Module(:Session)  # Module() defines eval and include in it
 Session() = Session(newmodule(), Channel{Any}(Inf), Threads.Atomic{Bool}(false))
 
-function run_eval(s::Session, code::String, cell::String, conn::Connection, id)
+# The cell's output streams to the client while `f` runs; its displays go there too.
+function capturing(f, conn::Connection, id)
     TARGET.conn, TARGET.id = conn, id
     out = Pipe()
     saved_out, saved_err = stdout, stderr
@@ -278,10 +281,7 @@ function run_eval(s::Session, code::String, cell::String, conn::Connection, id)
         end
     end
     try
-        value = Base.include_string(s.mod, code, cell)
-        REPL.ends_with_semicolon(code) && (value = nothing)
-        value === nothing || Core.eval(s.mod, :(ans = $(QuoteNode(value))))
-        return Dict("data" => mime(value))
+        return f()
     finally
         Base.Libc.flush_cstdio()
         flush(stdout)
@@ -291,6 +291,70 @@ function run_eval(s::Session, code::String, cell::String, conn::Connection, id)
         wait(forward)
         TARGET.conn, TARGET.id = nothing, nothing
     end
+end
+
+function run_eval(s::Session, code::String, cell::String, conn::Connection, id)
+    capturing(conn, id) do
+        value = Base.include_string(s.mod, code, cell)
+        answer(s, code, value)
+    end
+end
+
+function answer(s::Session, code::String, value)
+    REPL.ends_with_semicolon(code) && (value = nothing)
+    value === nothing || Core.eval(s.mod, :(ans = $(QuoteNode(value))))
+    Dict("data" => mime(value))
+end
+
+# --- debugging (docs/runtime.md "Debugging") ---
+
+describe(pairs) = [Dict{String,Any}("name" => string(k), "type" => string(typeof(v)),
+                                    "summary" => first(repr(v; context = :limit => true), 120)) for (k, v) in pairs]
+# a frame's locals; the top-level frame's are the session's variables
+frame_locals(s::Session, f) = f === nothing ? Any[] : f.name == "top-level" ? variables(s) : describe(Debugger.frame_locals(f.id))
+
+"A debug eval: the cell's statements instrumented, pausing at breakpoints and steps until told to go on."
+function run_debug(s::Session, code::String, cell::String, conn::Connection, id, breakpoints)
+    D = Debugger
+    D.set_breakpoints!(cell, breakpoints)
+    D.reset_session!(s.mod, cell;
+        on_pause = (reason, file, line, frames) -> send(conn, Dict("type" => "debug", "id" => id, "event" => "stopped",
+            "reason" => reason, "file" => file, "line" => line,
+            "frames" => [Dict("id" => f.id, "name" => f.name, "line" => f.line) for f in reverse(frames)],
+            "locals" => frame_locals(s, isempty(frames) ? nothing : frames[end]))),
+        on_resume = () -> send(conn, Dict("type" => "debug", "id" => id, "event" => "resumed")))
+    try
+        capturing(conn, id) do
+            answer(s, code, D.run_statements(s.mod, code, cell))
+        end
+    catch e
+        (e isa D.DebugStopException || e isa LoadError && e.error isa D.DebugStopException) || rethrow()
+        Dict("data" => nothing, "stopped" => true)
+    finally
+        D.finish_session!()
+    end
+end
+
+"The `debug` op: answered by the reader at once, while a debug eval waits for it."
+function debug_op(s::Session, args)
+    D, cmd = Debugger, String(get(args, "command", ""))
+    if cmd in ("continue", "over", "into", "out", "pause", "stop")
+        D.STATE.active || return Dict("running" => false)
+        D.request_command!(Symbol(cmd))
+        return Dict("running" => true)
+    elseif cmd == "breakpoints"
+        D.set_breakpoints!(String(args["file"]), args["breakpoints"])
+        return Dict()
+    elseif cmd == "locals"
+        D.STATE.paused || error("not paused")
+        return Dict("locals" => frame_locals(s, D.frame(Int(args["frame"]))))
+    elseif cmd == "eval"
+        D.STATE.paused || error("not paused")
+        f = D.frame(Int(args["frame"]))
+        v = f === nothing || f.name == "top-level" ? Core.eval(s.mod, Meta.parse(String(args["code"]))) : D.eval_in_frame(f.id, String(args["code"]))
+        return Dict("type" => string(typeof(v)), "summary" => first(repr(v; context = :limit => true), 400))
+    end
+    error("debug command is continue, over, into, out, pause, stop, breakpoints, locals or eval")
 end
 
 # Problems in a piece of code, from Julia's own parser (JuliaSyntax, inside Base since 1.10): byte offsets
@@ -504,7 +568,14 @@ function serve_connection(io, mode::String, session, stop::Threads.Event)
                 ok(lint(String(args["code"])))
             elseif session !== nothing && op == "eval"
                 code, cell = String(args["code"]), String(get(args, "cell", "cell"))
-                put!(session.jobs, (conn, id, () -> run_eval(session, code, cell, conn, id)))
+                if get(args, "debug", false) === true
+                    bps = something(get(args, "breakpoints", nothing), Any[])
+                    put!(session.jobs, (conn, id, () -> run_debug(session, code, cell, conn, id, bps)))
+                else
+                    put!(session.jobs, (conn, id, () -> run_eval(session, code, cell, conn, id)))
+                end
+            elseif session !== nothing && op == "debug"
+                ok(debug_op(session, args))
             elseif session !== nothing && op == "complete"
                 code, pos = String(args["code"]), Int(args["pos"])
                 put!(session.jobs, (conn, id, () -> complete(session, code, pos)))
