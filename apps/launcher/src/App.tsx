@@ -1,5 +1,5 @@
 // The Launcher (agent-docs/rebrand/apps/launcher): the bar, the rail (Apps, Stations when an app adds
-// them, Toolkits, Runtimes, Console), the pages, Ctrl+K over the whole registry. A view of
+// them, Toolkits, Runtimes, Hubs when Malachite adds them, Console), the pages, Ctrl+K over the whole registry. A view of
 // @paperboat/client: every key runs a command line, the CLI's own words.
 
 import {useEffect, useMemo, useRef, useState} from 'react';
@@ -9,6 +9,7 @@ import {useStore} from '@paperboat/client/react';
 import {makeAct} from './act.ts';
 import {Apps} from './Apps.tsx';
 import {Console} from './Console.tsx';
+import {Hubs} from './Hubs.tsx';
 import {Runtimes} from './Runtimes.tsx';
 import {Toolkits} from './Toolkits.tsx';
 import pkg from '../package.json' with {type: 'json'};
@@ -20,7 +21,7 @@ const OWN: Credit[] = [
   ['Node.js', 'running the CLI, inside Electron', 'MIT', 'https://nodejs.org'],
 ];
 
-type Page = 'apps' | 'stations' | 'toolkits' | 'runtimes' | 'console';
+type Page = 'apps' | 'stations' | 'toolkits' | 'runtimes' | 'hubs' | 'console';
 const isTheme = (v: unknown): v is Theme => v === 'light' || v === 'dark' || v === 'system';
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean';
 
@@ -60,11 +61,13 @@ export function App({client}: {client: Client}) {
   useEffect(loadAbout, [client]);
 
   const stations = state.commands.some(c => c.group === 'Stations');
+  const hubs = state.commands.some(c => c.group === 'Hubs');   // no Malachite, no hub
   const base: RailItem[] = [
     {id: 'apps', label: 'Apps', icon: 'a-apps', count: state.sessions.length ? 'live' : undefined},
     ...(stations ? [{id: 'stations', label: 'Stations', icon: 'a-stations'} as RailItem] : []),
     {id: 'toolkits', label: 'Toolkits', icon: 'a-toolkits'},
     {id: 'runtimes', label: 'Runtimes', icon: 'a-runtimes', count: state.instances.length || undefined},
+    ...(hubs ? [{id: 'hubs', label: 'Hubs', icon: 'mark-malachite'} as RailItem] : []),
     {id: 'console', label: 'Console', icon: 'a-console'},
   ];
   const pages = base.map((p, i) => ({...p, keys: `Alt+${i + 1}`}));
@@ -101,7 +104,7 @@ export function App({client}: {client: Client}) {
       if (chordMatches({key: 'k', ctrl: true}, e)) {
         e.preventDefault();
         setSearch(s => !s);
-      } else if (e.altKey && /^[1-5]$/.test(e.key) && pages[+e.key - 1]) {
+      } else if (e.altKey && /^[1-6]$/.test(e.key) && pages[+e.key - 1]) {
         e.preventDefault();
         setPage(pages[+e.key - 1].id as Page);
       }
@@ -142,6 +145,7 @@ export function App({client}: {client: Client}) {
         {page === 'stations' && <Console client={client} line={line} onLine={setLine} only="Stations" />}
         {page === 'toolkits' && <Toolkits client={client} act={act} />}
         {page === 'runtimes' && <Runtimes client={client} act={act} />}
+        {page === 'hubs' && hubs && <Hubs client={client} act={act} show={show} />}
         {page === 'console' && <Console client={client} line={line} onLine={setLine} />}
       </main>
 

@@ -80,7 +80,8 @@ flowchart LR
   (`electron/main.ts`) runs the CLI through `cliTransport` and is the sandboxed page's only door
   (`preload.ts`: `call`, `stream`, `openWindow` for an app server on 127.0.0.1, `pickFolder`); the page
   (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
-  Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group); Ctrl+K lists every
+  Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds
+  the Hubs group: list, Overview, History, Settings, each control one `paperboat hub …` command, pb#16); Ctrl+K lists every
   registry command. `e2e/` drives it with Playwright against the real CLI.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
