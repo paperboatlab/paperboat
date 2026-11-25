@@ -58,6 +58,12 @@ flowchart LR
   (`<launch> <folder> --port <port>`, its own process group) and records a **session** in
   `<runtime dir>/sessions/<app>-<port>.json` with its log beside it; a session whose process is gone is
   dropped when listed. App servers are native processes; only runtimes go through paperboatd.
+- `packages/client/` (`@paperboat/client`, TypeScript run by Node directly): the Launcher's and the TUI's
+  one client. `transport.ts` runs the CLI with `--json` (the only way in); `client.ts` holds the state
+  (commands from `help --json`, apps, sessions, runtimes, instances, events) and runs any command line as
+  a job, then refreshes; `completion.ts` completes names, then argument values by the usage's
+  `<placeholder>`; `react.ts` the hooks. It names no command: the registry is the CLI's. `test/cli.test.ts`
+  is the contract against the real binary.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
 - Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` and
