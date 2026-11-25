@@ -1,0 +1,30 @@
+{
+  "name": "@paperboat/cli",
+  "private": true,
+  "version": "0.2.0",
+  "description": "The terminal UI: `paperboat` on a terminal, a view of @paperboat/client in Ink",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node scripts/bundle.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.tsx"
+  },
+  "dependencies": {
+    "@paperboat/client": "*",
+    "ink": "^8.0.0",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "ink-testing-library": "^4.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

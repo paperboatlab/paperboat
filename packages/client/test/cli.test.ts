@@ -36,3 +36,10 @@ test('a failure carries the CLI message', {skip}, async () => {
   assert.equal(job.state, 'failed');
   assert.match(job.error!, /paperboat app install malachite/);
 });
+
+test('text mode: the CLI words, and its reason on failure', {skip}, async () => {
+  const c = createClient(t);
+  assert.match((await c.run('channel', {text: true})).result as string, /^release\n$/);
+  const f = await c.run('app open malachite', {text: true});
+  assert.match(f.error!, /^malachite is not installed/);
+});

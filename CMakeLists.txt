@@ -80,6 +80,8 @@ add_custom_target(paperboat_runtimes ALL
 install(TARGETS paperboat paperboatd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT cli)
 install(DIRECTORY runtimes/ DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat/runtimes COMPONENT cli)
 install(FILES apps.toml toolkits.toml DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat COMPONENT cli)
+# The terminal UI, when built (npm ci && npm run build -w @paperboat/cli): `paperboat` on a terminal runs it.
+install(FILES apps/cli/dist/main.js DESTINATION ${CMAKE_INSTALL_DATADIR}/paperboat/cli COMPONENT cli OPTIONAL)
 
 include(CMakePackageConfigHelpers)
 set(PAPERBOAT_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/paperboat)

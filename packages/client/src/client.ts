@@ -42,8 +42,9 @@ export interface Client {
   subscribe(listener: () => void): () => void;
   /** Re-read the lists; `runtimes` too (it starts paperboatd if it is not running). */
   refresh(opts?: {runtimes?: boolean}): Promise<void>;
-  /** Run a command line; resolves with the finished job (failed jobs resolve too). */
-  run(line: string): Promise<Job>;
+  /** Run a command line; resolves with the finished job (failed jobs resolve too). `text`: the
+   * result is the CLI's own words (a terminal shows them as they are). */
+  run(line: string, opts?: {text?: boolean}): Promise<Job>;
   /** Follow paperboatd's events: instances refresh on each. Returns stop. */
   watch(): () => void;
 }
@@ -83,14 +84,14 @@ export function createClient(t: Transport): Client {
         ...(opts.runtimes ? [load('runtimes', ['runtime', 'list'], j => j as RuntimeList), refreshInstances()] : []),
       ]);
     },
-    async run(line) {
+    async run(line, opts = {}) {
       const words = splitWords(line);
       const found = findCommand(state.commands, words);
       const id = nextJob++;
       const job: Job = {id, line, command: found?.cmd.id ?? '', state: 'running', output: [], started: Date.now()};
       set(s => ({jobs: [...s.jobs, job]}));
       try {
-        const result = await t.call(words, l => set(s => ({jobs: s.jobs.map(j => (j.id === id ? {...j, output: [...j.output, l]} : j))})));
+        const result = await t.call(words, l => set(s => ({jobs: s.jobs.map(j => (j.id === id ? {...j, output: [...j.output, l]} : j))})), !opts.text);
         setJob(id, {state: 'done', result, ended: Date.now()});
       } catch (e) {
         const app = e instanceof CliError && typeof e.extra.app === 'string' ? e.extra.app : undefined;

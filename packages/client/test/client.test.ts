@@ -64,3 +64,9 @@ test('watch: events are kept and instances refresh', async () => {
   assert.equal(c.getState().instances[0].id, 'l1');
   stop();
 });
+
+test('run as text: the CLI words without --json', async () => {
+  const t = fakeTransport({help, 'app list': apps, 'session list': [], about: (_a: string[], _l: unknown, json?: boolean) => (json ? {} : 'paperboat 0.2.0\n')});
+  const c = createClient(t);
+  assert.equal((await c.run('about', {text: true})).result, 'paperboat 0.2.0\n');
+});

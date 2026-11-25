@@ -16,8 +16,9 @@ export class CliError extends Error {
 }
 
 export interface Transport {
-  /** `paperboat <argv> --json`: its output parsed. Progress lines (stderr) go to `onLine`. */
-  call(argv: string[], onLine?: (line: string) => void): Promise<unknown>;
+  /** `paperboat <argv> --json`: its output parsed; `json: false`, the CLI's own text. Progress lines
+   * (stderr) go to `onLine`. */
+  call(argv: string[], onLine?: (line: string) => void, json?: boolean): Promise<unknown>;
   /** A command printing one JSON object a line until stopped (`runtime events`). */
   stream(argv: string[], onItem: (item: unknown) => void): {stop(): void; done: Promise<void>};
 }
@@ -25,9 +26,9 @@ export interface Transport {
 /** The CLI at `bin` (default: $PAPERBOAT_BIN, else `paperboat` on PATH). */
 export function cliTransport(bin = process.env.PAPERBOAT_BIN || 'paperboat', env: NodeJS.ProcessEnv = process.env): Transport {
   return {
-    call(argv, onLine) {
+    call(argv, onLine, json = true) {
       return new Promise((resolve, reject) => {
-        const p = spawn(bin, [...argv, '--json'], {env, stdio: ['ignore', 'pipe', 'pipe']});
+        const p = spawn(bin, json ? [...argv, '--json'] : argv, {env, stdio: ['ignore', 'pipe', 'pipe']});
         let out = '';
         let err = '';
         p.stdout.on('data', d => (out += d));
@@ -37,6 +38,11 @@ export function cliTransport(bin = process.env.PAPERBOAT_BIN || 'paperboat', env
         });
         p.on('error', e => reject(new CliError(`${bin} could not start: ${e.message}`, 127)));
         p.on('close', code => {
+          if (!json) {
+            if (code === 0) return resolve(out);
+            // the CLI says why on stderr as `paperboat: <why>`
+            return reject(new CliError(err.trim().replace(/^paperboat: /, '') || `paperboat ${argv.join(' ')} failed (${code})`, code ?? 1));
+          }
           let j: unknown;
           try {
             j = out.trim() ? JSON.parse(out) : null;
