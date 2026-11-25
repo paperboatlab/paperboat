@@ -26,9 +26,11 @@ export function Apps({client, act, show}: {client: Client; act: Act; show: Show}
     if (s) return bridge().openWindow(s.url, a.label);
     const folder = await bridge().pickFolder(`Open ${a.label} on a folder`);
     if (!folder) return;
+    const id = show({title: `Starting ${a.label}`, detail: home(folder), state: 'working'});
     const job = await client.run(`app open ${a.name} "${folder}" --no-open`);
-    if (job.state === 'failed') return show({title: `${a.label} did not start`, detail: job.error, state: 'failed'});
+    if (job.state === 'failed') return show({id, title: `${a.label} did not start`, detail: job.error, state: 'failed'});
     const started = job.result as Session;
+    show({id, title: `${a.label} started`, detail: `${home(folder)} · ${started.url}`, state: 'done'});
     bridge().openWindow(started.url, a.label);
   }
   async function from(a: App) {

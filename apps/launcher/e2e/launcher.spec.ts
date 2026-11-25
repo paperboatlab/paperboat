@@ -85,6 +85,14 @@ test('a failure says why: no release to install', async () => {
   await expect(card).toContainText('available');
   await card.getByRole('button', {name: 'Install'}).click();
   await expect(page.locator('.toast.failed')).toContainText(/Installing Demo: failed/);
+  // the bar's bell keeps it, with the start of the session from the first test
+  await page.getByRole('button', {name: /^Notifications/}).click();
+  const notes = page.getByRole('dialog', {name: 'Notifications'});
+  await expect(notes.locator('li.failed')).toContainText('Installing Demo: failed');
+  await expect(notes).toContainText('Demo started');
+  await shot('notifications');
+  await page.keyboard.press('Escape');
+  await expect(notes).toHaveCount(0);
 });
 
 test('runtimes: the catalog, where they run, a runtime in detail', async () => {
