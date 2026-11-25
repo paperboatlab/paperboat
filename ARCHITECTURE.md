@@ -56,7 +56,10 @@ flowchart LR
 - App lifecycle (in `src/cli/main.cpp`, no daemon): `app install` unpacks a GitHub release's
   `<app>-<version>.tar.gz` to `<home>/apps/<app>`, or links a checkout (`--from`); `<home>/apps/<app>.toml`
   records the version or the checkout. `app open <app> [<folder>]` starts the app server detached
-  (`<launch> <folder> --port <port>`, its own process group) and records a **session** in
+  (`<launch> <folder> --port <port>`, its own process group) on the app's home port from `apps.toml`
+  (30470 is reserved for Paperboat, then one per app from 30471: Simplicial, Articula 30472, Julix 30473,
+  Malachite 30474), or, when that is taken, the first free port in the shared overflow 30500–30599
+  (constants in `start_session`); it records a **session** in
   `<runtime dir>/sessions/<app>-<port>.json` with its log beside it; a session whose process is gone is
   dropped when listed. App servers are native processes; only runtimes go through paperboatd.
 - `packages/client/` (`@paperboat/client`, TypeScript run by Node directly): the Launcher's and the TUI's

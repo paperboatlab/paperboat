@@ -30,7 +30,7 @@ async function tui(history: string[] = [], onHistory?: (l: string) => void) {
     'session list': [],
     'app open': (argv: string[], _l: unknown, json?: boolean) => {
       if (argv[2] !== 'malachite') throw new CliError(`no app named ${argv[2]} in the registry; paperboat app list shows them`, 2);
-      return json ? {} : 'started malachite-59210 on /hub · http://127.0.0.1:59210/\n';
+      return json ? {} : 'started malachite-30474 on /hub · http://127.0.0.1:30474/\n';
     },
   });
   const client = createClient(t);
@@ -84,7 +84,7 @@ test('the TUI: banner, the menu from the registry, a command run as the CLI word
   stdin.write('\t');
   await tick();
   stdin.write('\r');
-  assert.match(await until(lastFrame, /✓ started/), /✓ started malachite-59210 on \/hub · http:\/\/127\.0\.0\.1:59210\//);
+  assert.match(await until(lastFrame, /✓ started/), /✓ started malachite-30474 on \/hub · http:\/\/127\.0\.0\.1:30474\//);
   assert.ok(t.calls.includes('app open malachite'));
   unmount();
 });

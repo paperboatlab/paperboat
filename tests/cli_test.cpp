@@ -123,7 +123,8 @@ TEST_CASE("an app's lifecycle: install a checkout, open folders, sessions, stop,
   CHECK(s1["id"] == "demo-47210");
   CHECK(json::parse(run({"app", "open", "demo", p1.string(), "--no-open", "--json"}).stdout_text)["id"] == "demo-47210");  // reused
   const auto s2 = json::parse(run({"app", "open", "demo", p2.string(), "--no-open", "--json"}).stdout_text);
-  CHECK(s2["port"] == 47211);
+  const int p2port = s2["port"].get<int>();  // the home port is taken: the overflow range
+  CHECK((p2port >= 30500 && p2port <= 30599));
   CHECK(json::parse(run({"sessions", "--json"}).stdout_text).size() == 2);
   CHECK(ProcessRunner::run_sync({"curl", "-fsS", s1["url"].get<std::string>()}).ok());  // it serves
 
@@ -131,7 +132,7 @@ TEST_CASE("an app's lifecycle: install a checkout, open folders, sessions, stop,
   CHECK(r["port"] == 47210);
   CHECK(r["pid"] != s1["pid"]);
   CHECK(run({"session", "logs", "demo-47210", "--json"}).ok());
-  CHECK(run({"session", "stop", "demo-47211"}).ok());
+  CHECK(run({"session", "stop", "demo-" + std::to_string(p2port)}).ok());
   CHECK(json::parse(run({"sessions", "--json"}).stdout_text).size() == 1);
   CHECK(run({"app", "stop", "demo"}).ok());
   CHECK(json::parse(run({"sessions", "--json"}).stdout_text).empty());

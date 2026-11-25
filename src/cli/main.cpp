@@ -419,17 +419,25 @@ bool port_free(int port) {
   return ok;
 }
 
+// Every app has a home port in the registry (30471 up; 30470 is Paperboat's); further folders of any
+// app share the overflow range.
+constexpr int kOverflowFirst = 30500, kOverflowLast = 30599;
+
 // Start <app>'s server on a folder: `<launch> <folder> --port <port>`, detached, its output in a log.
-// The registry's port, or the next free one; ready once it listens.
+// Its home port (or the one asked for), else the first free one in the overflow range; ready once it listens.
 json start_session(const std::string& app, const fs::path& project, int port = 0) {
   const toml::table e = registry_entry(app);
-  const int base = port ? port : e["port"].value_or(0);
-  if (base <= 0) throw Failure(app + " has no port in the registry");
+  const int home = port ? port : e["port"].value_or(0);
+  if (home <= 0) throw Failure(app + " has no port in the registry");
   std::vector<int> taken;
   for (const auto& s : sessions()) taken.push_back(s["port"].get<int>());
-  int p = base;
-  while (std::ranges::find(taken, p) != taken.end() || !port_free(p))
-    if (++p > base + 100) throw Failure("no free port from " + std::to_string(base) + " to " + std::to_string(base + 100));
+  auto free = [&](int p) { return std::ranges::find(taken, p) == taken.end() && port_free(p); };
+  int p = home;
+  if (!free(p))
+    for (p = kOverflowFirst; !free(p); )
+      if (++p > kOverflowLast)
+        throw Failure("port " + std::to_string(home) + " is taken and no port from " + std::to_string(kOverflowFirst) + " to " +
+                      std::to_string(kOverflowLast) + " is free");
   const std::string id = app + "-" + std::to_string(p);
   const fs::path log = sessions_dir() / (id + ".log");
   std::error_code ec;
