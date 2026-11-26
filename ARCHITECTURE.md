@@ -57,7 +57,8 @@ flowchart LR
   `<app>-<version>.tar.gz` to `<home>/apps/<app>`, or links a checkout (`--from`); `<home>/apps/<app>.toml`
   records the version or the checkout. On Linux it also writes the app's desktop entry,
   `~/.local/share/applications/paperboat-<app>.desktop` (`Exec=paperboat app open <app> --start`, `Icon=` the app's
-  own `icon.png`, `StartupWMClass=paperboat-<app>`; "(checkout)" for `--from`), and `app uninstall` removes it. `app open <app> [<folder>]` (`--start`: the window it has, else its Start page on no folder) starts the app server detached
+  own `icon.png`, `StartupWMClass=paperboat-<app>`; "(checkout)" for `--from`), and `app uninstall` removes it (`--all`: every app). Erasing the `paperboat-cli` rpm runs `app uninstall --all` and
+  `daemon stop` for each user (`cmake/rpm-cli-preun.sh`, not on an upgrade); projects, hubs and settings stay. `app open <app> [<folder>]` (`--start`: the window it has, else its Start page on no folder) starts the app server detached
   (`<launch> <folder> --port <port>`, its own process group) on the app's home port from `apps.toml`
   (30470 is reserved for Paperboat, then one per app from 30471: Simplicial, Articula 30472, Julix 30473,
   Malachite 30474), or, when that is taken, the first free port in the shared overflow 30500–30599

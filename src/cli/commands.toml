@@ -43,7 +43,7 @@ group = "Apps"
 [[command]]
 id = "app.uninstall"
 name = "app uninstall"
-args = "<app>"
+args = "<app> | --all"
 desc = "Remove an app; your projects stay"
 group = "Apps"
 
