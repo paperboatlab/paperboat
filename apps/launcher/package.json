@@ -4,6 +4,7 @@
   "version": "0.2.0",
   "description": "Paperboat Launcher: apps, runtimes and every command, a view of @paperboat/client in Electron",
   "license": "GPL-3.0-only",
+  "homepage": "https://github.com/paperboatlab/paperboat",
   "type": "module",
   "main": "dist/main.cjs",
   "desktopName": "paperboat-launcher.desktop",
@@ -13,6 +14,7 @@
   "scripts": {
     "build": "node scripts/build.ts",
     "start": "electron .",
+    "package": "electron-builder --config electron-builder.cjs",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test -c e2e/playwright.config.ts"
   },
@@ -24,6 +26,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "electron": "^45.5.0",
+    "electron-builder": "^26.18.1",
     "esbuild": "^0.28.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

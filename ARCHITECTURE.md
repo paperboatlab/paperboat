@@ -101,7 +101,10 @@ flowchart LR
   SIGPIPE). The shm fast path stays Linux-only (futex).
 - Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` (with the
   TUI bundle) and `devel`; rpm `paperboat-cli` Requires `paperboat-devel`; macOS one `.pkg` with both. The Launcher's
-  package will Require `paperboat-cli`.
+  rpm `paperboat-launcher` (electron-builder, `apps/launcher/electron-builder.cjs`; x86_64) Requires `paperboat-cli`:
+  `/opt/paperboat-launcher/` (no space: the setuid sandbox) linked as `/usr/bin/paperboat-launcher`, the desktop entry from `linux/`, the kit's
+  Paperboat mark as its icon; a tag's version (`v0.2.0-beta.1` → `0.2.0~beta.1`). `paperboat-launcher --version`
+  prints the version and exits (the job's start check).
 - `apps.toml`, `toolkits.toml`: the app and toolkit registries (Malachite, Julix; the five
   `simplicial-toolkit-*` repos), installed to `share/paperboat/`; `$PAPERBOAT_DATA_DIR` is searched
   first (tests, a private registry).
