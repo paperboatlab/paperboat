@@ -21,7 +21,11 @@ jobs:
       - run: dnf -y install git cmake ninja-build gcc-c++ rpm-build nodejs npm
       - uses: actions/checkout@v4
       - run: npm ci && npm run build -w @paperboat/cli
-      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPAPERBOAT_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr
+      - run: |
+          pre=dev; case $GITHUB_REF in refs/tags/v*) t=${GITHUB_REF_NAME#v}  # the tag decides: v0.2.0-beta.1 is beta.1, v0.2.0 none
+            [ "${t%%-*}" = "$(sed -n 's/^project(paperboat VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" ] || { echo "tag $GITHUB_REF_NAME isn't CMakeLists' version"; exit 1; }
+            case $t in *-*) pre=${t#*-} ;; *) pre= ;; esac ;; esac
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPAPERBOAT_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr -DPAPERBOAT_PRERELEASE="$pre"
       - run: ninja -C build
       - run: cd build && cpack -G RPM
       - name: install and use
@@ -69,7 +73,11 @@ jobs:
       - uses: actions/checkout@v4
       - run: brew install ninja
       - run: npm ci && npm run build -w @paperboat/cli
-      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+      - run: |
+          pre=dev; case $GITHUB_REF in refs/tags/v*) t=${GITHUB_REF_NAME#v}  # the tag decides: v0.2.0-beta.1 is beta.1, v0.2.0 none
+            [ "${t%%-*}" = "$(sed -n 's/^project(paperboat VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" ] || { echo "tag $GITHUB_REF_NAME isn't CMakeLists' version"; exit 1; }
+            case $t in *-*) pre=${t#*-} ;; *) pre= ;; esac ;; esac
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DPAPERBOAT_PRERELEASE="$pre"
       - run: ninja -C build
       - run: ./build/tests/paperboat_tests && ./build/tests/paperboat_cli_tests
       - run: cd build && cpack -G productbuild
@@ -88,5 +96,5 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
-      - run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GITHUB_REPOSITORY" || gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes
+      - run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GITHUB_REPOSITORY" || gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --generate-notes $(case $GITHUB_REF_NAME in *-*) echo --prerelease ;; esac)
         env: { GH_TOKEN: "${{ github.token }}" }

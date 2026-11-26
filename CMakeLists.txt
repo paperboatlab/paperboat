@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 project(paperboat VERSION 0.2.0 LANGUAGES CXX)
-set(PAPERBOAT_PRERELEASE "dev")
+set(PAPERBOAT_PRERELEASE "dev" CACHE STRING "After the -: dev on main; a tag sets it (beta.1 for v0.2.0-beta.1, empty for v0.2.0)")
 set(PAPERBOAT_VERSION "${PROJECT_VERSION}")
 if(PAPERBOAT_PRERELEASE)
   string(APPEND PAPERBOAT_VERSION "-${PAPERBOAT_PRERELEASE}")
