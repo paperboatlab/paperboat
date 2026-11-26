@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <random>
 #include <thread>
 
@@ -23,7 +24,7 @@ const fs::path kHome = fs::temp_directory_path() / ("pb-cli-test-" + std::to_str
 
 ProcessResult cli(std::vector<std::string> args, const fs::path& data = {}, std::vector<std::pair<std::string, std::string>> env = {}) {
   args.insert(args.begin(), std::string(PAPERBOAT_BIN_DIR) + "/paperboat");
-  env.insert(env.end(), {{"PAPERBOAT_HOME", kHome.string()}, {"PAPERBOAT_RUNTIME_DIR", (kHome / "run").string()}});
+  env.insert(env.end(), {{"PAPERBOAT_HOME", kHome.string()}, {"PAPERBOAT_RUNTIME_DIR", (kHome / "run").string()}, {"XDG_DATA_HOME", (kHome / "xdg").string()}});
   if (!data.empty()) env.emplace_back("PAPERBOAT_DATA_DIR", data.string());
   return ProcessRunner::run_sync(args, {}, env, std::chrono::seconds(30));
 }
@@ -119,10 +120,19 @@ TEST_CASE("an app's lifecycle: install a checkout, open folders, sessions, stop,
   CHECK(run({"app", "install", "demo", "--from", p1.string()}).exit_code == 2);  // not a checkout of demo
   REQUIRE(run({"app", "install", "demo", "--from", checkout.string()}).ok());
   CHECK(json::parse(run({"apps", "--json"}).stdout_text)[0]["installed"]["from"] == fs::canonical(checkout).string());
+#ifdef __linux__
+  const fs::path entry = kHome / "xdg" / "applications" / "paperboat-demo.desktop";  // an app of the desktop
+  std::stringstream text;
+  text << std::ifstream(entry).rdbuf();
+  CHECK_THAT(text.str(), ContainsSubstring("app open demo --start"));
+  CHECK_THAT(text.str(), ContainsSubstring("Name=demo (checkout)"));
+  CHECK_THAT(text.str(), ContainsSubstring("StartupWMClass=paperboat-demo"));
+#endif
 
   const auto s1 = json::parse(run({"app", "open", "demo", p1.string(), "--no-open", "--json"}).stdout_text);
   CHECK(s1["id"] == "demo-47210");
   CHECK(json::parse(run({"app", "open", "demo", p1.string(), "--no-open", "--json"}).stdout_text)["id"] == "demo-47210");  // reused
+  CHECK(json::parse(run({"app", "open", "demo", "--start", "--no-open", "--json"}).stdout_text)["id"] == "demo-47210");  // the desktop's: the one it has
   // opened: in a Paperboat window through the Launcher ($PAPERBOAT_LAUNCHER, here one that writes down its args)
   const fs::path seen = kHome / "launcher-args";
   std::ofstream(checkout / "bin" / "launcher") << "#!/bin/sh\necho \"$*\" > " << seen.string() << "\n";
@@ -155,6 +165,9 @@ TEST_CASE("an app's lifecycle: install a checkout, open folders, sessions, stop,
 
   CHECK(run({"app", "uninstall", "demo"}).ok());
   CHECK(json::parse(run({"apps", "--json"}).stdout_text)[0]["installed"].is_null());
+#ifdef __linux__
+  CHECK_FALSE(fs::exists(entry));
+#endif
   CHECK(fs::exists(checkout / "bin" / "serve"));  // a checkout is only unlinked
   fs::remove_all(kHome);
 }
