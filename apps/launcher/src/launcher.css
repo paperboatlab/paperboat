@@ -99,7 +99,7 @@ table.t tr.sel td { background: color-mix(in srgb, var(--accent) var(--tint), tr
 .complete .menu-item[aria-selected="true"] { background: var(--surface-sunken); }
 
 /* Hubs (paperboat#16): the list's keys, the tabs row, the counts, the versions */
-.hub-keys { display: flex; gap: 6px; padding: var(--space-2) var(--space-3) 0; flex-wrap: wrap; }
+.list-keys { display: flex; gap: 6px; padding: var(--space-2) var(--space-3) 0; flex-wrap: wrap; }
 .hub-tabs { display: flex; align-items: center; gap: var(--space-3); padding-right: var(--panel-pad); border-bottom: 1px solid var(--line); flex: none; }
 .hub-tabs .tabs { border: 0; flex: 1; }
 .hub-stats { display: grid; grid-template-columns: repeat(5, 1fr); }
@@ -116,3 +116,9 @@ table.t tr.sel td { background: color-mix(in srgb, var(--accent) var(--tint), tr
 .hub-list .kr small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hub-head > div { min-width: 0; flex: 1; }
 .hub-head .dmeta .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* Stations: the list grouped by where they come from */
+.kgroup { padding: var(--space-2) var(--space-2) 2px; }
+.st-list .kr > span { min-width: 0; }
+.st-list .kr small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-head > div { min-width: 0; flex: 1; }

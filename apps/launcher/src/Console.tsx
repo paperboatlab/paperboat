@@ -1,12 +1,11 @@
 // The Console: the registry as a command line, the same completion and words as the terminal UI.
-// `only` narrows it to one group (the Stations page, from the app that adds them).
 
 import {useEffect, useRef, useState} from 'react';
 import {Key, Spinner} from '@paperboatlab/ui';
 import {complete, findCommand, ghost as ghostOf, remember, splitWords, type Client, type Sources} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
 
-export function Console({client, line, onLine, only}: {client: Client; line: string | null; onLine: (l: string | null) => void; only?: string}) {
+export function Console({client, line, onLine}: {client: Client; line: string | null; onLine: (l: string | null) => void}) {
   const state = useStore(client, s => s);
   const [text, setText] = useState('');
   const [history, setHistory] = useState<string[]>([]);
@@ -23,7 +22,7 @@ export function Console({client, line, onLine, only}: {client: Client; line: str
     end.current?.scrollIntoView({block: 'end'});  // it returns a Promise in Chromium 14x: not an effect's clean-up
   }, [shown.length, state.jobs]);
 
-  const commands = only ? state.commands.filter(c => c.group === only) : state.commands.filter(c => !c.tui);
+  const commands = state.commands.filter(c => !c.tui);
   const sources: Sources = {
     commands,
     args: {
@@ -81,11 +80,11 @@ export function Console({client, line, onLine, only}: {client: Client; line: str
 
   const jobs = state.jobs.filter(j => shown.includes(j.id));
   return (
-    <div className="bay"><section className="panel page console" aria-label={only ?? 'Console'}>
+    <div className="bay"><section className="panel page console" aria-label="Console">
       <div className="phead"><span className="count">the same as paperboat &lt;command&gt; in a shell</span></div>
       <div className="scroll screen transcript">
         {jobs.length === 0 && (
-          <div className="d">{only ? commands.map(c => `${c.name} ${c.args}`.trim()).join('\n') || `No app adds ${only.toLowerCase()} yet.` : 'Type a command: app list, runtime ps, help…  Tab completes, ↑ history.'}</div>
+          <div className="d">Type a command: app list, runtime ps, help…  Tab completes, ↑ history.</div>
         )}
         {jobs.map(j => (
           <div key={j.id} className="entry">

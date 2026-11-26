@@ -19,6 +19,8 @@ export interface Bridge {
   openWindow(url: string, title: string): void;
   /** A folder the user picks, or null. */
   pickFolder(title: string): Promise<string | null>;
+  /** Show a file or folder in the system's file manager. */
+  reveal(path: string): void;
 }
 
 /** An app's page in a Paperboat window: the system's dialogs and real paths, nothing else (no CLI). */
