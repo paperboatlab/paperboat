@@ -120,11 +120,13 @@ ipcMain.on('app:reveal', (_e, path: unknown) => {
 app.setName('Paperboat Launcher');
 // the Launcher keeps its state with its home, so a second home (a test's) is a second instance
 if (process.env.PAPERBOAT_HOME) app.setPath('userData', join(process.env.PAPERBOAT_HOME, 'launcher'));
-if (!app.requestSingleInstanceLock()) app.quit();
+// a second start hands over its own command line as it was typed: the `argv` Chromium gives the first
+// instance has the switches moved before the arguments, so `--open <url>` no longer has its url after it
+if (!app.requestSingleInstanceLock({argv: process.argv})) app.quit();
 else {
   // a second start hands its command line here: an app's window, or the Launcher's
-  app.on('second-instance', (_e, argv) => {
-    const o = opened(argv);
+  app.on('second-instance', (_e, argv, _cwd, data) => {
+    const o = opened((data as {argv?: string[]} | undefined)?.argv ?? argv);
     if (o) return void window(o.url, {title: o.title, app: true});
     const w = BrowserWindow.getAllWindows().find(x => !appPages.has(x.webContents.id));
     if (w) return void (w.isMinimized() && w.restore(), w.focus());
