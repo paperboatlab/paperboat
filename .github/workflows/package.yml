@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: fedora:43
     steps:
-      - run: dnf -y install git nodejs npm rpm-build libxcrypt-compat util-linux  # libcrypt.so.1 for electron-builder's fpm; runuser
+      - run: dnf -y install git nodejs npm rpm-build libxcrypt-compat  # libcrypt.so.1 for electron-builder's fpm
       - uses: actions/checkout@v4
       - run: npm ci && npm run build -w @paperboat/launcher
       - name: package
@@ -57,7 +57,9 @@ jobs:
           rpm -q --requires paperboat-launcher | grep -qx paperboat-cli
           test -f /usr/share/applications/paperboat-launcher.desktop
           test -f /usr/share/icons/hicolor/512x512/apps/paperboat-launcher.png
-          runuser -u nobody -- paperboat-launcher --version  # main.cjs loads from the asar; not as root (Chromium refuses)
+          # main.cjs loads from the asar. The container has neither user namespaces nor CAP_SYS_ADMIN, so no
+          # sandbox can start there (a desktop has them); Chromium wants --no-sandbox, as root anyway.
+          paperboat-launcher --no-sandbox --version
       - uses: actions/upload-artifact@v4
         with: { name: rpm-launcher-x64, path: apps/launcher/release/*.rpm }
 

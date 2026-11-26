@@ -1,6 +1,6 @@
 // The Launcher's packages (pb#9): `npm run package -w @paperboat/launcher` → release/. rpm x86_64 for
 // now (deb pb#2, dmg pb#1). The desktop entry is linux/paperboat-launcher.desktop (electron-builder writes
-// Exec itself: /opt/Paperboat Launcher/paperboat-launcher, linked as /usr/bin/paperboat-launcher), the icon
+// Exec itself: /opt/paperboat-launcher/paperboat-launcher, linked as /usr/bin/paperboat-launcher), the icon
 // the kit's Paperboat mark (the build copies it to dist/renderer/marks). Everything runs from the bundled
 // dist/, so the package carries no node_modules.
 const fs = require('node:fs');
@@ -13,7 +13,9 @@ const {Exec, Comment, ...entry} = Object.fromEntries(
 
 module.exports = {
   appId: 'dev.paperboatlab.launcher',
-  productName: 'Paperboat Launcher',
+  // the folder in /opt: no space, or Chromium's setuid sandbox (no user namespaces) can't start its zygote
+  // ("failed to execvp: /opt/Paperboat"). The name people see is the desktop entry's and app.setName's.
+  productName: 'paperboat-launcher',
   electronVersion: require('electron/package.json').version,  // the installed one (package.json has a range)
   copyright: 'Copyright © Paperboat Lab (GPL-3.0-only)',
   directories: {output: 'release'},
