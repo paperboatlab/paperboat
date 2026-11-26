@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <random>
+#include <thread>
 
 using namespace paperboat;
 using Catch::Matchers::ContainsSubstring;
@@ -20,9 +21,9 @@ namespace {
 
 const fs::path kHome = fs::temp_directory_path() / ("pb-cli-test-" + std::to_string(std::random_device{}()));
 
-ProcessResult cli(std::vector<std::string> args, const fs::path& data = {}) {
+ProcessResult cli(std::vector<std::string> args, const fs::path& data = {}, std::vector<std::pair<std::string, std::string>> env = {}) {
   args.insert(args.begin(), std::string(PAPERBOAT_BIN_DIR) + "/paperboat");
-  std::vector<std::pair<std::string, std::string>> env = {{"PAPERBOAT_HOME", kHome.string()}, {"PAPERBOAT_RUNTIME_DIR", (kHome / "run").string()}};
+  env.insert(env.end(), {{"PAPERBOAT_HOME", kHome.string()}, {"PAPERBOAT_RUNTIME_DIR", (kHome / "run").string()}});
   if (!data.empty()) env.emplace_back("PAPERBOAT_DATA_DIR", data.string());
   return ProcessRunner::run_sync(args, {}, env, std::chrono::seconds(30));
 }
@@ -122,6 +123,15 @@ TEST_CASE("an app's lifecycle: install a checkout, open folders, sessions, stop,
   const auto s1 = json::parse(run({"app", "open", "demo", p1.string(), "--no-open", "--json"}).stdout_text);
   CHECK(s1["id"] == "demo-47210");
   CHECK(json::parse(run({"app", "open", "demo", p1.string(), "--no-open", "--json"}).stdout_text)["id"] == "demo-47210");  // reused
+  // opened: in a Paperboat window through the Launcher ($PAPERBOAT_LAUNCHER, here one that writes down its args)
+  const fs::path seen = kHome / "launcher-args";
+  std::ofstream(checkout / "bin" / "launcher") << "#!/bin/sh\necho \"$*\" > " << seen.string() << "\n";
+  fs::permissions(checkout / "bin" / "launcher", fs::perms::owner_all);
+  REQUIRE(cli({"app", "open", "demo", p1.string()}, data, {{"PAPERBOAT_LAUNCHER", (checkout / "bin" / "launcher").string()}}).ok());
+  for (int i = 0; i < 50 && !(fs::exists(seen) && fs::file_size(seen) > 0); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  std::string args;
+  std::getline(std::ifstream(seen), args);
+  CHECK(args == "--open " + s1["url"].get<std::string>() + " --title demo");
   const auto s2 = json::parse(run({"app", "open", "demo", p2.string(), "--no-open", "--json"}).stdout_text);
   const int p2port = s2["port"].get<int>();  // the home port is taken: the overflow range
   CHECK((p2port >= 30500 && p2port <= 30599));

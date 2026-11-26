@@ -64,6 +64,8 @@ test('apps: install a checkout, open it in its own window, stop it', async () =>
   const w = await opened;
   await expect.poll(() => w.url()).toMatch(/^http:\/\/127\.0\.0\.1:47410\//);
   await expect(w).toHaveTitle('demo hub');
+  // an app's window: the system's dialogs (window.paperboatShell), never the CLI (window.paperboat)
+  expect(await w.evaluate(() => [typeof (window as {paperboatShell?: unknown}).paperboatShell, typeof (window as {paperboat?: unknown}).paperboat])).toEqual(['object', 'undefined']);
   await w.close();
 
   const row = page.locator('table.t tr', {hasText: 'demo-47410'});

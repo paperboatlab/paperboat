@@ -1,4 +1,4 @@
-// Builds dist/: main.cjs and preload.cjs (Electron's main process and the page's door) and renderer/
+// Builds dist/: main.cjs, preload.cjs and app-preload.cjs (Electron's main process, the Launcher page's door, an app window's door) and renderer/
 // (the page: bundle, css, fonts, the app marks, index.html). `--watch` rebuilds the page on change.
 import * as esbuild from 'esbuild';
 import fs from 'node:fs';
@@ -27,6 +27,7 @@ fs.writeFileSync(path.join(page, 'index.html'), `<!doctype html>
 const node: esbuild.BuildOptions = {bundle: true, platform: 'node', format: 'cjs', target: 'node22', external: ['electron'], logLevel: 'warning'};
 await esbuild.build({...node, entryPoints: [path.join(root, 'electron/main.ts')], outfile: path.join(dist, 'main.cjs')});
 await esbuild.build({...node, entryPoints: [path.join(root, 'electron/preload.ts')], outfile: path.join(dist, 'preload.cjs')});
+await esbuild.build({...node, entryPoints: [path.join(root, 'electron/app-preload.ts')], outfile: path.join(dist, 'app-preload.cjs')});
 const renderer: esbuild.BuildOptions = {
   entryPoints: [path.join(root, 'src/main.tsx')], bundle: true, format: 'esm', outdir: page, jsx: 'automatic', target: 'es2022',
   minify: !process.argv.includes('--watch') && !process.env.PB_DEBUG, sourcemap: true, loader: {'.woff2': 'file', '.woff': 'file', '.ttf': 'file'}, assetNames: 'fonts/[name]-[hash]', logLevel: 'warning',
