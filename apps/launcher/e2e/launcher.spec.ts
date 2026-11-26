@@ -27,7 +27,7 @@ const answerFolder = (dir: string) =>
 test.beforeAll(async () => {
   for (const d of [join(checkout, 'bin'), project, data]) mkdirSync(d, {recursive: true});
   writeFileSync(join(data, 'apps.toml'), '[[apps]]\nname = "demo"\nlabel = "Demo"\nrepo = "x/demo"\ndescription = "A demo app"\nruntimes = ["python@3.12"]\nlaunch = "bin/serve"\nport = 47410\n');
-  writeFileSync(join(checkout, 'bin/serve'), '#!/bin/sh\nexec python3 -m http.server "$3" --bind 127.0.0.1 --directory "$1"\n');
+  writeFileSync(join(checkout, 'bin/serve'), '#!/bin/sh\n# no folder (the Start page): serve the demo hub anyway\n[ "$1" = --port ] && set -- "' + project + '" "$@"\nexec python3 -m http.server "$3" --bind 127.0.0.1 --directory "$1"\n');
   chmodSync(join(checkout, 'bin/serve'), 0o755);
   writeFileSync(join(project, 'index.html'), '<title>demo hub</title>');
   app = await electron.launch({
@@ -59,7 +59,7 @@ test('apps: install a checkout, open it in its own window, stop it', async () =>
   await page.getByRole('menuitem', {name: /Install from a folder/}).click();
   await expect(card).toContainText('your checkout');
 
-  await answerFolder(project);
+  // Open asks for nothing: the app starts on its Start page, as a double click on its icon does
   const opened = app.waitForEvent('window');
   await card.getByRole('button', {name: 'Open'}).click();
   const w = await opened;
