@@ -40,8 +40,8 @@ export const emptyState = (): State => ({commands: [], apps: [], sessions: [], r
 export interface Client {
   getState(): State;
   subscribe(listener: () => void): () => void;
-  /** Re-read the lists; `runtimes` too (it starts paperboatd if it is not running). */
-  refresh(opts?: {runtimes?: boolean}): Promise<void>;
+  /** Re-read the lists; `runtimes` too (it starts paperboatd if it is not running); `instances`: only the running instances. */
+  refresh(opts?: {runtimes?: boolean; instances?: boolean}): Promise<void>;
   /** Run a command line; resolves with the finished job (failed jobs resolve too). `text`: the
    * result is the CLI's own words (a terminal shows them as they are). */
   run(line: string, opts?: {text?: boolean}): Promise<Job>;
@@ -81,7 +81,8 @@ export function createClient(t: Transport): Client {
         load('commands', ['help'], j => j as Command[]),
         load('apps', ['app', 'list'], j => j as App[]),
         load('sessions', ['session', 'list'], j => j as Session[]),
-        ...(opts.runtimes ? [load('runtimes', ['runtime', 'list'], j => j as RuntimeList), refreshInstances()] : []),
+        ...(opts.runtimes ? [load('runtimes', ['runtime', 'list'], j => j as RuntimeList)] : []),
+        ...(opts.runtimes || opts.instances ? [refreshInstances()] : []),
       ]);
     },
     async run(line, opts = {}) {
