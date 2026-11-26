@@ -5,5 +5,5 @@ Comment=Paperboat's apps, runtimes and hubs
 Exec=paperboat-launcher %U
 Icon=paperboat-launcher
 Terminal=false
-Categories=Development;Science;
+Categories=Development;
 StartupWMClass=paperboat-launcher
