@@ -11,6 +11,7 @@ import {Apps} from './Apps.tsx';
 import {Console} from './Console.tsx';
 import {Hubs} from './Hubs.tsx';
 import {Runtimes} from './Runtimes.tsx';
+import {Stations} from './Stations.tsx';
 import {Toolkits} from './Toolkits.tsx';
 import pkg from '../package.json' with {type: 'json'};
 
@@ -149,7 +150,7 @@ export function App({client}: {client: Client}) {
 
       <main className="pages">
         {page === 'apps' && <Apps client={client} act={act} show={show} />}
-        {page === 'stations' && <Console client={client} line={line} onLine={setLine} only="Stations" />}
+        {page === 'stations' && <Stations client={client} act={act} />}
         {page === 'toolkits' && <Toolkits client={client} act={act} />}
         {page === 'runtimes' && <Runtimes client={client} act={act} />}
         {page === 'hubs' && hubs && <Hubs client={client} act={act} show={show} />}
