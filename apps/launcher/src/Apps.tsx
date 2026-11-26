@@ -58,13 +58,13 @@ export function Apps({client, act, show}: {client: Client; act: Act; show: Show}
         <div className="card">
           <div className="chead"><b>Active sessions</b><span className="label">apps running now</span>
             <span className="bend">{sessions.length > 0 && <Key size="sm" kind="quiet" onClick={() => void act('session stop --all', 'Stopping every session')}>Stop all</Key>}</span></div>
-          {sessions.length === 0 ? <div className="none">Nothing is running. Open an app to start it on a folder.</div> : (
+          {sessions.length === 0 ? <div className="empty-note">Nothing is running. Open an app to start it on a folder.</div> : (
             <table className="t">
               <thead><tr><th>Session</th><th>Folder</th><th>Address</th><th>State</th><th></th></tr></thead>
               <tbody>{sessions.map(s => (
                 <tr key={s.id}>
                   <td><div className="owner"><AppMark app={mark(s.app)} size={20} idle /><span><b>{s.id}</b><small>{since(s.started)}</small></span></div></td>
-                  <td className="v">{home(s.project)}</td><td className="v">{s.url}</td>
+                  <td className="mono">{home(s.project)}</td><td className="mono">{s.url}</td>
                   <td><span className={`app-${s.app}`}><Pill state="live" label="running" /></span></td>
                   <td><div className="acts">
                     <Key size="sm" onClick={() => bridge().openWindow(s.url, s.app)}>Open</Key>
@@ -105,7 +105,7 @@ function AppCard({a, session, job, onInstall, onFrom, onOpen, onStop, onUpdate, 
       </div>
       <div><b className="an">{a.label}</b><p>{a.description}</p></div>
       <dl className="af">
-        <dt>Version</dt><dd>{a.installed ? <span className="v">{linked ? 'your checkout' : a.installed.version}</span> : <span className="muted">from the newest release</span>}</dd>
+        <dt>Version</dt><dd>{a.installed ? <span className="mono">{linked ? 'your checkout' : a.installed.version}</span> : <span className="muted">from the newest release</span>}</dd>
         <dt>Runtimes</dt><dd>{a.runtimes.map(r => <Tag key={r}>{r.replace('@', ' ')}</Tag>)}</dd>
       </dl>
       <div className="afoot">
