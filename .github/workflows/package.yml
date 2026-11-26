@@ -37,6 +37,16 @@ jobs:
           printf 'cmake_minimum_required(VERSION 3.25)\nproject(c CXX)\nset(CMAKE_CXX_STANDARD 20)\nfind_package(paperboat REQUIRED)\nadd_executable(c c.cpp)\ntarget_link_libraries(c PRIVATE paperboat::runtime)\n' > CMakeLists.txt
           printf '#include <paperboat/paths.hpp>\n#include <iostream>\nint main() { std::cout << paperboat::paths::control_socket() << "\\n"; }\n' > c.cpp
           cmake -S . -B b -G Ninja && ninja -C b && ./b/c
+      - name: erasing it removes every user's apps, never their files
+        run: |
+          dnf -y install shadow-utils util-linux
+          useradd -m pbuser && h=/home/pbuser
+          runuser -u pbuser -- sh -c 'mkdir -p ~/.local/share/paperboat/apps/demo ~/.local/share/applications ~/lab &&
+            echo "version = \"1\"" > ~/.local/share/paperboat/apps/demo.toml && echo "[Desktop Entry]" > ~/.local/share/applications/paperboat-demo.desktop &&
+            echo kept > ~/lab/notes.md'
+          dnf -y remove paperboat-cli paperboat-devel
+          test ! -e $h/.local/share/paperboat/apps/demo && test ! -e $h/.local/share/paperboat/apps/demo.toml
+          test ! -e $h/.local/share/applications/paperboat-demo.desktop && test -f $h/lab/notes.md
       - uses: actions/upload-artifact@v4
         with: { name: rpm-x64, path: build/*.rpm }
 

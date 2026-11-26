@@ -649,16 +649,29 @@ int app_update(Args& a) {
   return 0;
 }
 
-int app_uninstall(Args& a) {
-  const std::string app = need_arg(a, "app");
-  if (installed(app).is_null()) throw Failure(app + " is not installed", 2);
+void remove_app(const std::string& app) {
   for (const auto& s : sessions_of(app)) stop_session(s);
   std::error_code ec;
   fs::remove_all(app_dir(app), ec);  // a link to a checkout: only the link goes
   fs::remove(app_marker(app), ec);
   fs::remove(desktop_entry(app), ec);
-  if (a.json_out) return print_json({{"name", app}, {"installed", nullptr}}), 0;
-  std::cout << "removed " << app << "; your projects stay\n";
+}
+
+// `--all`: every installed app (what removing the paperboat-cli package runs for each user)
+int app_uninstall(Args& a) {
+  std::vector<std::string> apps;
+  std::error_code ec;
+  if (a.has("--all")) {
+    for (const auto& f : fs::directory_iterator(paths::home() / "apps", ec))
+      if (f.path().extension() == ".toml") apps.push_back(f.path().stem().string());
+  } else {
+    apps.push_back(need_arg(a, "app"));
+    if (installed(apps[0]).is_null()) throw Failure(apps[0] + " is not installed", 2);
+  }
+  for (const auto& app : apps) remove_app(app);
+  if (a.json_out) return print_json({{"removed", apps}}), 0;
+  if (apps.empty()) std::cout << "No apps are installed.\n";
+  for (const auto& app : apps) std::cout << "removed " << app << "; your projects stay\n";
   return 0;
 }
 

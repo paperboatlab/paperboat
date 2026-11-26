@@ -122,6 +122,7 @@ if(PAPERBOAT_PRERELEASE)
 endif()
 set(CPACK_RPM_CLI_PACKAGE_REQUIRES "paperboat-devel = ${PROJECT_VERSION}-${CPACK_RPM_PACKAGE_RELEASE}")
 set(CPACK_RPM_CLI_PACKAGE_SUGGESTS "podman")
+set(CPACK_RPM_CLI_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rpm-cli-preun.sh)  # erasing it removes every user's apps
 set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "json-devel >= 3.11")
 # macOS: one .pkg with both components
 set(CPACK_PRODUCTBUILD_IDENTIFIER "org.paperboatlab.paperboat")
