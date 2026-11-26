@@ -25,7 +25,7 @@ export function Toolkits({client, act}: {client: Client; act: Act}) {
   return (
     <div className="main">
       <section className="panel" aria-label="Toolkits">
-        <div className="phead"><b>Toolkits</b><span className="count">{list.filter(x => x.installed).length} of {list.length} installed</span></div>
+        <div className="phead"><span className="count">{list.filter(x => x.installed).length} of {list.length} installed</span></div>
         <div className="scroll"><div className="klist">
           {list.map(x => (
             <div key={x.name} className={`kr${x === t ? ' on' : ''}${x.installed ? '' : ' avail'}`} role="button" tabIndex={0} onClick={() => setPick(x.name)}>
@@ -36,7 +36,7 @@ export function Toolkits({client, act}: {client: Client; act: Act}) {
           ))}
         </div></div>
       </section>
-      {t && (
+      <div className="bay">{t && (
         <section className="panel" aria-label={t.name}>
           <div className="dhead">
             <span className="lang big"><Icon name="extensions" size={22} /></span>
@@ -49,7 +49,7 @@ export function Toolkits({client, act}: {client: Client; act: Act}) {
               {!install && <div className="cfoot">Toolkits are built by the app that uses them: install Simplicial to install toolkits.</div>}</div>
           </div></div>
         </section>
-      )}
+      )}</div>
     </div>
   );
 }

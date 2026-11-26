@@ -82,7 +82,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
   return (
     <div className="main">
       <section className="panel" aria-label="Hubs">
-        <div className="phead"><b>Hubs</b><span className="count">{list ? `${list.length} known` : ''}</span></div>
+        <div className="phead"><span className="count">{list ? `${list.length} known` : ''}</span></div>
         <div className="hub-keys">
           <Key size="sm" kind="primary" icon="add" onClick={newHub}>New hub…</Key>
           <Key size="sm" icon="folder-opened" onClick={addHub}>Add a hub folder…</Key>
@@ -97,7 +97,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
           ))}
         </div></div>
       </section>
-      {h && (
+      <div className="bay">{h && (
         <section className="panel" aria-label={h.name}>
           <div className="dhead hub-head">
             <span className="lang big">{h.place === 'local' ? <HubMark size={24} /> : <Icon name="cloud" size={24} />}</span>
@@ -145,7 +145,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
             )}
           </div></div>
         </section>
-      )}
+      )}</div>
       {ask && <AskDialog ask={ask} onClose={() => setAsk(null)} />}
     </div>
   );
