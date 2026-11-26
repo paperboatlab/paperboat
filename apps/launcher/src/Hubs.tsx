@@ -3,14 +3,14 @@
 // command. The Launcher lists and sets up hubs; it never picks one for an app (each app picks its own).
 
 import {useCallback, useEffect, useState} from 'react';
-import {Dialog, Icon, Key, Pill, Tabs, Tag} from '@paperboatlab/ui';
-import {HubMark, HubSettings, type Hub as KitHub} from '@paperboatlab/ui/hub';
+import {Dialog, Icon, Key, Tabs, Tag} from '@paperboatlab/ui';
+import {HubMark, HubSettings, PLACE_NAMES, hubStatus, type Hub as KitHub, type HubPlace} from '@paperboatlab/ui/hub';
 import type {Client, Session} from '@paperboat/client/browser';
 import type {Act, Show} from './act.ts';
 import {bridge} from './bridge.ts';
 
 /** `hub list --json` */
-interface HubInfo {id: string; path: string; shown: string; place: 'local' | 'google-drive'; name: string; missing?: boolean}
+interface HubInfo {id: string; path: string; shown: string; place: HubPlace; name: string; missing?: boolean}
 /** `hub show --json` */
 interface Shown extends HubInfo {author: string; created: string; keep: '90d' | '1y' | 'always'; ignore: string; schema: number; holds: {notes: number; runs: number; models: number; files: number; bytes: number}}
 /** `hub history --json` */
@@ -21,6 +21,11 @@ const q = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
 const size = (b: number) => (b < 1e6 ? `${Math.round(b / 1e3)} kB` : b < 1e9 ? `${(b / 1e6).toFixed(1)} MB` : `${(b / 1e9).toFixed(1)} GB`);
 const when = (t: string) => t.slice(0, 16).replace('T', ' ');
 const kit = (h: HubInfo): KitHub => ({id: h.id, name: h.name, place: h.place, path: h.shown, missing: h.missing});
+/** The row's second line after the place: the kit's words for trouble (can't find the folder), else the folder. */
+const st = (h: HubInfo) => {
+  const s = hubStatus(kit(h));
+  return s ? <span className={s.bad ? 'bad' : undefined}>{s.text}</span> : h.shown;
+};
 const KEEP = {'90d': '90 days', '1y': '1 year', always: 'always'};
 
 export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}) {
@@ -87,8 +92,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
           {list?.map(x => (
             <div key={x.id} className={`kr${x === h ? ' on' : ''}`} role="button" tabIndex={0} onClick={() => setPick(x.id)} onKeyDown={e => e.key === 'Enter' && setPick(x.id)}>
               <span className="lang">{x.place === 'local' ? <HubMark size={18} /> : <Icon name="cloud" size={18} />}</span>
-              <span><b>{x.name}</b><small>{x.place === 'local' ? 'Local' : 'Google Drive'} · {x.shown}</small></span>
-              {x.missing ? <Pill state="failed" label="can't find the folder" /> : <span />}
+              <span><b>{x.name}</b><small>{PLACE_NAMES[x.place]} · {st(x)}</small></span>
             </div>
           ))}
         </div></div>
@@ -98,7 +102,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
           <div className="dhead hub-head">
             <span className="lang big">{h.place === 'local' ? <HubMark size={24} /> : <Icon name="cloud" size={24} />}</span>
             <div><div className="dname">{h.name}</div>
-              <div className="dmeta"><Tag>{h.place === 'local' ? 'this computer' : 'Google Drive'}</Tag><Tag>{h.shown}</Tag>{shown && <Tag>hub format {shown.schema}</Tag>}</div></div>
+              <div className="dmeta"><Tag>{h.place === 'local' ? 'this computer' : PLACE_NAMES[h.place]}</Tag><Tag>{h.shown}</Tag>{shown && <Tag>hub format {shown.schema}</Tag>}</div></div>
             <span className="bend"><Key icon="link-external" disabled={h.missing} onClick={() => void openInMalachite(h)}>Open in Malachite</Key></span>
           </div>
           <div className="hub-tabs">
