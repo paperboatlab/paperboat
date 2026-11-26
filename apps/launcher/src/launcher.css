@@ -88,7 +88,7 @@ table.t tr.sel td { background: color-mix(in srgb, var(--accent) var(--tint), tr
 
 /* the console: a screen, the prompt under it */
 .console .transcript { margin: var(--space-3); border-radius: var(--radius-md); max-height: none; font-size: var(--size-xs); }
-.entry { margin-bottom: var(--space-3); } .entry .cmd { font-weight: 600; } .entry .bad { color: var(--red-dark, var(--danger-text)); }
+.entry { margin-bottom: var(--space-3); } .entry .cmd { font-weight: 600; } .entry .bad { color: var(--danger-text); }
 .prompt { position: relative; display: flex; gap: var(--space-2); align-items: center; padding: 0 var(--space-3) var(--space-3); }
 .prompt .caret { font: 600 var(--size-md) var(--font-mono); color: var(--text-muted); }
 .prompt .field { position: relative; flex: 1; height: 32px; background: var(--surface-well); box-shadow: var(--well-shadow); border-radius: var(--radius-md); }
@@ -96,7 +96,7 @@ table.t tr.sel td { background: color-mix(in srgb, var(--accent) var(--tint), tr
 .prompt input, .prompt .ghost { position: absolute; inset: 0; padding: 0 10px; font: var(--size-sm)/32px var(--font-mono); border: 0; background: none; color: var(--text); white-space: pre; }
 .prompt input { outline: none; z-index: 1; }
 .prompt .ghost { color: var(--text-muted); pointer-events: none; overflow: hidden; } .prompt .ghost span { visibility: hidden; }
-.complete { position: absolute; left: 30px; bottom: calc(100% - 4px); min-width: 420px; margin: 0; padding: 4px; list-style: none; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-2); z-index: 5; }
+.complete { position: absolute; left: 30px; bottom: calc(100% - 4px); min-width: 420px; margin: 0; padding: var(--space-1); list-style: none; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-2); z-index: 5; }
 .complete li { display: grid; grid-template-columns: minmax(180px, auto) 1fr; gap: var(--space-3); padding: 4px 8px; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--size-xs); }
 .complete li b { font: 500 var(--size-xs) var(--font-mono); } .complete li small { color: var(--text-muted); }
 .complete li.on { background: var(--surface-sunken); }
