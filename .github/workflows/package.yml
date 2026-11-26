@@ -2,7 +2,7 @@
 # attaches them to the GitHub release. deb and Windows: see the issues labelled `packaging`.
 #   paperboat-cli   paperboat, paperboatd, runtimes, registries; Requires paperboat-devel
 #   paperboat-devel headers, libpaperboat_runtime.a, find_package(paperboat)
-# The Launcher's packages (apps/launcher, when it lands) Require paperboat-cli.
+#   paperboat-launcher the Launcher (electron-builder, apps/launcher/electron-builder.cjs); Requires paperboat-cli
 name: package
 on:
   push:
@@ -36,6 +36,31 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: rpm-x64, path: build/*.rpm }
 
+  rpm-launcher-x64:
+    needs: rpm-x64  # the install check installs the CLI rpm first (Requires: paperboat-cli)
+    runs-on: ubuntu-24.04
+    container: fedora:43
+    steps:
+      - run: dnf -y install git nodejs npm rpm-build libxcrypt-compat util-linux  # libcrypt.so.1 for electron-builder's fpm; runuser
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build -w @paperboat/launcher
+      - name: package
+        run: |
+          v=$(node -p 'require("./apps/launcher/package.json").version')
+          case $GITHUB_REF in refs/tags/v*) v=${GITHUB_REF_NAME#v} ;; esac  # a beta tag: 0.2.0~beta.1
+          npm run package -w @paperboat/launcher -- -c.extraMetadata.version=$v
+      - uses: actions/download-artifact@v4
+        with: { name: rpm-x64, path: cli }
+      - name: install and start
+        run: |
+          dnf -y install cli/paperboat-cli-*.rpm cli/paperboat-devel-*.rpm apps/launcher/release/paperboat-launcher-*.rpm
+          rpm -q --requires paperboat-launcher | grep -qx paperboat-cli
+          test -f /usr/share/applications/paperboat-launcher.desktop
+          test -f /usr/share/icons/hicolor/512x512/apps/paperboat-launcher.png
+          runuser -u nobody -- paperboat-launcher --version  # main.cjs loads from the asar; not as root (Chromium refuses)
+      - uses: actions/upload-artifact@v4
+        with: { name: rpm-launcher-x64, path: apps/launcher/release/*.rpm }
+
   macos-arm:
     runs-on: macos-15  # Xcode 16.3+: libc++ with std::jthread
     steps:
@@ -56,7 +81,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [rpm-x64, macos-arm]
+    needs: [rpm-x64, rpm-launcher-x64, macos-arm]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4

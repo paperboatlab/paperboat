@@ -130,9 +130,11 @@ ipcMain.on('app:reveal', (_e, path: unknown) => {
 app.setName('Paperboat Launcher');
 // the Launcher keeps its state with its home, so a second home (a test's) is a second instance
 if (process.env.PAPERBOAT_HOME) app.setPath('userData', join(process.env.PAPERBOAT_HOME, 'launcher'));
-// a second start hands over its own command line as it was typed: the `argv` Chromium gives the first
+// `--version`: the version and out, before any window or lock (the packages' start check).
+// A second start hands over its own command line as it was typed: the `argv` Chromium gives the first
 // instance has the switches moved before the arguments, so `--open <url>` no longer has its url after it
-if (!app.requestSingleInstanceLock({argv: process.argv})) app.quit();
+if (process.argv.includes('--version')) (console.log(app.getVersion()), app.exit(0));
+else if (!app.requestSingleInstanceLock({argv: process.argv})) app.quit();
 else {
   // a second start hands its command line here: an app's window, or the Launcher's
   app.on('second-instance', (_e, argv, _cwd, data) => {
