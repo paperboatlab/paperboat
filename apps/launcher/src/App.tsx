@@ -115,7 +115,7 @@ export function App({client}: {client: Client}) {
 
   const running = state.instances.filter(l => l.state === 'running' || l.state === 'starting').length;
   return (
-    <div className="win">
+    <div className="win frame">
       <header className="bar">
         <span className="lk"><AppMark app="paperboat" size={26} idle label="Paperboat" /><span className="wm">Paperboat</span></span>
         <span className="wt">Launcher</span>
@@ -131,6 +131,7 @@ export function App({client}: {client: Client}) {
           )}
           {page === 'runtimes' && <Pill state={running ? 'live' : 'idle'} label={running ? `${running} running` : 'nothing running'} />}
           <Notifications {...notes} />
+          <span className="lsep" />
           <ThemePicker theme={theme} onChange={setTheme} />
         </span>
       </header>

@@ -44,8 +44,8 @@ export function Apps({client, act, show}: {client: Client; act: Act; show: Show}
   }
 
   return (
-    <section className="panel page" aria-label="Apps">
-      <div className="phead"><b>Apps</b><span className="count">{installed} installed · {apps.length - installed} available</span></div>
+    <div className="bay"><section className="panel page" aria-label="Apps">
+      <div className="phead"><span className="count">{installed} installed · {apps.length - installed} available</span></div>
       <div className="scroll"><div className="dbody">
         <div className="agrid">
           {apps.map(a => (
@@ -84,7 +84,7 @@ export function Apps({client, act, show}: {client: Client; act: Act; show: Show}
           <pre className="screen tall">{logs.text || 'No output yet.'}</pre>
         </Dialog>
       )}
-    </section>
+    </section></div>
   );
 }
 

@@ -28,13 +28,13 @@ export function Runtimes({client, act}: {client: Client; act: Act}) {
   const leases = rt ? instances.filter(l => l.runtime.startsWith(rt.name + '@')) : [];
 
   if (!runtimes)
-    return <section className="panel page"><div className="phead"><b>Runtimes</b></div>
-      <div className="empty-state">{errors.runtimes ? <span className="bad">{errors.runtimes}</span> : <span><Spinner /> asking paperboatd</span>}</div></section>;
+    return <div className="bay"><section className="panel page" aria-label="Runtimes">
+      <div className="empty-state">{errors.runtimes ? <span className="bad">{errors.runtimes}</span> : <span><Spinner /> asking paperboatd</span>}</div></section></div>;
 
   return (
     <div className="main">
       <section className="panel" aria-label="Runtimes">
-        <div className="phead"><b>Runtimes</b><span className="count">{list.length} in the catalog</span></div>
+        <div className="phead"><b>Catalog</b><span className="count">{list.length}</span></div>
         <div className="scroll"><div className="klist">
           {list.map(r => {
             const n = instances.filter(l => l.runtime.startsWith(r.name + '@') && alive(l)).length;
@@ -56,7 +56,7 @@ export function Runtimes({client, act}: {client: Client; act: Act}) {
         </div>
       </section>
 
-      {rt && (
+      <div className="bay">{rt && (
         <section className="panel" aria-label={`${rt.name} ${rt.version}`}>
           <div className="dhead">
             <span className="lang big">{lang(rt.name)}</span>
@@ -74,7 +74,7 @@ export function Runtimes({client, act}: {client: Client; act: Act}) {
             {view === 'events' && <Events events={events} />}
           </div></div>
         </section>
-      )}
+      )}</div>
     </div>
   );
 }
