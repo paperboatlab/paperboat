@@ -752,16 +752,20 @@ int session_stop(Args& a) {
 }
 
 int toolkit_list(Args& a) {
+  // base is built into Simplicial; the others are plugins Simplicial's `toolkit install` puts in <home>/toolkits/<name>
+  const bool simplicial = !installed("simplicial").is_null();
   json out = json::array();
-  for (const auto& e : entries(load_toml("toolkits.toml"), "toolkits"))
-    out.push_back({{"name", e["name"].value_or(std::string())}, {"kind", e["kind"].value_or(std::string())},
-                   {"repo", e["repo"].value_or(std::string())}, {"description", e["description"].value_or(std::string())},
-                   {"installed", false}});
+  for (const auto& e : entries(load_toml("toolkits.toml"), "toolkits")) {
+    const std::string name = e["name"].value_or(std::string()), kind = e["kind"].value_or(std::string());
+    std::error_code ec;
+    out.push_back({{"name", name}, {"kind", kind}, {"repo", e["repo"].value_or(std::string())}, {"description", e["description"].value_or(std::string())},
+                   {"installed", simplicial && (kind == "base" || fs::is_directory(paths::home() / "toolkits" / name, ec))}});
+  }
   if (a.json_out) return print_json(out), 0;
   std::vector<std::vector<std::string>> rows;
-  for (const auto& x : out) rows.push_back({x["name"], x["kind"], "available", x["description"]});
+  for (const auto& x : out) rows.push_back({x["name"], x["kind"], x["installed"].get<bool>() ? "installed" : "available", x["description"]});
   print_table({"TOOLKIT", "KIND", "STATE", "DESCRIPTION"}, rows);
-  std::cout << "\nToolkits install into Simplicial, which isn't installed yet.\n";
+  if (!simplicial) std::cout << "\nToolkits install into Simplicial, which isn't installed yet.\n";
   return 0;
 }
 

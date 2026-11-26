@@ -77,8 +77,13 @@ function window(url: string, opts: {title: string; app?: boolean}) {
       if (close) e.preventDefault();
     });
   }
-  // links leave for the browser; a page only navigates within itself
-  w.webContents.setWindowOpenHandler(({url}) => (void shell.openExternal(url), {action: 'deny'}));
+  // links leave for the browser; a page only navigates within itself. An app's link to a local page (Malachite's
+  // Open in Simplicial: window.open(url, label)) is another app's page: a Paperboat window, named by the frame name
+  w.webContents.setWindowOpenHandler(({url, frameName}) => {
+    if (opts.app && isLocal(url) && frameName && frameName !== '_blank') window(url, {title: frameName, app: true});
+    else void shell.openExternal(url);
+    return {action: 'deny'};
+  });
   void (url.startsWith('http') ? w.loadURL(url) : w.loadFile(url));
   return w;
 }

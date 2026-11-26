@@ -52,7 +52,8 @@ export function App({client}: {client: Client}) {
   useEffect(() => {
     void client.refresh({runtimes: true});
     const stop = client.watch();
-    const t = setInterval(() => void client.refresh(), 5000);  // sessions end on their own
+    // sessions and instances end on their own (an instance's exit can come with no event: a daemon restart ends the stream)
+    const t = setInterval(() => void client.refresh({instances: true}), 5000);
     return () => (stop(), clearInterval(t));
   }, [client]);
   // paperboatd: a failure when it stops answering, the same toast turns done when it answers again
