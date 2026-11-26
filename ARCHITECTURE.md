@@ -94,7 +94,7 @@ flowchart LR
   Wayland shows Paperboat's icon for all of them.
   One instance: a second start's `--open <url> [--title <t>]` opens that app's window in the first; the page
   (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
-  Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds
+  Settings (General: the theme; Launcher: the update channel; Shortcuts) from the rail's foot or Ctrl+,. Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds
   the Hubs group: list, Overview, History, Settings, each control one `paperboat hub …` command, pb#16); Ctrl+K lists every
   registry command. `e2e/` drives it with Playwright against the real CLI.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
