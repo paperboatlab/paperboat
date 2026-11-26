@@ -97,18 +97,18 @@ export function Console({client, line, onLine, only}: {client: Client; line: str
         ))}
         <div ref={end} />
       </div>
-      <div className="prompt">
+      <div className="console-prompt">
         <span className="caret">›</span>
-        <span className="field">
+        <label className="well">
           <input ref={input} value={text} spellCheck={false} aria-label="Command" onChange={e => (setText(e.target.value), setPick(0))} onKeyDown={onKey} />
           <span className="ghost" aria-hidden><span>{text}</span>{ghost}</span>
-        </span>
+        </label>
         <Key size="sm" kind="primary" onClick={() => void run(text)} disabled={!text.trim()}>Run</Key>
         {text && menu.length > 0 && (
-          <ul className="complete" role="listbox">
+          <ul className="menu complete" role="listbox">
             {menu.map((c, i) => (
-              <li key={c.value} role="option" aria-selected={i === at} className={i === at ? 'on' : ''} onMouseDown={e => (e.preventDefault(), setText(fill(c.value)), input.current?.focus())}>
-                <b>{c.value}</b><small>{c.detail}</small>
+              <li key={c.value} role="option" aria-selected={i === at} className="menu-item" onMouseDown={e => (e.preventDefault(), setText(fill(c.value)), input.current?.focus())}>
+                <b>{c.value}</b><span className="muted">{c.detail}</span>
               </li>
             ))}
           </ul>
