@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "paperboat/backend.hpp"
 #include "paperboat/control.hpp"
 #include "paperboat/manifest.hpp"
 #include "paperboat/paths.hpp"
@@ -475,7 +476,26 @@ std::vector<json> sessions_of(const std::string& app) {
   return out;
 }
 
-void open_url(const std::string& url) {
+// The Launcher that opens an app's page in a Paperboat window (plans/2026-11-26_11-05_one_file_workflow.md):
+// $PAPERBOAT_LAUNCHER (a program; "browser" for none), paperboat-launcher on PATH, or the dev checkout's
+// apps/launcher beside build/ with its Electron. Empty: the browser.
+std::vector<std::string> launcher() {
+  if (const char* v = std::getenv("PAPERBOAT_LAUNCHER"); v && *v)
+    return std::string(v) == "browser" ? std::vector<std::string>{} : std::vector<std::string>{v};
+  if (const auto w = which("paperboat-launcher"); !w.empty()) return {w};
+  const fs::path repo = paths::exe_dir().parent_path(), electron = repo / "node_modules" / ".bin" / "electron";
+  if (fs::exists(repo / "apps" / "launcher" / "dist" / "main.cjs") && fs::exists(electron)) return {electron.string(), (repo / "apps" / "launcher").string()};
+  return {};
+}
+
+// An app's page: a Paperboat window when the Launcher is here (a running one opens it), else the browser.
+void open_url(const std::string& url, const std::string& title = "") {
+  if (auto cmd = launcher(); !cmd.empty()) {
+    cmd.insert(cmd.end(), {"--open", url});
+    if (!title.empty()) cmd.insert(cmd.end(), {"--title", title});
+    ProcessRunner::run_detached(cmd);
+    return;
+  }
 #ifdef __APPLE__
   ProcessRunner::run_detached({"open", url});
 #else
@@ -622,7 +642,7 @@ int app_open(Args& a) {
     if (x["project"] == project.string()) s = x;
   const bool fresh = s.is_null();
   if (fresh) s = start_session(app, project, a.has("--port") ? std::stoi(a.get("--port")) : 0);
-  if (!a.has("--no-open")) open_url(s["url"]);
+  if (!a.has("--no-open")) open_url(s["url"], registry_entry(app)["label"].value_or(app));
   if (a.json_out) return print_json(s), 0;
   std::cout << (fresh ? "started " : "running ") << s["id"].get<std::string>() << " on " << project.string() << " · "
             << s["url"].get<std::string>() << "\n";

@@ -62,6 +62,10 @@ flowchart LR
   (constants in `start_session`); it records a **session** in
   `<runtime dir>/sessions/<app>-<port>.json` with its log beside it; a session whose process is gone is
   dropped when listed. App servers are native processes; only runtimes go through paperboatd.
+  Opened (no `--no-open`), the app's page goes to a **Paperboat window**: `open_url` runs the Launcher
+  with `--open <url> --title <label>` (`$PAPERBOAT_LAUNCHER`, `paperboat-launcher` on PATH, or a dev
+  checkout's `apps/launcher` with its Electron beside `build/`), and to the browser without one
+  (`PAPERBOAT_LAUNCHER=browser` forces it).
 - `packages/client/` (`@paperboat/client`, TypeScript run by Node directly): the Launcher's and the TUI's
   one client. `transport.ts` runs the CLI with `--json` (the only way in; `browser.ts` is the client
   without it, for a page whose transport is a bridge); `client.ts` holds the state
@@ -78,7 +82,11 @@ flowchart LR
   `npm run build -w @paperboat/cli` bundles it into one file (esbuild) for the packages.
 - `apps/launcher/` (`@paperboat/launcher`, Electron): the Launcher, a view of the client. The main process
   (`electron/main.ts`) runs the CLI through `cliTransport` and is the sandboxed page's only door
-  (`preload.ts`: `call`, `stream`, `openWindow` for an app server on 127.0.0.1, `pickFolder`); the page
+  (`preload.ts`: `call`, `stream`, `openWindow` for an app server on 127.0.0.1, `pickFolder`). It also
+  hosts the apps' **Paperboat windows** (plans/2026-11-26_11-05_one_file_workflow.md): an app's local page
+  with its own door, `app-preload.ts` → `window.paperboatShell` (`pickFile`, `pickFolder`, `pickSave`,
+  `reveal`: the system's dialogs, real paths; never the CLI's channels), not throttled in the background.
+  One instance: a second start's `--open <url> [--title <t>]` opens that app's window in the first; the page
   (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
   Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds
   the Hubs group: list, Overview, History, Settings, each control one `paperboat hub …` command, pb#16); Ctrl+K lists every
