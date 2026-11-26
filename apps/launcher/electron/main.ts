@@ -22,11 +22,17 @@ function window(url: string, opts: {title: string; app?: boolean}) {
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#f6f6f2',
+    // no system title bar: the page's bar is it (the kit's WindowKeys); macOS keeps its lights, inside the bar
+    titleBarStyle: 'hidden',
+    ...(process.platform === 'darwin' ? {trafficLightPosition: {x: 16, y: 22}} : {}),
     webPreferences: {
       preload: join(__dirname, opts.app ? 'app-preload.cjs' : 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false,
       backgroundThrottling: !opts.app,  // an app's live views (scopes, plots, runs) keep going behind other windows
     },
   });
+  const tell = () => !w.webContents.isDestroyed() && w.webContents.send('win:maximized', w.isMaximized());
+  w.on('maximize', tell);
+  w.on('unmaximize', tell);
   if (opts.app) {
     const id = w.webContents.id;
     appPages.add(id);
@@ -81,6 +87,16 @@ ipcMain.handle('pb:folder', async (e, title: string) => {
   const r = await (w ? dialog.showOpenDialog(w, {title, properties: ['openDirectory', 'createDirectory']}) : dialog.showOpenDialog({title, properties: ['openDirectory']}));
   return r.canceled ? null : r.filePaths[0];
 });
+
+// every page's own window keys (WindowKeys): only the window the page is in
+const own = (e: IpcMainEvent | IpcMainInvokeEvent) => BrowserWindow.fromWebContents(e.sender);
+ipcMain.on('win:minimize', e => own(e)?.minimize());
+ipcMain.on('win:maximize', e => {
+  const w = own(e);
+  if (w) w.isMaximized() ? w.unmaximize() : w.maximize();
+});
+ipcMain.on('win:close', e => own(e)?.close());
+ipcMain.handle('win:is-maximized', e => own(e)?.isMaximized() ?? false);
 
 // an app's window: the system's dialogs, parented to it, and real paths
 const filters = (types: string[]) => (types.length ? [{name: types.map(x => `.${x}`).join(', '), extensions: types}, {name: 'All files', extensions: ['*']}] : []);

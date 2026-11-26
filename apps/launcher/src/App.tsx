@@ -3,7 +3,7 @@
 // @paperboat/client: every key runs a command line, the CLI's own words.
 
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {About, AppMark, Key, Notifications, Pill, Rail, Search, Segmented, ThemePicker, Toasts, chordMatches, readStored, useTheme, useToasts, writeStored, type RailItem, type Credit, type SearchItem, type Theme} from '@paperboatlab/ui';
+import {About, AppMark, Key, Notifications, Pill, Rail, Search, Segmented, ThemePicker, Toasts, WindowKeys, chordMatches, readStored, useTheme, useToasts, writeStored, type RailItem, type Credit, type SearchItem, type Theme} from '@paperboatlab/ui';
 import type {Client} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
 import {makeAct} from './act.ts';
@@ -133,6 +133,7 @@ export function App({client}: {client: Client}) {
           <Notifications {...notes} />
           <span className="lsep" />
           <ThemePicker theme={theme} onChange={setTheme} />
+          <WindowKeys />
         </span>
       </header>
 

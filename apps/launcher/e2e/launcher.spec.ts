@@ -149,3 +149,24 @@ test('about: the versions, from the rail foot', async () => {
   await page.keyboard.press('Escape');
   await expect(about).toHaveCount(0);
 });
+
+test('window keys: the bar is the title bar, its keys act on the window', async () => {
+  await expect(page.locator('html')).toHaveAttribute('data-window', process.platform);
+  if (process.platform === 'darwin') return void (await expect(page.locator('.window-keys')).toHaveCount(0));
+  // Xvfb has no window manager to maximize: the window's own methods say what was asked
+  await app.evaluate(({BrowserWindow}) => {
+    const w = BrowserWindow.getAllWindows()[0];
+    const asked: string[] = ((globalThis as {asked?: string[]}).asked = []);
+    let max = false;
+    w.isMaximized = () => max;
+    w.maximize = () => void (asked.push('maximize'), (max = true), w.emit('maximize'));
+    w.unmaximize = () => void (asked.push('unmaximize'), (max = false), w.emit('unmaximize'));
+  });
+  const keys = page.getByRole('group', {name: 'Window'});
+  await keys.getByRole('button', {name: 'Maximize'}).click();
+  await expect(keys.getByRole('button', {name: 'Restore'})).toBeVisible();
+  await keys.getByRole('button', {name: 'Restore'}).click();
+  await expect(keys.getByRole('button', {name: 'Maximize'})).toBeVisible();
+  await page.locator('.frame > .bar .wt').dblclick();
+  expect(await app.evaluate(() => (globalThis as {asked?: string[]}).asked)).toEqual(['maximize', 'unmaximize', 'maximize']);
+});

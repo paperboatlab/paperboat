@@ -86,6 +86,9 @@ flowchart LR
   hosts the apps' **Paperboat windows** (plans/2026-11-26_11-05_one_file_workflow.md): an app's local page
   with its own door, `app-preload.ts` → `window.paperboatShell` (`pickFile`, `pickFolder`, `pickSave`,
   `reveal`: the system's dialogs, real paths; never the CLI's channels), not throttled in the background.
+  Every window, the Launcher's and the apps', has no system title bar (`titleBarStyle: 'hidden'`; macOS keeps
+  its lights, inside the page's bar): `window-preload.ts` → `window.paperboatWindow` (`minimize`,
+  `toggleMaximize`, `close`, `onMaximized`; only the window the page is in) feeds the kit's `WindowKeys`.
   One instance: a second start's `--open <url> [--title <t>]` opens that app's window in the first; the page
   (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
   Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds

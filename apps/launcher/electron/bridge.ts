@@ -1,5 +1,6 @@
 // What the pages may ask of the main process: the Launcher's page through window.paperboat (preload.ts),
-// an app's page in a Paperboat window through window.paperboatShell (app-preload.ts). The kit mirrors Shell.
+// an app's page in a Paperboat window through window.paperboatShell (app-preload.ts), and every page its own
+// window's keys through window.paperboatWindow (both). The kit mirrors Shell and WindowControls.
 
 export interface CallResult {
   ok: boolean;
@@ -30,4 +31,15 @@ export interface Shell {
   pickSave(name?: string, types?: string[], title?: string): Promise<string | null>;
   /** Show a file or folder in the system's file manager. */
   reveal(path: string): void;
+}
+
+/** A page's own window (no system title bar: the page's bar is the title bar; the kit's WindowKeys). */
+export interface WindowControls {
+  /** `process.platform`: "darwin", "win32", "linux". */
+  platform: string;
+  minimize(): void;
+  toggleMaximize(): void;
+  close(): void;
+  /** `fn` now and on every maximize or restore; returns stop. */
+  onMaximized(fn: (maximized: boolean) => void): () => void;
 }
