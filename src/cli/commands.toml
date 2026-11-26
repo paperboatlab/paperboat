@@ -91,6 +91,13 @@ desc = "Built-in and optional toolkits"
 group = "Toolkits"
 
 [[command]]
+id = "toolkit.info"
+name = "toolkit info"
+args = "<toolkit> [--refresh]"
+desc = "A toolkit's version, licence, blocks and README, from its repository"
+group = "Toolkits"
+
+[[command]]
 id = "runtime.list"
 name = "runtime list"
 alias = ["runtimes"]

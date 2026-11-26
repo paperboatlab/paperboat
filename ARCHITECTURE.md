@@ -113,6 +113,11 @@ flowchart LR
 - `apps.toml`, `toolkits.toml`: the app and toolkit registries (Malachite, Julix; the five
   `simplicial-toolkit-*` repos), installed to `share/paperboat/`; `$PAPERBOAT_DATA_DIR` is searched
   first (tests, a private registry).
+  `toolkit info <name>` reads a toolkit's repository through GitHub's API (`$PAPERBOAT_GITHUB_API`, a
+  `file://` folder in the tests): the manifest's version, the licence, the blocks (`src/<package>/<block>/<block>.cpp`
+  and a package's `blocks.toml`; base is Simplicial's `engine/toolkit`), the README as GitHub renders it, the
+  newest release on the channel. Cached an hour in `<home>/cache/toolkits/<name>.json` (`--refresh`); offline,
+  the last copy marked stale, else an error. The Launcher's Toolkits page shows it.
 
 ## 3. Invariants
 

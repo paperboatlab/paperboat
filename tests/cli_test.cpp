@@ -92,6 +92,39 @@ TEST_CASE("the registries: the apps, the five toolkits", "[cli]") {
     CHECK_THAT(k["repo"].get<std::string>(), ContainsSubstring(k["kind"] == "base" ? "/simplicial.git" : "/simplicial-toolkit-"));
 }
 
+// GitHub is a folder here: curl reads file:// URLs and drops their query.
+TEST_CASE("toolkit info reads the repository, caches it, and says when it can't", "[cli]") {
+  const fs::path gh = kHome / "github", r = gh / "repos" / "paperboatlab" / "simplicial-toolkit-control";
+  const auto put = [](const fs::path& f, const std::string& text) { fs::create_directories(f.parent_path()), std::ofstream(f) << text; };
+  const std::string src = "engine/toolkit/control/src/";
+  put(r / "git" / "trees" / "HEAD", json{{"tree", {{{"path", src + "control/pid/pid.cpp"}, {"type", "blob"}}, {{"path", src + "control/pid"}, {"type", "tree"}},
+                                                   {{"path", src + "control/common.hpp"}, {"type", "blob"}}, {{"path", src + "register.cpp"}, {"type", "blob"}},
+                                                   {{"path", src + "control/blocks.toml"}, {"type", "blob"}}, {{"path", src + "control/lqr/lqr.cpp"}, {"type", "blob"}}}}}.dump());
+  put(r / "contents" / src / "control" / "blocks.toml", "[[blocks]]\nuse = \"control/pid\"\ntype = \"pi\"\n");
+  put(r / "contents" / "engine/toolkit/control/toolkit.toml", "name = \"control\"\nversion = \"0.3.0\"\n");
+  put(r / "license", R"({"license": {"spdx_id": "GPL-3.0"}})");
+  put(r / "readme", "<h1>control</h1>");
+  put(r / "releases", R"([{"tag_name": "v0.2.0", "html_url": "u"}, {"tag_name": "v0.3.0-beta.1", "prerelease": true}])");
+  const std::pair<std::string, std::string> api{"PAPERBOAT_GITHUB_API", "file://" + gh.string()}, gone{"PAPERBOAT_GITHUB_API", "file:///nowhere"};
+
+  const auto t = json::parse(cli({"toolkit", "info", "control", "--json"}, {}, {api}).stdout_text);
+  CHECK(t["version"] == "0.3.0");
+  CHECK(t["licence"] == "GPL-3.0");
+  CHECK(t["blocks"] == json{"control/lqr", "control/pi", "control/pid"});
+  CHECK(t["release"]["version"] == "0.2.0");  // the release channel skips the beta
+  CHECK(t["readme"] == "<h1>control</h1>");
+  CHECK(t["url"] == "https://github.com/paperboatlab/simplicial-toolkit-control");
+  CHECK(t["stale"] == false);
+  CHECK(json::parse(cli({"toolkit", "info", "control", "--json"}, {}, {gone}).stdout_text) == t);  // fresh in the cache
+  CHECK(json::parse(cli({"toolkit", "info", "control", "--refresh", "--json"}, {}, {gone}).stdout_text)["stale"] == true);
+  fs::remove_all(kHome / "cache");
+  const auto off = cli({"toolkit", "info", "control"}, {}, {gone});
+  CHECK(off.exit_code == 1);
+  CHECK_THAT(off.stderr_text, ContainsSubstring("toolkit list has its description"));
+  CHECK(cli({"toolkit", "info", "frobnicate"}).exit_code == 2);
+  fs::remove_all(gh);
+}
+
 TEST_CASE("the channel is kept", "[cli]") {
   CHECK(cli({"channel"}).stdout_text == "release\n");
   CHECK(cli({"channel", "beta"}).ok());
