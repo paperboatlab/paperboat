@@ -71,7 +71,8 @@ Manifest load_manifest(const fs::path& file);
 
 nlohmann::json to_json(const Manifest& m);
 
-// "1.11.6" vs "1.11": numeric, component by component; a missing component sorts first.
+// "1.11.6" vs "1.11": numeric, component by component; a missing component sorts first. Then what follows
+// the -, as semver: 0.1.0-beta.2 < 0.1.0-beta.10 < 0.1.0.
 int compare_versions(std::string_view a, std::string_view b);
 // "1.11" matches "1.11", "1.11.6", "1.11.6-r2"; "" matches everything.
 bool version_matches(std::string_view want, std::string_view have);

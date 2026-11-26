@@ -70,6 +70,14 @@ TEST_CASE("versions compare numerically and match by prefix", "[manifest]") {
   CHECK(compare_versions("1.11.6", "1.9.3") > 0);
   CHECK(compare_versions("1.11", "1.11.0") < 0);
   CHECK(compare_versions("3.12", "3.12") == 0);
+  // a beta channel's releases: the part after the - orders them, and the release comes after its betas
+  CHECK(compare_versions("0.1.0-beta.3", "0.1.0-beta.2") > 0);
+  CHECK(compare_versions("0.1.0-beta.10", "0.1.0-beta.9") > 0);
+  CHECK(compare_versions("0.1.0", "0.1.0-beta.3") > 0);
+  CHECK(compare_versions("0.1.0-beta.1", "0.1.0-alpha.5") > 0);
+  CHECK(compare_versions("0.1.0-beta", "0.1.0-beta.1") < 0);
+  CHECK(compare_versions("0.1.0-beta.2", "0.1.0-beta.2") == 0);
+  CHECK(compare_versions("0.2.0-beta.1", "0.1.0") > 0);
   CHECK(version_matches("1.11", "1.11.6"));
   CHECK(version_matches("1.11", "1.11.6-r2"));
   CHECK_FALSE(version_matches("1.1", "1.11.6"));
