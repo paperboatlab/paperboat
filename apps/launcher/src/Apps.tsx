@@ -1,5 +1,5 @@
 // Apps: the registry's apps as cards in their own accent, and the sessions running now.
-// Open runs `app open <app> <folder> --no-open` and shows the app's page in a window of its own.
+// Open runs `app open <app> --start --no-open` and shows the app's page in a window of its own.
 
 import {useRef, useState} from 'react';
 import {APPS, AppMark, Dialog, Key, Menu, Pill, Tag, type MenuEntry} from '@paperboatlab/ui';
@@ -24,13 +24,12 @@ export function Apps({client, act, show}: {client: Client; act: Act; show: Show}
   async function open(a: App) {
     const s = sessions.find(x => x.app === a.name);
     if (s) return bridge().openWindow(s.url, a.label);
-    const folder = await bridge().pickFolder(`Open ${a.label} on a folder`);
-    if (!folder) return;
-    const id = show({title: `Starting ${a.label}`, detail: home(folder), state: 'working'});
-    const job = await client.run(`app open ${a.name} "${folder}" --no-open`);
+    // as a double click on its icon does: the app on its Start page, which asks for the folder or file
+    const id = show({title: `Starting ${a.label}`, state: 'working'});
+    const job = await client.run(`app open ${a.name} --start --no-open`);
     if (job.state === 'failed') return show({id, title: `${a.label} did not start`, detail: job.error, state: 'failed'});
     const started = job.result as Session;
-    show({id, title: `${a.label} started`, detail: `${home(folder)} · ${started.url}`, state: 'done'});
+    show({id, title: `${a.label} started`, detail: started.url, state: 'done'});
     bridge().openWindow(started.url, a.label);
   }
   async function from(a: App) {
@@ -58,7 +57,7 @@ export function Apps({client, act, show}: {client: Client; act: Act; show: Show}
         <div className="card">
           <div className="chead"><b>Active sessions</b><span className="label">apps running now</span>
             <span className="bend">{sessions.length > 0 && <Key size="sm" kind="quiet" onClick={() => void act('session stop --all', 'Stopping every session')}>Stop all</Key>}</span></div>
-          {sessions.length === 0 ? <div className="empty-note">Nothing is running. Open an app to start it on a folder.</div> : (
+          {sessions.length === 0 ? <div className="empty-note">Nothing is running. Open an app to start it.</div> : (
             <table className="t">
               <thead><tr><th>Session</th><th>Folder</th><th>Address</th><th>State</th><th></th></tr></thead>
               <tbody>{sessions.map(s => (
