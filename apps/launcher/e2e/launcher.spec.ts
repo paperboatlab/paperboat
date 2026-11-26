@@ -30,6 +30,13 @@ test.beforeAll(async () => {
   writeFileSync(join(checkout, 'bin/serve'), '#!/bin/sh\n# no folder (the Start page): serve the demo hub anyway\n[ "$1" = --port ] && set -- "' + project + '" "$@"\nexec python3 -m http.server "$3" --bind 127.0.0.1 --directory "$1"\n');
   chmodSync(join(checkout, 'bin/serve'), 0o755);
   writeFileSync(join(project, 'index.html'), '<title>demo hub</title>');
+  // the demo brings a Stations group, as Simplicial does: `station list` from a fixed list, every other word echoed
+  const stations = [['scratchpad', 'builtin', 'cpp'], ['02-cart-pole', 'example', 'cpp'], ['01-smart-thermostat', 'example', 'python'], ['pendulum', 'installed', 'julia']]
+    .map(([name, source, language], i) => ({name, source, language, description: `the ${name} station`, dir: join(home, 'stations', name), port: 8765 + i}));
+  writeFileSync(join(checkout, 'commands.toml'), 'cli = "bin/stations"\n' + [['station.list', 'station list', ''], ['station.check', 'check', '<station>'], ['station.run', 'run', '<station>']]
+    .map(([id, name, args]) => `[[command]]\nid = "${id}"\nname = "${name}"\nargs = "${args}"\ndesc = "${name}"\ngroup = "Stations"\n`).join(''));
+  writeFileSync(join(checkout, 'bin/stations'), `#!/bin/sh\n[ "$1 $2" = "station list" ] && exec echo '${JSON.stringify(stations)}'\necho "stations got: $*"\n`);
+  chmodSync(join(checkout, 'bin/stations'), 0o755);
   app = await electron.launch({
     // CI runners: no setuid sandbox helper, no GPU under Xvfb
     args: [join(here, '..'), ...(process.env.CI ? ['--no-sandbox', '--disable-gpu'] : [])],
@@ -76,6 +83,26 @@ test('apps: install a checkout, open it in its own window, stop it', async () =>
   await w.close();
   await expect(page.locator('table.t tr', {hasText: 'demo-47410'})).toHaveCount(0, {timeout: 15_000});
   await expect(page.getByText('Nothing is running.')).toBeVisible();
+});
+
+test('stations: the list by source, one in detail, its keys run its commands', async () => {
+  await page.keyboard.press('Alt+2');
+  await expect(page.getByRole('group', {name: 'Built-in'})).toContainText('scratchpad');
+  await expect(page.getByRole('group', {name: 'Examples'}).locator('.kr')).toHaveCount(2);
+  await expect(page.getByRole('group', {name: 'Installed'})).toContainText('jl');
+  await page.locator('.kr', {hasText: '02-cart-pole'}).click();
+  await expect(page.locator('.dname')).toHaveText('02-cart-pole');
+  await expect(page.locator('.dmeta')).toContainText('ws://127.0.0.1:8766');
+  await expect(page.getByRole('button', {name: 'Build', exact: true})).toBeVisible();  // C++ only
+  await shot('stations');
+  await page.getByRole('button', {name: 'Check', exact: true}).click();
+  await expect(page.locator('.toast').last()).toContainText('stations got: check 02-cart-pole');
+  await page.locator('.kr', {hasText: '01-smart-thermostat'}).click();
+  await expect(page.getByRole('button', {name: 'Build', exact: true})).toHaveCount(0);
+  await expect(page.getByRole('button', {name: /Uninstall/})).toHaveCount(0);  // installed ones only
+  await page.locator('.kr', {hasText: 'pendulum'}).click();
+  await expect(page.getByRole('button', {name: 'Uninstall…'})).toBeVisible();
+  await page.keyboard.press('Alt+1');
 });
 
 test('a failure says why: no release to install', async () => {

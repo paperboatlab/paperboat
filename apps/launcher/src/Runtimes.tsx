@@ -2,7 +2,7 @@
 // chosen runtime's instances (stats, logs, interrupt), a project's packages, its image, the events.
 
 import {useEffect, useState} from 'react';
-import {AppMark, APPS, Icon, Key, Pill, Spinner, Tabs, Tag} from '@paperboatlab/ui';
+import {AppMark, APPS, Icon, Key, Pill, RuntimeMark, Spinner, Tabs, Tag} from '@paperboatlab/ui';
 import {PackagePanel, type InstalledPackage} from '@paperboatlab/ui/packages';
 import type {Client, Lease, Runtime} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
@@ -10,8 +10,6 @@ import type {Act} from './act.ts';
 import {bridge} from './bridge.ts';
 
 type View = 'running' | 'packages' | 'image' | 'events';
-const short: Record<string, string> = {julia: 'jl', python: 'py', omc: 'mo'};
-const lang = (name: string) => short[name] ?? name.slice(0, 2);
 const ownerApp = (owner: string) => owner.split(':')[0];
 const mb = (b: number) => (b < 0 ? '–' : b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`);
 const home = (p: string) => p.replace(/^\/(home|Users)\/[^/]+/, '~');
@@ -40,7 +38,7 @@ export function Runtimes({client, act}: {client: Client; act: Act}) {
             const n = instances.filter(l => l.runtime.startsWith(r.name + '@') && alive(l)).length;
             return (
               <div key={r.name} className={`kr${r === rt ? ' on' : ''}`} onClick={() => setPick(r.name)} role="button" tabIndex={0}>
-                <span className="lang">{lang(r.name)}</span>
+                <span className="lang"><RuntimeMark lang={r.name} /></span>
                 <span><b>{r.name}</b><small>{r.version} · {ready(r) ? 'ready' : usable(r) ? 'not pulled' : 'no backend'}</small></span>
                 {n ? <Pill state="live" label={`${n} running`} /> : !ready(r) && usable(r) ? <Key size="sm" onClick={e => (e.stopPropagation(), void act(`runtime pull ${r.name}`, `Pulling ${r.name}`))}>Pull</Key> : <span />}
               </div>
@@ -59,7 +57,7 @@ export function Runtimes({client, act}: {client: Client; act: Act}) {
       <div className="bay">{rt && (
         <section className="panel" aria-label={`${rt.name} ${rt.version}`}>
           <div className="dhead">
-            <span className="lang big">{lang(rt.name)}</span>
+            <span className="lang big"><RuntimeMark lang={rt.name} /></span>
             <div><div className="dname">{rt.name}<small>{rt.version}</small></div>
               <div className="dmeta"><Tag>{rt.modes.join(' · ')}</Tag>{image(rt).digest && <Tag>pinned {image(rt).digest.slice(0, 15)}…{image(rt).digest.slice(-4)}</Tag>}
                 <Tag>{image(rt).signer ? 'signed' : 'unsigned upstream image'}</Tag></div></div>

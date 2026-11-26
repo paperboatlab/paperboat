@@ -85,7 +85,7 @@ flowchart LR
   `npm run build -w @paperboat/cli` bundles it into one file (esbuild) for the packages.
 - `apps/launcher/` (`@paperboat/launcher`, Electron): the Launcher, a view of the client. The main process
   (`electron/main.ts`) runs the CLI through `cliTransport` and is the sandboxed page's only door
-  (`preload.ts`: `call`, `stream`, `openWindow` for an app server on 127.0.0.1, `pickFolder`). It also
+  (`preload.ts`: `call`, `stream`, `openWindow` for an app server on 127.0.0.1, `pickFolder`, `reveal`). It also
   hosts the apps' **Paperboat windows** (plans/2026-11-26_11-05_one_file_workflow.md): an app's local page
   with its own door, `app-preload.ts` → `window.paperboatShell` (`pickFile`, `pickFolder`, `pickSave`,
   `reveal`: the system's dialogs, real paths; never the CLI's channels), not throttled in the background.
