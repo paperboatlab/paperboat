@@ -1,6 +1,7 @@
 // An app's page in a Paperboat window: its only door, window.paperboatShell (bridge.ts Shell). No CLI.
 import {contextBridge, ipcRenderer} from 'electron';
 import type {Shell} from './bridge.ts';
+import {exposeWindow} from './window-preload.ts';
 
 const shell: Shell = {
   pickFile: (types, title) => ipcRenderer.invoke('app:file', types ?? [], title ?? ''),
@@ -9,3 +10,4 @@ const shell: Shell = {
   reveal: path => ipcRenderer.send('app:reveal', path),
 };
 contextBridge.exposeInMainWorld('paperboatShell', shell);
+exposeWindow();

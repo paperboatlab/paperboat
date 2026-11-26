@@ -1,6 +1,7 @@
 // The page's only door: window.paperboat (electron/bridge.ts).
 import {contextBridge, ipcRenderer} from 'electron';
 import type {Bridge} from './bridge.ts';
+import {exposeWindow} from './window-preload.ts';
 
 let next = 1;
 const lines = new Map<number, (l: string) => void>();
@@ -31,3 +32,4 @@ const bridge: Bridge = {
   pickFolder: title => ipcRenderer.invoke('pb:folder', title),
 };
 contextBridge.exposeInMainWorld('paperboat', bridge);
+exposeWindow();
