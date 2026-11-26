@@ -150,6 +150,24 @@ test('about: the versions, from the rail foot', async () => {
   await expect(about).toHaveCount(0);
 });
 
+test('settings: the theme, the channel and the keys, from the rail foot or Ctrl+,', async () => {
+  await page.getByRole('button', {name: 'Settings', exact: true}).click();
+  const settings = page.getByRole('dialog', {name: 'Settings'});
+  await settings.getByRole('radio', {name: 'Dark'}).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await shot('settings-general');
+  await settings.getByRole('button', {name: 'Launcher'}).click();
+  await expect(settings.getByRole('radiogroup', {name: 'Update channel'})).toBeVisible();
+  await settings.getByRole('button', {name: 'Shortcuts'}).click();
+  await expect(settings).toContainText('Ctrl K');
+  await shot('settings-shortcuts');
+  await page.keyboard.press('Escape');
+  await expect(settings).toHaveCount(0);
+  await page.keyboard.press('Control+,');
+  await settings.getByRole('radio', {name: 'System'}).click();
+  await page.keyboard.press('Escape');
+});
+
 test('window keys: the bar is the title bar, its keys act on the window', async () => {
   await expect(page.locator('html')).toHaveAttribute('data-window', process.platform);
   if (process.platform === 'darwin') return void (await expect(page.locator('.window-keys')).toHaveCount(0));

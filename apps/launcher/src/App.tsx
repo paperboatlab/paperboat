@@ -3,7 +3,7 @@
 // @paperboat/client: every key runs a command line, the CLI's own words.
 
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {About, AppMark, Key, Notifications, Pill, Rail, Search, Segmented, ThemePicker, Toasts, WindowKeys, chordMatches, readStored, useTheme, useToasts, writeStored, type RailItem, type Credit, type SearchItem, type Theme} from '@paperboatlab/ui';
+import {About, AppMark, Key, Notifications, Pill, Rail, Search, Segmented, SettingRow, Settings, SettingsSection, ShortcutList, ThemeSetting, Toasts, WindowKeys, chordMatches, readStored, useTheme, useToasts, writeStored, type Command, type RailItem, type Credit, type SearchItem, type Theme} from '@paperboatlab/ui';
 import type {Client} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
 import {makeAct} from './act.ts';
@@ -21,6 +21,13 @@ const OWN: Credit[] = [
   ['Node.js', 'running the CLI, inside Electron', 'MIT', 'https://nodejs.org'],
 ];
 
+// the Launcher's keys, for Settings › Shortcuts (it has no menu bar, so no command registry)
+const KEYS = (pages: {label: string; keys?: string}[]): Command[] => [
+  {id: 'search', label: 'Commands', menu: 'launcher', group: 'k', shortcut: 'Ctrl K', run: () => {}},
+  {id: 'settings', label: 'Settings', menu: 'launcher', group: 'k', shortcut: 'Ctrl ,', run: () => {}},
+  ...pages.map(p => ({id: `go:${p.label}`, label: p.label, menu: 'pages', group: 'p', shortcut: p.keys?.replace('+', ' '), run: () => {}})),
+];
+
 type Page = 'apps' | 'stations' | 'toolkits' | 'runtimes' | 'hubs' | 'console';
 const isTheme = (v: unknown): v is Theme => v === 'light' || v === 'dark' || v === 'system';
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean';
@@ -35,6 +42,7 @@ export function App({client}: {client: Client}) {
   const [line, setLine] = useState<string | null>(null);  // a command for the Console to fill in
   const [about, setAbout] = useState<{paperboat: string; channel: string; daemon: {version: string} | null} | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [settings, setSettings] = useState<string | null>(null);  // the page Settings is open on
   const notes = useToasts();
   const {toasts, show, dismiss} = notes;
   const act = useMemo(() => makeAct(client, show), [client, show]);
@@ -104,6 +112,9 @@ export function App({client}: {client: Client}) {
       if (chordMatches({key: 'k', ctrl: true}, e)) {
         e.preventDefault();
         setSearch(s => !s);
+      } else if (chordMatches({key: ',', ctrl: true}, e)) {
+        e.preventDefault();
+        setSettings('general');
       } else if (e.altKey && /^[1-6]$/.test(e.key) && pages[+e.key - 1]) {
         e.preventDefault();
         setPage(pages[+e.key - 1].id as Page);
@@ -122,24 +133,19 @@ export function App({client}: {client: Client}) {
         <span className="bend">
           {page === 'apps' && (
             <>
-              <Segmented label="Update channel" value={(about?.channel ?? 'release') as 'release' | 'beta' | 'dev'}
-                options={[{value: 'release', label: 'release'}, {value: 'beta', label: 'beta'}, {value: 'dev', label: 'dev'}]}
-                onChange={ch => void act(`channel ${ch}`, `Channel ${ch}`, {quiet: true}).then(loadAbout)} />
-              {about && <span className="tag">paperboat {about.paperboat}</span>}
+              {about && <span className="tag">paperboat {about.paperboat} · {about.channel}</span>}
               <Key icon="cloud-download" onClick={checkUpdates}>Check for updates</Key>
             </>
           )}
           {page === 'runtimes' && <Pill state={running ? 'live' : 'idle'} label={running ? `${running} running` : 'nothing running'} />}
           <Notifications {...notes} />
-          <span className="lsep" />
-          <ThemePicker theme={theme} onChange={setTheme} />
           <WindowKeys />
         </span>
       </header>
 
       <Rail label="Launcher pages" pages={pages} page={page} onPage={p => setPage(p as Page)} wide={wide} onWide={setWide}
-        foot={[{id: 'search', label: 'Commands', icon: 'search', keys: 'Ctrl+K'}, {id: 'about', label: 'About', icon: 'info'}]}
-        onFoot={id => (id === 'about' ? openAbout() : setSearch(true))} />
+        foot={[{id: 'search', label: 'Commands', icon: 'search', keys: 'Ctrl+K'}, {id: 'settings', label: 'Settings', icon: 'a-settings', keys: 'Ctrl+,'}, {id: 'about', label: 'About', icon: 'info'}]}
+        onFoot={id => (id === 'about' ? openAbout() : id === 'settings' ? setSettings('general') : setSearch(true))} />
 
       <main className="pages">
         {page === 'apps' && <Apps client={client} act={act} show={show} />}
@@ -155,6 +161,24 @@ export function App({client}: {client: Client}) {
         <About app="paperboat" role="Apps, runtimes and every command, on your computer" version={about?.paperboat ?? '…'}
           info={about ? `Launcher ${pkg.version} · CLI ${about.paperboat} · paperboatd ${about.daemon?.version ?? 'not running'}` : `Launcher ${pkg.version}`}
           repo="paperboatlab/paperboat" credits={OWN} onCheckUpdates={checkUpdates} onClose={() => setAboutOpen(false)} />
+      )}
+      {settings && (
+        <Settings app="Launcher" page={settings} onClose={() => setSettings(null)} pages={[
+          {id: 'general', label: 'General', icon: 'settings-gear', body: <ThemeSetting theme={theme} onTheme={setTheme} />},
+          {id: 'launcher', label: 'Launcher', icon: 'mark-paperboat', body: (
+            <SettingsSection title="Updates">
+              <SettingRow label="Update channel" hint="Release: tested versions. Beta: the next version early. Dev: every change on main">
+                <Segmented label="Update channel" value={(about?.channel ?? 'release') as 'release' | 'beta' | 'dev'}
+                  options={[{value: 'release', label: 'Release'}, {value: 'beta', label: 'Beta'}, {value: 'dev', label: 'Dev'}]}
+                  onChange={ch => void act(`channel ${ch}`, `Channel ${ch}`, {quiet: true}).then(loadAbout)} />
+              </SettingRow>
+              <SettingRow label="Version" hint={about ? `paperboat ${about.paperboat} · paperboatd ${about.daemon?.version ?? 'not running'}` : undefined}>
+                <Key size="sm" icon="cloud-download" onClick={checkUpdates}>Check for updates</Key>
+              </SettingRow>
+            </SettingsSection>
+          )},
+          {id: 'shortcuts', label: 'Shortcuts', icon: 'keys', body: <ShortcutList commands={KEYS(pages)} menus={[{id: 'launcher', label: 'Launcher'}, {id: 'pages', label: 'Pages'}]} />},
+        ]} />
       )}
       <Toasts toasts={toasts} onDismiss={dismiss} />
     </div>
