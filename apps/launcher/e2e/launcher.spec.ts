@@ -125,7 +125,7 @@ test('Ctrl+K reaches every command; one without arguments runs, one with them fi
 test('console: a command line with completion, the CLI words back', async () => {
   const input = page.getByRole('textbox', {name: 'Command'});
   await input.fill('app li');
-  await expect(page.locator('.complete li.on')).toContainText('app list');
+  await expect(page.getByRole('option', {selected: true})).toContainText('app list');
   await input.press('Tab');
   await expect(input).toHaveValue('app list');
   await input.press('Enter');
