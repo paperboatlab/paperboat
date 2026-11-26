@@ -55,7 +55,9 @@ flowchart LR
   per command.
 - App lifecycle (in `src/cli/main.cpp`, no daemon): `app install` unpacks a GitHub release's
   `<app>-<version>.tar.gz` to `<home>/apps/<app>`, or links a checkout (`--from`); `<home>/apps/<app>.toml`
-  records the version or the checkout. `app open <app> [<folder>]` starts the app server detached
+  records the version or the checkout. On Linux it also writes the app's desktop entry,
+  `~/.local/share/applications/paperboat-<app>.desktop` (`Exec=paperboat app open <app> --start`, `Icon=` the app's
+  own `icon.png`, `StartupWMClass=paperboat-<app>`; "(checkout)" for `--from`), and `app uninstall` removes it. `app open <app> [<folder>]` (`--start`: the window it has, else its Start page on no folder) starts the app server detached
   (`<launch> <folder> --port <port>`, its own process group) on the app's home port from `apps.toml`
   (30470 is reserved for Paperboat, then one per app from 30471: Simplicial, Articula 30472, Julix 30473,
   Malachite 30474), or, when that is taken, the first free port in the shared overflow 30500–30599
@@ -89,9 +91,11 @@ flowchart LR
   Every window, the Launcher's and the apps', has no system title bar (`titleBarStyle: 'hidden'`; macOS keeps
   its lights, inside the page's bar): `window-preload.ts` → `window.paperboatWindow` (`minimize`,
   `toggleMaximize`, `close`, `onMaximized`; only the window the page is in) feeds the kit's `WindowKeys`.
-  Each window carries its app's icon (the kit's `marks/<app>/icon.png`); on Linux every window is the one
-  `paperboat-launcher` app (`desktopName`; `linux/paperboat-launcher.desktop` for the packages), so GNOME on
-  Wayland shows Paperboat's icon for all of them.
+  Each window carries its app's icon (the kit's `marks/<app>/icon.png`). On Linux the Launcher's window is the
+  `paperboat-launcher` app (`desktopName`; `linux/paperboat-launcher.desktop` for the packages) and an app's window
+  is `paperboat-<app>` when its desktop entry exists (Chromium reads `CHROME_DESKTOP` as each window is made), so
+  GNOME shows each app with its own icon in one process. An app's last window closing stops its session
+  (`session stop <app>-<port>`, detached); a page that sets `beforeunload` (busy, unsaved) is asked about first.
   One instance: a second start's `--open <url> [--title <t>]` opens that app's window in the first; the page
   (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
   Settings (General: the theme; Launcher: the update channel; Shortcuts) from the rail's foot or Ctrl+,. Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds

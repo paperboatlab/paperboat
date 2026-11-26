@@ -11,6 +11,7 @@ const here = new URL('.', import.meta.url).pathname;
 const bin = process.env.PAPERBOAT_BIN || join(here, '../../../build/paperboat');
 const home = mkdtempSync(join(tmpdir(), 'pb-launcher-'));
 const checkout = join(home, 'demo-src'), project = join(home, 'hub'), data = join(home, 'data');
+process.env.XDG_DATA_HOME = join(home, 'xdg');  // an installed app's desktop entry lands here, never in the user's
 // one Launcher through the steps: a failed step skips the rest instead of starting them on a fresh home
 test.describe.configure({mode: 'serial'});
 let app: ElectronApplication;
@@ -66,14 +67,14 @@ test('apps: install a checkout, open it in its own window, stop it', async () =>
   await expect(w).toHaveTitle('demo hub');
   // an app's window: the system's dialogs (window.paperboatShell), never the CLI (window.paperboat)
   expect(await w.evaluate(() => [typeof (window as {paperboatShell?: unknown}).paperboatShell, typeof (window as {paperboat?: unknown}).paperboat])).toEqual(['object', 'undefined']);
-  await w.close();
 
   const row = page.locator('table.t tr', {hasText: 'demo-47410'});
   await expect(row).toContainText('running');
   await expect(card).toContainText('running · :47410');
   await shot('apps-running');
-  await row.getByRole('button', {name: 'Stop'}).click();
-  await expect(page.locator('table.t tr', {hasText: 'demo-47410'})).toHaveCount(0);
+  // its last window closed, the app's server ends
+  await w.close();
+  await expect(page.locator('table.t tr', {hasText: 'demo-47410'})).toHaveCount(0, {timeout: 15_000});
   await expect(page.getByText('Nothing is running.')).toBeVisible();
 });
 

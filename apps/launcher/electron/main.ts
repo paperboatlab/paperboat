@@ -4,7 +4,9 @@
 // [--title <t>]` (what `paperboat app open` runs) opens an app's window in the running Launcher. No logic of its own.
 
 import {app, BrowserWindow, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents} from 'electron';
+import {spawn} from 'node:child_process';
 import {existsSync} from 'node:fs';
+import {homedir} from 'node:os';
 import {isAbsolute, join} from 'node:path';
 import {CliError, cliTransport} from '@paperboat/client';
 import type {CallResult} from './bridge.ts';
@@ -15,15 +17,34 @@ const launcherPage = join(__dirname, 'renderer', 'index.html');
 const appPages = new Set<number>();  // webContents ids of the apps' windows: never the CLI's channels
 const isLocal = (url: string) => /^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(url);
 
+const appOf = (title: string) => title.split(/[\s·]/)[0].toLowerCase();
 // a window's icon: its app's mark (the kit's marks/<app>/icon.png, copied with the page), else Paperboat's
-// (GNOME on Wayland shows the desktop entry's icon for every window of this one process: desktopName)
 const iconFor = (title: string) => {
-  const app = title.split(/[\s·]/)[0].toLowerCase();
-  const own = join(__dirname, 'renderer', 'marks', app, 'icon.png');
+  const own = join(__dirname, 'renderer', 'marks', appOf(title), 'icon.png');
   return existsSync(own) ? own : join(__dirname, 'renderer', 'marks', 'paperboat', 'icon.png');
 };
 
+// Linux: GNOME on Wayland takes a window's icon and dock place from the desktop entry its app id names. Chromium
+// reads CHROME_DESKTOP as each window is made: an app with its entry (`paperboat app install` writes
+// paperboat-<app>.desktop) is its own app in the dock, in this one process; one without stays Paperboat's.
+const entryOf = (app: string) => {
+  const dirs = [process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), ...(process.env.XDG_DATA_DIRS || '/usr/local/share:/usr/share').split(':')];
+  const name = `paperboat-${app}.desktop`;
+  return process.platform === 'linux' && dirs.some(d => existsSync(join(d, 'applications', name))) ? name : null;
+};
+
+// An app's server ends with its last window (user, 2026-11-26): `paperboat session stop <app>-<port>`, detached so
+// it outlives this process when that window was the last of all. A server that isn't a session (a dev one) stays.
+const origins = new Map<number, string>();  // app windows: webContents id → the page's origin
+function lastClosed(app: string, origin: string) {
+  if ([...origins.values()].includes(origin)) return;
+  spawn(process.env.PAPERBOAT_BIN || 'paperboat', ['session', 'stop', `${app}-${new URL(origin).port}`], {detached: true, stdio: 'ignore'})
+    .on('error', () => {}).unref();
+}
+
 function window(url: string, opts: {title: string; app?: boolean}) {
+  const desktop = process.env.CHROME_DESKTOP, entry = opts.app ? entryOf(appOf(opts.title)) : null;
+  if (entry) process.env.CHROME_DESKTOP = entry;
   const w = new BrowserWindow({
     title: opts.title,
     icon: iconFor(opts.app ? opts.title : 'paperboat'),
@@ -40,13 +61,21 @@ function window(url: string, opts: {title: string; app?: boolean}) {
       backgroundThrottling: !opts.app,  // an app's live views (scopes, plots, runs) keep going behind other windows
     },
   });
+  if (entry) desktop === undefined ? delete process.env.CHROME_DESKTOP : (process.env.CHROME_DESKTOP = desktop);
   const tell = () => !w.webContents.isDestroyed() && w.webContents.send('win:maximized', w.isMaximized());
   w.on('maximize', tell);
   w.on('unmaximize', tell);
   if (opts.app) {
-    const id = w.webContents.id;
+    const id = w.webContents.id, origin = new URL(url).origin;
     appPages.add(id);
-    w.on('closed', () => appPages.delete(id));
+    origins.set(id, origin);
+    w.on('closed', () => (appPages.delete(id), origins.delete(id), lastClosed(appOf(opts.title), origin)));
+    // a page that is busy or holds unsaved work says so (beforeunload): ask before closing it
+    w.webContents.on('will-prevent-unload', e => {
+      const close = dialog.showMessageBoxSync(w, {type: 'question', buttons: ['Keep open', 'Close anyway'], defaultId: 0, cancelId: 0,
+        message: `${opts.title} is still working`, detail: 'Closing now stops it; what it is doing or hasn\'t saved is lost.'}) === 1;
+      if (close) e.preventDefault();
+    });
   }
   // links leave for the browser; a page only navigates within itself
   w.webContents.setWindowOpenHandler(({url}) => (void shell.openExternal(url), {action: 'deny'}));

@@ -22,7 +22,7 @@ group = "Apps"
 [[command]]
 id = "app.open"
 name = "app open"
-args = "<app> [<folder>] [--no-open]"
+args = "<app> [<folder>] [--start] [--no-open]"
 desc = "Start an app if needed and open its window"
 group = "Apps"
 

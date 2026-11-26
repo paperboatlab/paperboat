@@ -445,7 +445,10 @@ json start_session(const std::string& app, const fs::path& project, int port = 0
   fs::create_directories(sessions_dir());
   fs::remove(log, ec);
   const fs::path exe = app_dir(app) / e["launch"].value_or(std::string());
-  const int pid = ProcessRunner::run_detached({exe.string(), project.string(), "--port", std::to_string(p)}, project, {}, log);
+  std::vector<std::string> argv{exe.string(), "--port", std::to_string(p)};
+  if (!project.empty()) argv.insert(argv.begin() + 1, project.string());  // none: the app's Start page
+  const char* h = std::getenv("HOME");
+  const int pid = ProcessRunner::run_detached(argv, project.empty() ? fs::path(h ? h : "/") : project, {}, log);
   if (pid < 0) throw Failure("could not start " + exe.string());
   for (int i = 0; i < 300 && !listening(p); ++i) {
     int st = 0;
@@ -566,6 +569,32 @@ int app_list(Args& a) {
   return 0;
 }
 
+// Linux: each installed app is an app of the desktop (user, 2026-11-26): `paperboat-<app>.desktop` in the user's
+// applications folder, so it is found, pinned and shown with its own icon; it opens with `app open <app> --start`
+// (its window in the one Launcher). The icon is the app's own file: no icon cache to refresh.
+fs::path desktop_entry(const std::string& app) {
+  const char* x = std::getenv("XDG_DATA_HOME");
+  const char* h = std::getenv("HOME");
+  const fs::path data = x && *x ? fs::path(x) : fs::path(h ? h : "") / ".local" / "share";
+  return data / "applications" / ("paperboat-" + app + ".desktop");
+}
+
+void write_desktop_entry(const std::string& app, const toml::table& e, bool checkout) {
+#ifdef __linux__
+  std::string icon = "paperboat-launcher";
+  for (const fs::path& f : {app_dir(app) / "icon.png", app_dir(app) / "node_modules/@paperboatlab/ui/src/marks" / app / "icon.png"})
+    if (fs::exists(f)) { icon = fs::canonical(f).string(); break; }
+  const std::string label = e["label"].value_or(app);
+  std::error_code ec;
+  fs::create_directories(desktop_entry(app).parent_path(), ec);
+  std::ofstream(desktop_entry(app)) << "[Desktop Entry]\nType=Application\nName=" << label << (checkout ? " (checkout)" : "")
+      << "\nComment=" << e["description"].value_or(std::string()) << "\nExec=\"" << (paths::exe_dir() / "paperboat").string()
+      << "\" app open " << app << " --start\nIcon=" << icon << "\nTerminal=false\nCategories=Development;\nStartupWMClass=paperboat-" << app << "\n";
+#else
+  (void)app, (void)e, (void)checkout;
+#endif
+}
+
 int app_install(Args& a) {
   const std::string spec = need_arg(a, "app");
   const std::string app = spec.substr(0, spec.find('@'));
@@ -591,6 +620,7 @@ int app_install(Args& a) {
     version = rel["version"].get<std::string>();
   }
   write_marker(app, version, from);
+  write_desktop_entry(app, e, !from.empty());
   pull_runtimes(a, e);
   if (a.json_out) return print_json({{"name", app}, {"installed", installed(app)}}), 0;
   std::cout << "installed " << app << (from.empty() ? " " + version : " from " + from) << " · paperboat app open " << app << "\n";
@@ -612,6 +642,7 @@ int app_update(Args& a) {
     if (!sessions_of(app).empty()) throw Failure(app + " is running; paperboat app stop " + app + " first", 2);
     install_release(app, rel);
     write_marker(app, rel["version"].get<std::string>(), "");
+    write_desktop_entry(app, e, false);
   }
   if (a.json_out) return print_json({{"name", app}, {"installed", installed(app)}, {"updated", newer}}), 0;
   std::cout << app << " " << installed(app)["version"].get<std::string>() << (newer ? " installed\n" : " is the newest on " + channel() + "\n");
@@ -625,6 +656,7 @@ int app_uninstall(Args& a) {
   std::error_code ec;
   fs::remove_all(app_dir(app), ec);  // a link to a checkout: only the link goes
   fs::remove(app_marker(app), ec);
+  fs::remove(desktop_entry(app), ec);
   if (a.json_out) return print_json({{"name", app}, {"installed", nullptr}}), 0;
   std::cout << "removed " << app << "; your projects stay\n";
   return 0;
@@ -635,16 +667,18 @@ int app_open(Args& a) {
   const std::string app = need_arg(a, "app");
   registry_entry(app);
   if (installed(app).is_null()) throw Failure(app + " is not installed · paperboat app install " + app, 2);
-  const fs::path project = fs::absolute(a.arg(1).empty() ? fs::current_path() : fs::path(a.arg(1))).lexically_normal();
-  if (!fs::is_directory(project)) throw Failure(project.string() + " is not a folder", 2);
+  // --start (the desktop's entry): the window it has, else its Start page, on no folder
+  const bool start = a.has("--start");
+  const fs::path project = start ? fs::path() : fs::absolute(a.arg(1).empty() ? fs::current_path() : fs::path(a.arg(1))).lexically_normal();
+  if (!start && !fs::is_directory(project)) throw Failure(project.string() + " is not a folder", 2);
   json s = nullptr;
   for (const auto& x : sessions_of(app))
-    if (x["project"] == project.string()) s = x;
+    if (start || x["project"] == project.string()) s = x;
   const bool fresh = s.is_null();
   if (fresh) s = start_session(app, project, a.has("--port") ? std::stoi(a.get("--port")) : 0);
   if (!a.has("--no-open")) open_url(s["url"], registry_entry(app)["label"].value_or(app));
   if (a.json_out) return print_json(s), 0;
-  std::cout << (fresh ? "started " : "running ") << s["id"].get<std::string>() << " on " << project.string() << " · "
+  std::cout << (fresh ? "started " : "running ") << s["id"].get<std::string>() << " on " << (s["project"].get<std::string>().empty() ? "its Start page" : s["project"].get<std::string>()) << " · "
             << s["url"].get<std::string>() << "\n";
   return 0;
 }
