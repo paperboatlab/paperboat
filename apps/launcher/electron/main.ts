@@ -4,6 +4,7 @@
 // [--title <t>]` (what `paperboat app open` runs) opens an app's window in the running Launcher. No logic of its own.
 
 import {app, BrowserWindow, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents} from 'electron';
+import {existsSync} from 'node:fs';
 import {isAbsolute, join} from 'node:path';
 import {CliError, cliTransport} from '@paperboat/client';
 import type {CallResult} from './bridge.ts';
@@ -14,9 +15,18 @@ const launcherPage = join(__dirname, 'renderer', 'index.html');
 const appPages = new Set<number>();  // webContents ids of the apps' windows: never the CLI's channels
 const isLocal = (url: string) => /^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(url);
 
+// a window's icon: its app's mark (the kit's marks/<app>/icon.png, copied with the page), else Paperboat's
+// (GNOME on Wayland shows the desktop entry's icon for every window of this one process: desktopName)
+const iconFor = (title: string) => {
+  const app = title.split(/[\s·]/)[0].toLowerCase();
+  const own = join(__dirname, 'renderer', 'marks', app, 'icon.png');
+  return existsSync(own) ? own : join(__dirname, 'renderer', 'marks', 'paperboat', 'icon.png');
+};
+
 function window(url: string, opts: {title: string; app?: boolean}) {
   const w = new BrowserWindow({
     title: opts.title,
+    icon: iconFor(opts.app ? opts.title : 'paperboat'),
     width: 1440,
     height: 900,
     minWidth: 960,

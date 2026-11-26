@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Paperboat Launcher
+Comment=Paperboat's apps, runtimes and hubs
+Exec=paperboat-launcher %U
+Icon=paperboat-launcher
+Terminal=false
+Categories=Development;Science;
+StartupWMClass=paperboat-launcher

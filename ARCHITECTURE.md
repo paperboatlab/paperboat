@@ -89,6 +89,9 @@ flowchart LR
   Every window, the Launcher's and the apps', has no system title bar (`titleBarStyle: 'hidden'`; macOS keeps
   its lights, inside the page's bar): `window-preload.ts` → `window.paperboatWindow` (`minimize`,
   `toggleMaximize`, `close`, `onMaximized`; only the window the page is in) feeds the kit's `WindowKeys`.
+  Each window carries its app's icon (the kit's `marks/<app>/icon.png`); on Linux every window is the one
+  `paperboat-launcher` app (`desktopName`; `linux/paperboat-launcher.desktop` for the packages), so GNOME on
+  Wayland shows Paperboat's icon for all of them.
   One instance: a second start's `--open <url> [--title <t>]` opens that app's window in the first; the page
   (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
   Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds

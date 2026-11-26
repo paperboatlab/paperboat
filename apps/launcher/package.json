@@ -6,6 +6,7 @@
   "license": "GPL-3.0-only",
   "type": "module",
   "main": "dist/main.cjs",
+  "desktopName": "paperboat-launcher.desktop",
   "engines": {
     "node": ">=22.18"
   },
@@ -17,7 +18,7 @@
   },
   "devDependencies": {
     "@paperboat/client": "*",
-    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#cc13adb161c669d8a317d8ca0f0941439de91935",
+    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#6aa0ccd536046fad10d037d6a6432275cc3a4de7",
     "@playwright/test": "^1.65.1",
     "@types/node": "^22.19.0",
     "@types/react": "^19.3.0",
