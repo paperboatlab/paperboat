@@ -425,7 +425,8 @@ bool port_free(int port) {
 constexpr int kOverflowFirst = 30500, kOverflowLast = 30599;
 
 // Start <app>'s server on a folder: `<launch> <folder> --port <port>`, detached, its output in a log.
-// Its home port (or the one asked for), else the first free one in the overflow range; ready once it listens.
+// Its home port (or the one asked for, waited on for up to 5 s), else the first free one in the overflow range;
+// ready once it listens.
 json start_session(const std::string& app, const fs::path& project, int port = 0) {
   const toml::table e = registry_entry(app);
   const int home = port ? port : e["port"].value_or(0);
@@ -434,6 +435,8 @@ json start_session(const std::string& app, const fs::path& project, int port = 0
   for (const auto& s : sessions()) taken.push_back(s["port"].get<int>());
   auto free = [&](int p) { return std::ranges::find(taken, p) == taken.end() && port_free(p); };
   int p = home;
+  // the port asked for (a restart's own): the old server may still be letting go of it (macOS: a moment after exit)
+  for (int i = 0; port && i < 50 && !free(p); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
   if (!free(p))
     for (p = kOverflowFirst; !free(p); )
       if (++p > kOverflowLast)
