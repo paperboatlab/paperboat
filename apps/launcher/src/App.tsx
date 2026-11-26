@@ -117,8 +117,7 @@ export function App({client}: {client: Client}) {
   return (
     <div className="win">
       <header className="bar">
-        <AppMark app="paperboat" size={26} idle label="Paperboat" />
-        <span className="wm">Paperboat</span>
+        <span className="lk"><AppMark app="paperboat" size={26} idle label="Paperboat" /><span className="wm">Paperboat</span></span>
         <span className="wt">Launcher</span>
         <span className="bend">
           {page === 'apps' && (
