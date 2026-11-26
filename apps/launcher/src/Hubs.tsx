@@ -88,7 +88,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
           <Key size="sm" icon="folder-opened" onClick={addHub}>Add a hub folder…</Key>
         </div>
         <div className="scroll"><div className="klist hub-list">
-          {list?.length === 0 && <p className="pad muted">No hubs yet. Make one, or add a folder that is one.</p>}
+          {list?.length === 0 && <p className="empty-note">No hubs yet. Make one, or add a folder that is one.</p>}
           {list?.map(x => (
             <div key={x.id} className={`kr${x === h ? ' on' : ''}`} role="button" tabIndex={0} onClick={() => setPick(x.id)} onKeyDown={e => e.key === 'Enter' && setPick(x.id)}>
               <span className="lang">{x.place === 'local' ? <HubMark size={18} /> : <Icon name="cloud" size={18} />}</span>
@@ -127,7 +127,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
               <div className="card">
                 <div className="chead"><b>Versions</b><span className="label">saved automatically · kept {shown ? KEEP[shown.keep] : ''}</span>
                   <span className="bend"><label className="well" style={{minWidth: 240}}><input placeholder="Only this file or folder…" value={only} onChange={e => setOnly(e.target.value)} aria-label="Only this file or folder" /></label></span></div>
-                {versions?.length === 0 && <p className="pad muted">No versions{only ? ` of ${only}` : ''} yet: saved changes become versions.</p>}
+                {versions?.length === 0 && <p className="empty-note">No versions{only ? ` of ${only}` : ''} yet: saved changes become versions.</p>}
                 {versions?.map((v, i) => (
                   <div key={v.id} className="hub-ver"><time>{when(v.time)}</time><span>{v.what}<small>{v.author}</small></span>
                     {i > 0 && <Key size="sm" onClick={() => setAsk({title: `Restore ${only || `all of ${h.name}`} as it was ${when(v.time)}?`, note: 'The current version stays in the history; you can come back to it.', ok: 'Restore',
