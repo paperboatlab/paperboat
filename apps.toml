@@ -44,8 +44,8 @@ launch      = "bin/articula"
 port        = 30472
 commands    = []
 
-# Listed so its manual is published (paperboatlab.org/apps/simplicial/). It has no release and no
-# bin/simplicial yet: `app install simplicial` says so until it ships its launcher. Its stations use 51301 and up.
+# Its release carries bin/simplicial and the engine (Linux x86_64); `station` and `run` come with its
+# commands.toml. Its stations use 51301 and up.
 [[apps]]
 name        = "simplicial"
 label       = "Simplicial"
