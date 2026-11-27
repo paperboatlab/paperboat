@@ -1,5 +1,5 @@
 // Stations: the station projects Simplicial can run (its commands.toml adds the Stations group), from
-// `station list`: built-in, examples, installed. Every key is one of its commands (run, check, build, pack).
+// `station list`: built-in and installed (the examples open from each app's Ctrl+K, pb#72). Every key is one of its commands (run, check, build, pack).
 
 import {useCallback, useEffect, useState} from 'react';
 import {Dialog, Key, Pill, Segmented, Tag} from '@paperboatlab/ui';
@@ -9,14 +9,14 @@ import type {Act} from './act.ts';
 import {bridge} from './bridge.ts';
 
 /** `station list --json` */
-interface Station {name: string; description: string; dir: string; language: string; port: number; source: 'builtin' | 'example' | 'installed'}
+interface Station {name: string; description: string; dir: string; language: string; port: number; source: 'builtin' | 'installed'}
 type Lang = 'cpp' | 'python' | 'julia';
 
 const q = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
 const home = (p: string) => p.replace(/^\/(home|Users)\/[^/]+/, '~');
 const SHORT: Record<string, string> = {cpp: 'c++', python: 'py', julia: 'jl'};
 const LANG: Record<string, string> = {cpp: 'C++', python: 'Python', julia: 'Julia'};
-const GROUPS: [Station['source'], string][] = [['builtin', 'Built-in'], ['example', 'Examples'], ['installed', 'Installed']];
+const GROUPS: [Station['source'], string][] = [['builtin', 'Built-in'], ['installed', 'Installed']];
 
 export function Stations({client, act}: {client: Client; act: Act}) {
   const {sessions, jobs} = useStore(client, s => s);
@@ -50,7 +50,6 @@ export function Stations({client, act}: {client: Client; act: Act}) {
         <div className="phead"><span className="count">{list ? `${list.length} stations` : ''}</span></div>
         <div className="list-keys">
           <Key size="sm" icon="add" onClick={() => setAsk('new')}>New station…</Key>
-          <Key size="sm" icon="cloud-download" onClick={() => void run('station examples', 'Fetching the examples')}>Fetch examples</Key>
         </div>
         <div className="scroll"><div className="klist st-list">
           {error && <p className="empty-note bad">{error}</p>}

@@ -31,7 +31,7 @@ test.beforeAll(async () => {
   chmodSync(join(checkout, 'bin/serve'), 0o755);
   writeFileSync(join(project, 'index.html'), '<title>demo hub</title>');
   // the demo brings a Stations group, as Simplicial does: `station list` from a fixed list, every other word echoed
-  const stations = [['scratchpad', 'builtin', 'cpp'], ['02-cart-pole', 'example', 'cpp'], ['01-smart-thermostat', 'example', 'python'], ['pendulum', 'installed', 'julia']]
+  const stations = [['scratchpad', 'builtin', 'cpp'], ['02-cart-pole', 'installed', 'cpp'], ['01-smart-thermostat', 'installed', 'python'], ['pendulum', 'installed', 'julia']]
     .map(([name, source, language], i) => ({name, source, language, description: `the ${name} station`, dir: join(home, 'stations', name), port: 8765 + i}));
   writeFileSync(join(checkout, 'commands.toml'), 'cli = "bin/stations"\n' + [['station.list', 'station list', ''], ['station.check', 'check', '<station>'], ['station.run', 'run', '<station>']]
     .map(([id, name, args]) => `[[command]]\nid = "${id}"\nname = "${name}"\nargs = "${args}"\ndesc = "${name}"\ngroup = "Stations"\n`).join(''));
@@ -105,8 +105,9 @@ test('apps: install a checkout, open it in its own window, stop it', async () =>
 test('stations: the list by source, one in detail, its keys run its commands', async () => {
   await page.keyboard.press('Alt+2');
   await expect(page.getByRole('group', {name: 'Built-in'})).toContainText('scratchpad');
-  await expect(page.getByRole('group', {name: 'Examples'}).locator('.kr')).toHaveCount(2);
+  await expect(page.getByRole('group', {name: 'Installed'}).locator('.kr')).toHaveCount(3);
   await expect(page.getByRole('group', {name: 'Installed'})).toContainText('jl');
+  await expect(page.getByRole('button', {name: 'Fetch examples'})).toHaveCount(0);  // examples open from each app's Ctrl+K
   await page.locator('.kr', {hasText: '02-cart-pole'}).click();
   await expect(page.locator('.dname')).toHaveText('02-cart-pole');
   await expect(page.locator('.dmeta')).toContainText('ws://127.0.0.1:8766');
@@ -116,9 +117,9 @@ test('stations: the list by source, one in detail, its keys run its commands', a
   await expect(page.locator('.toast').last()).toContainText('stations got: check 02-cart-pole');
   await page.locator('.kr', {hasText: '01-smart-thermostat'}).click();
   await expect(page.getByRole('button', {name: 'Build', exact: true})).toHaveCount(0);
-  await expect(page.getByRole('button', {name: /Uninstall/})).toHaveCount(0);  // installed ones only
-  await page.locator('.kr', {hasText: 'pendulum'}).click();
-  await expect(page.getByRole('button', {name: 'Uninstall…'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Uninstall…'})).toBeVisible();  // installed ones only
+  await page.locator('.kr', {hasText: 'scratchpad'}).click();
+  await expect(page.getByRole('button', {name: /Uninstall/})).toHaveCount(0);
   await page.keyboard.press('Alt+1');
 });
 

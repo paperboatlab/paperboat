@@ -263,3 +263,67 @@ TEST_CASE("launcher: the Launcher on a page and a runtime (an app's Manage runti
   CHECK(cli({"launcher"}, {}, {{"PAPERBOAT_LAUNCHER", "browser"}}).exit_code == 2);  // no Launcher, no page to open
   fs::remove_all(kHome);
 }
+
+// paperboat-examples of the test's own: a ready example, a pending one, a hub; its apps from a registry of the test's own.
+TEST_CASE("examples: listed by app, copied on first open, opened in their app", "[cli]") {
+  const fs::path data = kHome / "data", repo = kHome / "examples-src", checkout = kHome / "app-src";
+  const auto put = [](const fs::path& f, const std::string& text) { fs::create_directories(f.parent_path()), std::ofstream(f) << text; };
+  put(repo / "golden.py", "");
+  put(repo / "simplicial" / "09-synth-cpp" / "example.toml", "kind = \"simplicial\"\napp = \"simplicial\"\nname = \"09 Synth\"\ndescription = \"Six voices\"\n");
+  put(repo / "simplicial" / "09-synth-cpp" / "src" / "synth.cpp", "int main() {}\n");
+  put(repo / "simplicial" / "09-synth-cpp" / "build" / "CMakeCache.txt", "left by a build\n");
+  put(repo / "simplicial" / "01-thermostat" / "example.toml", "kind = \"simplicial\"\napp = \"simplicial\"\nname = \"01 Thermostat\"\ndescription = \"d\"\npending = \"ex#44\"\n");
+  put(repo / "hubs" / "lab" / "example.toml", "kind = \"hub\"\napp = \"malachite\"\nname = \"Lab\"\ndescription = \"A study across the apps\"\n");
+  put(repo / "hubs" / "lab" / "notes" / "index.md", "# Lab\n");
+  put(repo / "legacy" / "README.md", "old\n");
+  put(data / "apps.toml", "[[apps]]\nname = \"malachite\"\nlaunch = \"bin/serve\"\nport = 47220\n[[apps]]\nname = \"simplicial\"\nlaunch = \"bin/serve\"\nport = 47221\n");
+  put(checkout / "bin" / "serve", "#!/bin/sh\nexec python3 -m http.server \"$3\" --bind 127.0.0.1 --directory \"$1\"\n");
+  fs::permissions(checkout / "bin" / "serve", fs::perms::owner_all);
+  const std::pair<std::string, std::string> dir{"PAPERBOAT_EXAMPLES_DIR", repo.string()};
+  auto run = [&](std::vector<std::string> args) { return cli(std::move(args), data, {dir}); };
+
+  const auto all = json::parse(run({"example", "list", "--json"}).stdout_text);
+  REQUIRE(all.size() == 2);  // the pending one is left out
+  CHECK(all[0] == json{{"id", "hubs/lab"}, {"app", "malachite"}, {"kind", "hub"}, {"name", "Lab"}, {"description", "A study across the apps"},
+                       {"path", (repo / "hubs" / "lab").string()}});
+  CHECK(all[1]["id"] == "simplicial/09-synth-cpp");
+  const auto sx = json::parse(run({"examples", "--app", "simplicial", "--json"}).stdout_text);
+  REQUIRE(sx.size() == 1);
+  CHECK(sx[0]["name"] == "09 Synth");
+  CHECK(json::parse(run({"example", "list", "--app", "julix", "--json"}).stdout_text).empty());
+  CHECK(run({"example", "open", "nope/nothing"}).exit_code == 2);
+
+  // its app not installed: copied all the same, and said which to install
+  const fs::path copy = kHome / "examples" / "simplicial" / "09-synth-cpp";
+  CHECK_THAT(run({"example", "open", "simplicial/09-synth-cpp"}).stderr_text, ContainsSubstring("paperboat app install simplicial"));
+  CHECK(fs::exists(copy / "src" / "synth.cpp"));
+  CHECK_FALSE(fs::exists(copy / "build"));  // what a build left stays behind
+  REQUIRE(run({"app", "install", "malachite", "--from", checkout.string()}).ok());
+  const auto o = run({"example", "open", "hubs/lab", "--no-open"});
+  REQUIRE(o.ok());
+  CHECK(o.stdout_text == (kHome / "examples" / "hubs" / "lab").string() + "\n");  // a hub opens in Malachite
+  put(kHome / "examples" / "hubs" / "lab" / "notes" / "index.md", "# Mine\n");
+  const auto j = json::parse(run({"example", "open", "hubs/lab", "--no-open", "--json"}).stdout_text);
+  CHECK(j["session"]["project"] == (kHome / "examples" / "hubs" / "lab").string());  // the session it has
+  CHECK(j["session"]["app"] == "malachite");
+  std::stringstream kept;
+  kept << std::ifstream(kHome / "examples" / "hubs" / "lab" / "notes" / "index.md").rdbuf();
+  CHECK(kept.str() == "# Mine\n");  // the copy as the user left it; the original stays clean
+  CHECK(run({"app", "stop", "malachite"}).ok());
+
+  // no checkout: GitHub's copy (a folder here, its tarball one top folder), kept a day
+  if (fs::exists(fs::path(PAPERBOAT_BIN_DIR).parent_path().parent_path() / "paperboat-examples" / "golden.py")) SKIP("a paperboat-examples checkout is beside this one");
+  const fs::path gh = kHome / "github", tgz = gh / "repos" / "paperboatlab" / "paperboat-examples" / "tarball";
+  fs::create_directories(tgz.parent_path());
+  fs::rename(repo, kHome / "paperboatlab-paperboat-examples-abc123");
+  REQUIRE(ProcessRunner::run_sync({"tar", "-czf", tgz.string(), "-C", kHome.string(), "paperboatlab-paperboat-examples-abc123"}).ok());
+  const auto fetched = cli({"example", "list", "--json"}, data, {{"PAPERBOAT_GITHUB_API", "file://" + gh.string()}});
+  REQUIRE(fetched.ok());
+  const auto f = json::parse(fetched.stdout_text);
+  REQUIRE(f.size() == 2);
+  CHECK(f[1]["path"] == (kHome / "cache" / "examples" / "simplicial" / "09-synth-cpp").string());
+  CHECK(json::parse(cli({"example", "list", "--json"}, data, {{"PAPERBOAT_GITHUB_API", "file:///nowhere"}}).stdout_text) == f);  // kept
+  fs::remove_all(kHome / "cache");
+  CHECK_THAT(cli({"example", "list"}, data, {{"PAPERBOAT_GITHUB_API", "file:///nowhere"}}).stderr_text, ContainsSubstring("PAPERBOAT_EXAMPLES_DIR"));
+  fs::remove_all(kHome);
+}
