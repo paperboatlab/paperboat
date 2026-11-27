@@ -112,7 +112,13 @@ hooks, which cost a branch when no debug eval runs; a later plain eval of the sa
 A station file registers its types: Julia `PaperboatRuntime.register("gain", Gain; definition=...)`,
 Python `paperboat_runtime.register("gain", Gain, definition=...)`. `new` calls the constructor with the
 params as keywords; `call` calls `method(instance, args...)` (Julia) or `instance.method(*args)`
-(Python).
+(Python). A Python station file imports the station's other modules: its folder is on `sys.path`.
+
+While it answers a request, station code writes a line for the client with Julia
+`PaperboatRuntime.log(text; level = "info")` or Python `paperboat_runtime.log(text, level="info")`:
+a `{"type": "log", "level", "text"}` notification on that request's connection, before its reply
+(Simplicial shows it in its Console). Outside a request (the fast path, a thread of its own) the line
+goes to the runtime's stderr, as `print` always does (`paperboat runtime logs`).
 
 ## Data plane: shared memory
 

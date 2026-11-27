@@ -145,8 +145,15 @@ json Manager::acquire(const AcquireRequest& req, int client) {
 
   // A warm station-mode instance for the same key is reused; one still starting is waited for.
   if (req.mode == "station") {
-    for (auto& [id, l] : leases_) {
+    for (auto it = leases_.begin(); it != leases_.end(); ++it) {
+      auto& l = it->second;
       if (l->key != key.str() || (l->state != "running" && l->state != "idle" && l->state != "starting")) continue;
+      if (l->state == "idle" && !instance_running(*l)) {  // ended since its release (a shutdown): never handed out
+        std::unique_ptr<Lease> dead = std::move(l);
+        leases_.erase(it);
+        stop_lease(*dead, "exited");
+        break;
+      }
       Lease* lease = l.get();
       lease->holders.insert(client);
       if (lease->state == "starting") started_.wait(lock, [&] { return lease->state != "starting"; });
@@ -283,6 +290,14 @@ json Manager::acquire(const AcquireRequest& req, int client) {
   return to_json(done);
 }
 
+bool Manager::instance_running(const Lease& l) {
+  Backend* b = backend_named(l.backend);
+  if (!b) return false;
+  for (const auto& i : b->list())
+    if (i.name == l.instance.name) return i.state == "running";
+  return false;
+}
+
 void Manager::stop_lease(Lease& l, const std::string& why) {
   Backend* b = backend_named(l.backend);
   if (b && !l.instance.name.empty()) {
@@ -294,7 +309,7 @@ void Manager::stop_lease(Lease& l, const std::string& why) {
   emit({{"event", "runtime.stopped"}, {"lease", l.id}, {"runtime", l.runtime}, {"reason", why}});
 }
 
-void Manager::release(const std::string& id, int client) {
+void Manager::release(const std::string& id, int client, bool stop) {
   std::unique_ptr<Lease> gone;
   {
     std::lock_guard lock(mutex_);
@@ -303,7 +318,7 @@ void Manager::release(const std::string& id, int client) {
     Lease& l = *it->second;
     emit({{"event", "lease.released"}, {"lease", l.id}, {"runtime", l.runtime}, {"holders", l.holders.size()}});
     if (!l.holders.empty()) return;
-    if (l.mode == "station" && l.state == "running" && options_.idle_timeout.count() > 0) {
+    if (!stop && l.mode == "station" && l.state == "running" && options_.idle_timeout.count() > 0) {
       l.state = "idle";
       l.idle_since = Clock::now();
       return;
@@ -336,7 +351,7 @@ void Manager::tick() {
         it = leases_.erase(it);
         continue;
       }
-      if (l.state == "running") used.insert(l.backend);
+      if (l.state == "running" || l.state == "idle") used.insert(l.backend);
       ++it;
     }
   }
@@ -353,15 +368,24 @@ void Manager::tick() {
     int code;
   };
   std::vector<Ended> ended;
+  std::vector<std::unique_ptr<Lease>> dead;  // idle, nobody holds them: gone at once, never handed out again
   {
     std::lock_guard lock(mutex_);
-    for (auto& [id, l] : leases_) {
-      if (l->state != "running" || !used.contains(l->backend)) continue;
-      const auto it = seen.find(l->instance.name);
-      if (it != seen.end() && it->second.state == "running") continue;
-      ended.push_back({l->id, l->backend, l->instance, it == seen.end() ? -1 : it->second.exit_code});
+    for (auto it = leases_.begin(); it != leases_.end();) {
+      auto& l = it->second;
+      const auto found = used.contains(l->backend) ? seen.find(l->instance.name) : seen.end();
+      const bool alive = !used.contains(l->backend) || (found != seen.end() && found->second.state == "running");
+      if (l->state == "idle" && !alive) {
+        dead.push_back(std::move(l));
+        it = leases_.erase(it);
+        continue;
+      }
+      if (l->state == "running" && !alive)
+        ended.push_back({l->id, l->backend, l->instance, found == seen.end() ? -1 : found->second.exit_code});
+      ++it;
     }
   }
+  for (auto& l : dead) stop_lease(*l, "exited");  // a station runtime that ended once released (a shutdown)
   // The instance was kept until here so its exit code and output could be read. The output is read
   // before the lease says it ended: a holder that sees "exited" asks for the logs next and must get them.
   // The lease stays for its holders to see until they release it.

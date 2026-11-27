@@ -21,7 +21,7 @@ A lease belongs to the connection that acquired it: closing the connection relea
 | `runtimes.list` | – | `{runtimes: [manifest + backends.<name>.{usable, ready}], errors, backends}` |
 | `pull` | `runtime`, `backend?` | `{runtime, backend, image}`; `pull.progress` events meanwhile |
 | `acquire` | `runtime`, `mode` (`station`\|`session`\|`exec`), `command?` (exec), `project?`, `work?`, `policy?`, `backend?`, `owner?`, `allow_unpinned?`, `allow_unverified?` | a lease |
-| `release` | `lease` | `{}` |
+| `release` | `lease`, `stop?` | `{}`; with `stop`, a station runtime ends now instead of staying warm (when no one else holds it) |
 | `ps` | – | `[lease]` |
 | `stats` | `lease` | `{lease, stats: {cpu_percent, memory_bytes, pids}}` (−1 = unavailable) |
 | `interrupt` | `lease` | `{delivered}`: SIGINT to the runtime process (podman/docker `kill`, or `kill(2)` natively) |
@@ -42,8 +42,8 @@ A **policy** (only ever weakens the defaults): `network`, `devices` (`["/dev/vid
 ## Events
 
 `lease.acquired` (`reused`), `lease.released`, `runtime.pulling`, `runtime.pulled`,
-`runtime.pull_failed`, `runtime.started`, `runtime.stopped` (`reason`: released, idle, daemon
-stopping), `runtime.exited` (`exit_code`, `state`, `error`), `runtime.failed` (a start that failed),
+`runtime.pull_failed`, `runtime.started`, `runtime.stopped` (`reason`: released, idle, exited: a
+warm instance that ended, daemon stopping), `runtime.exited` (`exit_code`, `state`, `error`), `runtime.failed` (a start that failed),
 `runtime.reaped`, `runtime.verified`, `runtime.unverified` (`reason`), `policy.weakened` (`what`).
 
 ## Runtime manifests

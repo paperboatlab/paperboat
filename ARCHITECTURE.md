@@ -142,6 +142,7 @@ flowchart LR
    disconnects releases its leases. Each is tested against podman.
 8. **Warm means a running process.** Station-mode instances stay running for the idle timeout and are
    reused by key (runtime, mode, backend, project, policy); session and exec instances are never shared.
+   A warm instance that ends (its holder sent `shutdown`, a crash) is removed at the next tick, never handed out.
 9. **Clients only speak the protocols.** The CLI's `--json` output is the daemon's objects; an app
    talks to a runtime only through `paperboat-runtime/0`.
 10. **Data never crosses stdio.** Podman relays a container's stdio through conmon (+30–130 µs a call);

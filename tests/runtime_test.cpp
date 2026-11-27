@@ -45,10 +45,13 @@ Gain(; k = 1.0) = Gain(k)
 step(g::Gain, u) = g.k .* u
 fail(g::Gain, u) = error("fast boom")
 describe(g::Gain, prefix) = "$(prefix) k=$(g.k)"
+shout(g::Gain, text) = (PaperboatRuntime.log(text; level = "warn"); g.k)
 PaperboatRuntime.register("gain", Gain; definition = Dict("inputs" => ["u"], "outputs" => ["y"]))
 )jl";
+    std::ofstream(project / "helper.py") << "TWO = 2\n";
     std::ofstream(project / "blocks.py") << R"py(
 import paperboat_runtime as pb
+import helper  # the station's folder is on sys.path
 
 class Gain:
     def __init__(self, k=1.0):
@@ -59,6 +62,9 @@ class Gain:
         raise ValueError("fast boom")
     def describe(self, prefix):
         return f"{prefix} k={self.k}"
+    def shout(self, text):
+        pb.log(text, "warn")
+        return self.k * helper.TWO / 2
 
 pb.register("gain", Gain, definition={"inputs": ["u"], "outputs": ["y"]})
 )py";
@@ -258,6 +264,12 @@ TEST_CASE("station mode", "[runtime]") {
   CHECK(rt.request("call", {{"instance", g}, {"method", "step"}, {"args", {{1.0, 2.5}}}}) == json::array({2.0, 5.0}));
   CHECK(rt.request("call", {{"instance", g}, {"method", "describe"}, {"args", {"gain"}}}) == "gain k=2.0");
   CHECK_THROWS_AS(rt.request("new", {{"type", "nope"}}), RuntimeError);
+  std::vector<json> logs;  // log() from station code reaches the caller of that request
+  CHECK(rt.request("call", {{"instance", g}, {"method", "shout"}, {"args", {"hi"}}},
+                   [&](const json& m) { if (m["type"] == "log") logs.push_back(m); }) == 2.0);
+  REQUIRE(logs.size() == 1);
+  CHECK(logs[0]["text"] == "hi");
+  CHECK(logs[0]["level"] == "warn");
 
   SECTION("the shared-memory fast path") {
     rt.open_fast(64);
