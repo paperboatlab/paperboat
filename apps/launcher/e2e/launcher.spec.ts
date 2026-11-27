@@ -135,6 +135,14 @@ test('runtimes: the catalog, where they run, a runtime in detail', async () => {
   await expect(page.locator('.facts2')).toContainText('paperboat-runtime/0');
   await shot('runtimes');
   await page.getByRole('tab', {name: /Events/}).click();
+  // julia's packages: the one Julia package manager, with a shelf to start from (the list itself needs julia)
+  await page.locator('.kr', {hasText: 'julia'}).click();
+  await page.getByRole('tab', {name: /Packages/}).click();
+  await answerFolder(project);
+  await page.getByRole('button', {name: /Choose a folder/}).click();
+  await page.getByRole('tab', {name: 'registry'}).click();
+  await expect(page.locator('.pk-results')).toContainText('DataFrames');
+  await shot('packages');
   await page.getByRole('tab', {name: /Running/}).click();
 });
 
