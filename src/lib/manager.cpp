@@ -538,24 +538,33 @@ json Manager::pull(const std::string& runtime, const std::string& backend, Proce
   return {{"runtime", m->id()}, {"backend", b->name()}, {"image", m->image()}};
 }
 
-json Manager::prune(bool dry_run) {
-  json removed = json::array();
-  std::set<fs::path> in_use;
-  {
-    std::lock_guard lock(mutex_);
-    for (const auto& [id, l] : leases_) in_use.insert(l->deps);
-  }
-  // A dependency volume whose project is gone. The shared one ("none") and those in use stay.
+json Manager::volumes() {
+  json out = json::array();
   std::error_code ec;
   for (const auto& runtime : fs::directory_iterator(options_.state / "deps", ec))
     for (const auto& vol : fs::directory_iterator(runtime.path(), ec)) {
-      if (in_use.contains(vol.path())) continue;
       std::ifstream f(vol.path() / "project.txt");
       std::string project;
-      if (!std::getline(f, project) || fs::exists(project)) continue;
-      removed.push_back({{"path", vol.path().string()}, {"project", project}});
-      if (!dry_run) fs::remove_all(vol.path(), ec);
+      if (std::getline(f, project))  // the shared one ("none") has no project
+        out.push_back({{"runtime", runtime.path().filename().string()}, {"project", project}, {"path", vol.path().string()}, {"exists", fs::exists(project, ec)}});
     }
+  return out;
+}
+
+json Manager::prune(bool dry_run) {
+  json removed = json::array();
+  std::set<std::string> in_use;
+  {
+    std::lock_guard lock(mutex_);
+    for (const auto& [id, l] : leases_) in_use.insert(l->deps.string());
+  }
+  // A dependency volume whose project is gone. The shared one ("none") and those in use stay.
+  std::error_code ec;
+  for (const auto& v : volumes()) {
+    if (v["exists"].get<bool>() || in_use.contains(v["path"].get<std::string>())) continue;
+    removed.push_back({{"path", v["path"]}, {"project", v["project"]}});
+    if (!dry_run) fs::remove_all(v["path"].get<std::string>(), ec);
+  }
   return {{"removed", removed}, {"dry_run", dry_run}};
 }
 

@@ -328,7 +328,7 @@ TEST_CASE("leases of different projects or policies are different instances", "[
   CHECK(rig.podman->starts == 2);
 }
 
-TEST_CASE("prune removes dependency volumes of projects that are gone", "[manager]") {
+TEST_CASE("volumes lists the package volumes; prune removes those of projects that are gone", "[manager]") {
   Rig rig;
   const fs::path p = rig.state / "proj";
   fs::create_directories(p);
@@ -336,7 +336,13 @@ TEST_CASE("prune removes dependency volumes of projects that are gone", "[manage
   r.project = p;
   const json l = rig.manager->acquire(r, 1);
   rig.manager->release(l["id"], 1);
+  const json v = rig.manager->volumes();  // what Packages offers as folders
+  REQUIRE(v.size() == 1);
+  CHECK(v[0]["project"] == p.string());
+  CHECK(v[0]["path"] == l["deps"]);
+  CHECK(v[0]["exists"] == true);
   fs::remove_all(p);
+  CHECK(rig.manager->volumes()[0]["exists"] == false);
   CHECK(rig.manager->prune(true)["removed"].size() == 1);
   CHECK(fs::exists(l["deps"].get<std::string>()));
   rig.manager->prune(false);

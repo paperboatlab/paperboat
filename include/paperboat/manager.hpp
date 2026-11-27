@@ -96,6 +96,7 @@ class Manager {
   // SIGINT to the lease's runtime: interrupts a running cell whatever the runtime is doing.
   bool interrupt(const std::string& lease);
   nlohmann::json pull(const std::string& runtime, const std::string& backend, ProcessOutputCallback progress);
+  nlohmann::json volumes();             // [{runtime, project, path, exists}]: the package volumes and their projects
   nlohmann::json prune(bool dry_run);   // unused deps volumes, lease folders of dead leases
   bool empty() const;
 
