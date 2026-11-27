@@ -409,12 +409,20 @@ function lint(code::String)
     Dict("problems" => problems)
 end
 
+# What a completion inserts. Julia 1.12 added `named_completion`, and its `\alpha` (a BslashCompletion) has no
+# `completion_text` method any more, so 1.12+ ask the new way and 1.11 the old.
+@static if isdefined(REPL.REPLCompletions, :named_completion)
+    completion_text(c) = REPL.REPLCompletions.named_completion(c).completion
+else
+    completion_text(c) = REPL.REPLCompletions.completion_text(c)
+end
+
 # `pos` counts bytes (0-based, the cursor); REPLCompletions wants the index of the character before the cursor,
 # which is `pos` only after an ASCII one: after `αβ` (4 bytes) it is 3.
 function complete(s::Session, code::String, pos::Int)
     pos = clamp(pos, 0, ncodeunits(code))
     comps, range, _ = REPL.REPLCompletions.completions(code, prevind(code, pos + 1), s.mod)
-    matches = unique!(sort!([REPL.REPLCompletions.completion_text(c) for c in comps]))
+    matches = unique!(sort!([completion_text(c) for c in comps]))
     Dict("matches" => matches, "start" => first(range) - 1, "end" => pos)
 end
 
