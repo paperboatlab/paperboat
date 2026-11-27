@@ -6,6 +6,7 @@ import {AppMark, APPS, Icon, Key, Menu, Pill, RuntimeMark, Spinner, Tabs, Tag, t
 import {PackagePanel, type InstalledPackage, type RegistryItem} from '@paperboatlab/ui/packages';
 import type {Client, Lease, Runtime} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
+import type {Goto} from '../electron/bridge.ts';
 import type {Act} from './act.ts';
 import {bridge} from './bridge.ts';
 
@@ -17,10 +18,12 @@ const ready = (r: Runtime) => Object.values(r.backends ?? {}).some(b => b.usable
 const usable = (r: Runtime) => Object.values(r.backends ?? {}).some(b => b.usable);
 const alive = (l: Lease) => l.state !== 'exited' && l.state !== 'failed';
 
-export function Runtimes({client, act}: {client: Client; act: Act}) {
+export function Runtimes({client, act, want}: {client: Client; act: Act; want?: Goto}) {
   const {runtimes, instances, events, errors} = useStore(client, s => s);
   const list = runtimes?.runtimes ?? [];
-  const [pick, setPick] = useState<string>('');
+  const [pick, setPick] = useState<string>(want?.runtime ?? '');
+  // `paperboat launcher --page runtimes --runtime <name>` (an app's Manage runtimes…): that runtime, each time it asks
+  useEffect(() => void (want?.runtime && setPick(want.runtime)), [want]);
   const [view, setView] = useState<View>('running');
   const rt = list.find(r => r.name === pick) ?? list[0];
   const leases = rt ? instances.filter(l => l.runtime.startsWith(rt.name + '@')) : [];

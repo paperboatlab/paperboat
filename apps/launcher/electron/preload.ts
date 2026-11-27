@@ -1,6 +1,6 @@
 // The page's only door: window.paperboat (electron/bridge.ts).
 import {contextBridge, ipcRenderer} from 'electron';
-import type {Bridge} from './bridge.ts';
+import type {Bridge, Goto} from './bridge.ts';
 import {exposeWindow} from './window-preload.ts';
 
 let next = 1;
@@ -31,6 +31,11 @@ const bridge: Bridge = {
   openWindow: (url, title) => ipcRenderer.send('pb:window', url, title),
   pickFolder: title => ipcRenderer.invoke('pb:folder', title),
   reveal: path => ipcRenderer.send('app:reveal', path),
+  onGoto(fn) {
+    const on = (_e: unknown, to: Goto) => fn(to);
+    ipcRenderer.on('launcher:goto', on);
+    return () => void ipcRenderer.off('launcher:goto', on);
+  },
 };
 contextBridge.exposeInMainWorld('paperboat', bridge);
 exposeWindow();

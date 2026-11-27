@@ -130,7 +130,7 @@ struct Args {
   std::string arg(std::size_t i) const { return i < pos.size() ? pos[i] : ""; }
 };
 
-const std::vector<std::string> kValued = {"--project", "--from", "--backend", "--socket", "--tail", "--source", "--kind", "--port", "--time", "--var"};
+const std::vector<std::string> kValued = {"--project", "--from", "--backend", "--socket", "--tail", "--source", "--kind", "--port", "--time", "--var", "--page", "--runtime"};
 
 // The longest registered name (or alias) the words start with; the rest are its arguments.
 Args parse(int argc, char** argv) {
@@ -544,6 +544,21 @@ void open_url(const std::string& url, const std::string& title = "") {
 #else
   ProcessRunner::run_detached({"xdg-open", url});
 #endif
+}
+
+// `launcher [--page <page>] [--runtime <name>]`: the Launcher started, or the running one focused, on that page
+// (pb#69: an app's Manage runtimes… runs `launcher --page runtimes --runtime julia`). No Launcher: a failure.
+int paperboat_launcher(Args& a) {
+  auto cmd = launcher();
+  if (cmd.empty()) throw Failure("no Launcher here · install paperboat-launcher (PAPERBOAT_LAUNCHER=browser has none)", 2);
+  static const std::vector<std::string> pages = {"apps", "stations", "toolkits", "runtimes", "hubs", "console"};
+  if (a.has("--page") && std::ranges::find(pages, a.get("--page")) == pages.end())
+    throw Failure("no page '" + a.get("--page") + "' · apps, stations, toolkits, runtimes, hubs or console", 2);
+  for (const std::string k : {"--page", "--runtime"})
+    if (a.has(k)) cmd.insert(cmd.end(), {k, a.get(k)});
+  ProcessRunner::run_detached(cmd);
+  if (a.json_out) return print_json({{"page", a.get("--page", "apps")}, {"runtime", a.get("--runtime")}}), 0;
+  return 0;
 }
 
 // The runtimes an app uses, pulled now so its first cell doesn't wait; they would be pulled when needed anyway.
@@ -1363,7 +1378,7 @@ const std::map<std::string, Handler>& handlers() {
       {"package.add", [](Args& a) { return packages(a, "add"); }}, {"package.remove", [](Args& a) { return packages(a, "remove"); }},
       {"package.folders", package_folders}, {"package.search", package_search}, {"package.info", package_info},
       {"paperboat.update", paperboat_update}, {"paperboat.channel", paperboat_channel}, {"paperboat.daemon", paperboat_daemon},
-      {"paperboat.about", paperboat_about}, {"paperboat.help", paperboat_help}};
+      {"paperboat.launcher", paperboat_launcher}, {"paperboat.about", paperboat_about}, {"paperboat.help", paperboat_help}};
   return h;
 }
 

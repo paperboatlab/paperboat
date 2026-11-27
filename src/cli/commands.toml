@@ -217,6 +217,13 @@ desc = "The runtime daemon (paperboatd)"
 group = "Paperboat"
 
 [[command]]
+id = "paperboat.launcher"
+name = "launcher"
+args = "[--page apps|stations|toolkits|runtimes|hubs|console] [--runtime <runtime>]"
+desc = "Open the Launcher, on a page and a runtime"
+group = "Paperboat"
+
+[[command]]
 id = "paperboat.about"
 name = "about"
 desc = "Versions of Paperboat, the daemon, apps and toolkits"

@@ -247,3 +247,19 @@ TEST_CASE("an app's lifecycle: install a checkout, open folders, sessions, stop,
   CHECK(fs::exists(checkout / "bin" / "serve"));  // a checkout is only unlinked
   fs::remove_all(kHome);
 }
+
+TEST_CASE("launcher: the Launcher on a page and a runtime (an app's Manage runtimes…)", "[cli]") {
+  const fs::path stand_in = kHome / "launcher", seen = kHome / "launcher-page-args";
+  fs::create_directories(kHome);
+  std::ofstream(stand_in) << "#!/bin/sh\necho \"$*\" > " << seen.string() << "\n";
+  fs::permissions(stand_in, fs::perms::owner_all);
+  const std::vector<std::pair<std::string, std::string>> env = {{"PAPERBOAT_LAUNCHER", stand_in.string()}};
+  REQUIRE(cli({"launcher", "--page", "runtimes", "--runtime", "julia"}, {}, env).ok());
+  for (int i = 0; i < 50 && !(fs::exists(seen) && fs::file_size(seen) > 0); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  std::string args;
+  std::getline(std::ifstream(seen), args);
+  CHECK(args == "--page runtimes --runtime julia");
+  CHECK(cli({"launcher", "--page", "nowhere"}, {}, env).exit_code == 2);
+  CHECK(cli({"launcher"}, {}, {{"PAPERBOAT_LAUNCHER", "browser"}}).exit_code == 2);  // no Launcher, no page to open
+  fs::remove_all(kHome);
+}
