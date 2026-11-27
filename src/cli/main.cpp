@@ -130,7 +130,7 @@ struct Args {
   std::string arg(std::size_t i) const { return i < pos.size() ? pos[i] : ""; }
 };
 
-const std::vector<std::string> kValued = {"--app", "--project", "--from", "--backend", "--socket", "--tail", "--source", "--kind", "--port", "--time", "--var", "--page", "--runtime"};
+const std::vector<std::string> kValued = {"--app", "--project", "--from", "--backend", "--socket", "--tail", "--source", "--kind", "--port", "--time", "--var", "--page", "--runtime", "--to"};
 
 // The longest registered name (or alias) the words start with; the rest are its arguments.
 Args parse(int argc, char** argv) {
@@ -739,7 +739,8 @@ int app_uninstall(Args& a) {
 
 // An app's session on a folder (none: the window it has, else its Start page): the one running there, or a new one
 // (`fresh`); its window opens unless --no-open.
-json open_app(Args& a, const std::string& app, const fs::path& project, bool& fresh) {
+// `query`: what the page is told besides (an example's ?example=…, pb#75).
+json open_app(Args& a, const std::string& app, const fs::path& project, bool& fresh, const std::string& query = "") {
   registry_entry(app);
   if (installed(app).is_null()) throw Failure(app + " is not installed · paperboat app install " + app, 2);
   json s = nullptr;
@@ -747,7 +748,7 @@ json open_app(Args& a, const std::string& app, const fs::path& project, bool& fr
     if (project.empty() || x["project"] == project.string()) s = x;
   fresh = s.is_null();
   if (fresh) s = start_session(app, project, a.has("--port") ? std::stoi(a.get("--port")) : 0);
-  if (!a.has("--no-open")) open_url(s["url"], registry_entry(app)["label"].value_or(app));
+  if (!a.has("--no-open")) open_url(s["url"].get<std::string>() + query, registry_entry(app)["label"].value_or(app));
   return s;
 }
 
@@ -974,8 +975,8 @@ int example_list(Args& a) {
   return 0;
 }
 
-// A writable copy of an example, so the original stays clean; what a build or a run leaves (the examples'
-// .gitignore folders) stays behind.
+// A copy of an example for the user to change; what a build or a run leaves (the examples' .gitignore folders)
+// stays behind.
 void copy_example(const fs::path& from, const fs::path& to) {
   const fs::path tmp = to.parent_path() / ("." + to.filename().string() + ".new");
   std::error_code ec;
@@ -992,18 +993,60 @@ void copy_example(const fs::path& from, const fs::path& to) {
   fs::rename(tmp, to);
 }
 
-// Copy an example to <home>/examples/<id> the first time (later: that copy, as the user left it) and open it in its app.
+// An example by id, its `cache` true when it is GitHub's copy (<home>/cache/examples: replaced a day later).
+json find_example(const std::string& id) {
+  const fs::path root = examples_root(false);
+  for (auto& x : examples(root, true))
+    if (x["id"] == id) {
+      x["cache"] = root == paths::home() / "cache" / "examples";
+      return x;
+    }
+  throw Failure("no example " + id + "; paperboat example list shows them", 2);
+}
+
+// A folder named by --to, absolute.
+fs::path to_folder(Args& a) {
+  if (!a.has("--to")) throw Failure("--to <folder> is missing", 2);
+  const fs::path to = fs::absolute(a.get("--to")).lexically_normal();
+  if (!fs::is_directory(to)) throw Failure(to.string() + " is not a folder", 2);
+  return to;
+}
+
+std::string url_escape(const std::string& v) {
+  std::string out;
+  for (const unsigned char c : v)
+    if (std::isalnum(c) || std::strchr("-_.~/", c)) out += static_cast<char>(c);
+    else out += '%', out += "0123456789ABCDEF"[c >> 4], out += "0123456789ABCDEF"[c & 15];
+  return out;
+}
+
+// Open an example where it is (its checkout, or the cache) in its app. The page is told it is one, by its URL:
+// ?example=<id>&name=<name>, &to=<folder> (where its Copy puts it: --to, the folder the user opened it from)
+// and &cache=1 (changes there aren't kept), so it shows the kit's ExampleBanner (pb#75).
 int example_open(Args& a) {
-  const std::string id = need_arg(a, "example");
-  json ex = nullptr;
-  for (auto& x : examples(examples_root(false), true))
-    if (x["id"] == id) ex = std::move(x);
-  if (ex.is_null()) throw Failure("no example " + id + "; paperboat example list shows them", 2);
-  const fs::path to = paths::home() / "examples" / id;
-  if (!fs::exists(to)) copy_example(ex["path"].get<std::string>(), to);
-  ex["path"] = to.string();
+  json ex = find_example(need_arg(a, "example"));
+  std::string query = "?example=" + url_escape(ex["id"]) + "&name=" + url_escape(ex["name"]);
+  if (a.has("--to")) query += "&to=" + url_escape(to_folder(a).string());
+  if (ex["cache"].get<bool>()) query += "&cache=1";
   bool fresh = false;
-  ex["session"] = open_app(a, ex["app"], to, fresh);
+  ex["session"] = open_app(a, ex["app"], ex["path"].get<std::string>(), fresh, query);
+  ex["url"] = ex["session"]["url"].get<std::string>() + query;
+  if (a.json_out) return print_json(ex), 0;
+  std::cout << ex["path"].get<std::string>() << "\n";
+  return 0;
+}
+
+// Copy an example into <folder>/<its folder's name> (never over a folder there), printing that path; --open: then
+// open the copy in its app.
+int example_copy(Args& a) {
+  json ex = find_example(need_arg(a, "example"));
+  const fs::path from = ex["path"].get<std::string>(), to = to_folder(a) / from.filename();
+  if (fs::exists(to)) throw Failure(to.string() + " is there already; copy it to another folder", 2);
+  copy_example(from, to);
+  ex["path"] = to.string();
+  ex["cache"] = false;
+  bool fresh = false;
+  if (a.has("--open")) ex["session"] = open_app(a, ex["app"], to, fresh);
   if (a.json_out) return print_json(ex), 0;
   std::cout << to.string() << "\n";
   return 0;
@@ -1482,7 +1525,7 @@ const std::map<std::string, Handler>& handlers() {
       {"app.list", app_list}, {"app.open", app_open}, {"app.install", app_install}, {"app.update", app_update},
       {"app.uninstall", app_uninstall}, {"app.stop", app_stop}, {"session.list", session_list}, {"session.logs", session_logs},
       {"session.restart", session_restart}, {"session.stop", session_stop}, {"toolkit.list", toolkit_list}, {"toolkit.info", toolkit_info},
-      {"example.list", example_list}, {"example.open", example_open},
+      {"example.list", example_list}, {"example.open", example_open}, {"example.copy", example_copy},
       {"runtime.list", runtime_list}, {"runtime.pull", runtime_pull}, {"runtime.ps", runtime_ps}, {"runtime.stats", runtime_stats},
       {"runtime.logs", runtime_logs}, {"runtime.interrupt", runtime_interrupt}, {"runtime.prune", runtime_prune},
       {"runtime.events", runtime_events}, {"package.list", [](Args& a) { return packages(a, "list"); }},
