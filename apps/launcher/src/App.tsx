@@ -3,7 +3,7 @@
 // @paperboat/client: every key runs a command line, the CLI's own words.
 
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {About, AppMark, Key, Notifications, Pill, Rail, Search, Segmented, SettingRow, Settings, SettingsSection, ShortcutList, ThemeSetting, Toasts, WindowKeys, chordMatches, readStored, useTheme, useToasts, writeStored, type Command, type RailItem, type Credit, type SearchItem, type Theme} from '@paperboatlab/ui';
+import {About, AppMark, Key, Notifications, Pill, Rail, ScaleSetting, Search, Segmented, SettingRow, Settings, SettingsSection, ShortcutList, ThemeSetting, Toasts, WindowKeys, chordMatches, isScale, readStored, useScale, useTheme, useToasts, writeStored, type Command, type Scale, type RailItem, type Credit, type SearchItem, type Theme} from '@paperboatlab/ui';
 import type {Client} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
 import {makeAct} from './act.ts';
@@ -37,6 +37,8 @@ export function App({client}: {client: Client}) {
   const state = useStore(client, s => s);
   const [theme, setTheme] = useState<Theme>(() => readStored('paperboat.theme', isTheme) ?? 'system');
   useTheme(theme);
+  const [scale, setScale] = useState<Scale>(() => readStored('paperboat.scale', isScale) ?? 1);
+  useScale(scale);
   const [wide, setWide] = useState(() => readStored('paperboat.launcher.rail.wide', isBool) ?? false);
   const [page, setPage] = useState<Page>('apps');
   const [search, setSearch] = useState(false);
@@ -48,6 +50,7 @@ export function App({client}: {client: Client}) {
   const {toasts, show, dismiss} = notes;
   const act = useMemo(() => makeAct(client, show), [client, show]);
   useEffect(() => writeStored('paperboat.theme', theme), [theme]);
+  useEffect(() => writeStored('paperboat.scale', scale), [scale]);
   useEffect(() => writeStored('paperboat.launcher.rail.wide', wide), [wide]);
 
   useEffect(() => {
@@ -166,7 +169,7 @@ export function App({client}: {client: Client}) {
       )}
       {settings && (
         <Settings app="Launcher" page={settings} onClose={() => setSettings(null)} pages={[
-          {id: 'general', label: 'General', icon: 'settings-gear', body: <ThemeSetting theme={theme} onTheme={setTheme} />},
+          {id: 'general', label: 'General', icon: 'settings-gear', body: <><ThemeSetting theme={theme} onTheme={setTheme} /><ScaleSetting scale={scale} onScale={setScale} /></>},
           {id: 'launcher', label: 'Launcher', icon: 'mark-paperboat', body: (
             <SettingsSection title="Updates">
               <SettingRow label="Update channel" hint="Release: tested versions. Beta: the next version early. Dev: every change on main">

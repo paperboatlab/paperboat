@@ -8,6 +8,8 @@ export function exposeWindow() {
     minimize: () => ipcRenderer.send('win:minimize'),
     toggleMaximize: () => ipcRenderer.send('win:maximize'),
     close: () => ipcRenderer.send('win:close'),
+    // the interface scale (the kit's useScale): the page's layout sees a real smaller or larger viewport
+    setZoom: factor => ipcRenderer.send('win:zoom', factor),
     onMaximized(fn) {
       const on = (_e: unknown, max: boolean) => fn(max);
       ipcRenderer.on('win:maximized', on);

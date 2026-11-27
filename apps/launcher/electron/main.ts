@@ -42,6 +42,9 @@ function lastClosed(app: string, origin: string) {
     .on('error', () => {}).unref();
 }
 
+// a window's least size at Default; the scale widens it (win:zoom)
+const MIN_WIDTH = 960, MIN_HEIGHT = 600;
+
 function window(url: string, opts: {title: string; app?: boolean}) {
   const desktop = process.env.CHROME_DESKTOP, entry = opts.app ? entryOf(appOf(opts.title)) : null;
   if (entry) process.env.CHROME_DESKTOP = entry;
@@ -50,8 +53,8 @@ function window(url: string, opts: {title: string; app?: boolean}) {
     icon: iconFor(opts.app ? opts.title : 'paperboat'),
     width: 1440,
     height: 900,
-    minWidth: 960,
-    minHeight: 600,
+    minWidth: MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
     backgroundColor: '#f6f6f2',
     // no system title bar: the page's bar is it (the kit's WindowKeys); macOS keeps its lights, inside the bar
     titleBarStyle: 'hidden',
@@ -140,6 +143,17 @@ ipcMain.on('win:maximize', e => {
   if (w) w.isMaximized() ? w.unmaximize() : w.maximize();
 });
 ipcMain.on('win:close', e => own(e)?.close());
+// the interface scale (the kit's useScale): the page zooms, and the window's least width with it, so the page
+// never lays out narrower than at Default (Large keeps the bar's window keys in sight)
+ipcMain.on('win:zoom', (e, factor: unknown) => {
+  if (factor !== 0.75 && factor !== 1 && factor !== 1.25) return;
+  e.sender.setZoomFactor(factor);
+  const w = own(e), least = Math.round(MIN_WIDTH * factor);
+  if (!w) return;
+  w.setMinimumSize(least, MIN_HEIGHT);
+  const [width, height] = w.getSize();
+  if (width < least && !w.isMaximized()) w.setSize(least, height);
+});
 ipcMain.handle('win:is-maximized', e => own(e)?.isMaximized() ?? false);
 
 // an app's window: the system's dialogs, parented to it, and real paths
