@@ -241,6 +241,10 @@ test('settings: the theme, the channel and the keys, from the rail foot or Ctrl+
 
 test('settings: the interface scale zooms the window, its keys stay in sight', async () => {
   await page.setViewportSize({width: 1366, height: 768});
+  // earlier tests' toasts (a failed one stays) sit over the dialog at this size: dismiss them first
+  const dismiss = page.locator('.toast').getByRole('button', {name: 'Dismiss'});
+  while (await dismiss.count()) await dismiss.first().click({timeout: 2000}).catch(() => {});  // some leave on their own meanwhile
+  await expect(page.locator('.toast')).toHaveCount(0);
   await page.keyboard.press('Control+,');
   const settings = page.getByRole('dialog', {name: 'Settings'});
   const zoom = () => app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
