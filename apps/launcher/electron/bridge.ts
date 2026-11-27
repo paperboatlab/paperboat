@@ -42,6 +42,8 @@ export interface WindowControls {
   minimize(): void;
   toggleMaximize(): void;
   close(): void;
+  /** The window's zoom: the interface scale, 0.75, 1 or 1.25 (anything else is ignored). */
+  setZoom(factor: number): void;
   /** `fn` now and on every maximize or restore; returns stop. */
   onMaximized(fn: (maximized: boolean) => void): () => void;
 }

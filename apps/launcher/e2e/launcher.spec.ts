@@ -204,6 +204,27 @@ test('settings: the theme, the channel and the keys, from the rail foot or Ctrl+
   await page.keyboard.press('Escape');
 });
 
+test('settings: the interface scale zooms the window, its keys stay in sight', async () => {
+  await page.setViewportSize({width: 1366, height: 768});
+  await page.keyboard.press('Control+,');
+  const settings = page.getByRole('dialog', {name: 'Settings'});
+  const zoom = () => app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor());
+  for (const [name, factor] of [['Large', 1.25], ['Compact', 0.75], ['Default', 1]] as const) {
+    await settings.getByRole('radio', {name: new RegExp(`^${name}`)}).click();
+    await expect.poll(zoom).toBeCloseTo(factor);
+    await expect(page.locator('html')).not.toHaveAttribute('style', /zoom/);  // the window zooms, not CSS
+    await page.keyboard.press('Escape');
+    if (process.platform !== 'darwin') {
+      const keys = page.locator('.window-keys').boundingBox(), width = await page.evaluate(() => innerWidth);
+      expect((await keys)!.x + (await keys)!.width).toBeLessThanOrEqual(width);
+    }
+    await shot(`scale-${factor * 100}`);
+    await page.keyboard.press('Control+,');
+  }
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({width: 1440, height: 900});
+});
+
 test('window keys: the bar is the title bar, its keys act on the window', async () => {
   await expect(page.locator('html')).toHaveAttribute('data-window', process.platform);
   if (process.platform === 'darwin') return void (await expect(page.locator('.window-keys')).toHaveCount(0));

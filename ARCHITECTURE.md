@@ -91,7 +91,8 @@ flowchart LR
   `reveal`: the system's dialogs, real paths; never the CLI's channels), not throttled in the background.
   Every window, the Launcher's and the apps', has no system title bar (`titleBarStyle: 'hidden'`; macOS keeps
   its lights, inside the page's bar): `window-preload.ts` → `window.paperboatWindow` (`minimize`,
-  `toggleMaximize`, `close`, `onMaximized`; only the window the page is in) feeds the kit's `WindowKeys`.
+  `toggleMaximize`, `close`, `onMaximized`; only the window the page is in) feeds the kit's `WindowKeys`, and
+  `setZoom` (the window's zoom factor, 0.75 / 1 / 1.25) the kit's `useScale` (Settings › General › Size).
   Each window carries its app's icon (the kit's `marks/<app>/icon.png`). On Linux the Launcher's window is the
   `paperboat-launcher` app (`desktopName`; `linux/paperboat-launcher.desktop` for the packages) and an app's window
   is `paperboat-<app>` when its desktop entry exists (Chromium reads `CHROME_DESKTOP` as each window is made), so
