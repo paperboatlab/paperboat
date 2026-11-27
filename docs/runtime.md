@@ -61,7 +61,7 @@ the lease, acquire a new one).
 | op | args | result |
 | --- | --- | --- |
 | `eval` | `code`, `cell?` (a label for tracebacks), `debug?`, `breakpoints?` (Julia; see Debugging) | `{"data": {mime: text}}` or `{"data": null}` (no value / `nothing` / `None`); output arrives as `stream` and `display` notifications |
-| `complete` | `code`, `pos` (byte offset) | `{"matches": [...], "start": n, "end": n}` |
+| `complete` | `code`, `pos` (the cursor: bytes of UTF-8 before it) | `{"matches": [...], "start": n, "end": n}` |
 | `lint` | `code` | `{"problems": [{"from", "to", "severity", "message"}]}`: byte offsets; `severity` `error`, `warning` or `info`. From the language's own parser (Julia: JuliaSyntax; Python: `compile`, with its `SyntaxWarning`s). It only parses, so it answers at once, even while a cell runs; offered in both modes |
 | `variables` | – | `[{"name", "type", "summary", "size"?}]` |
 | `reset` | – | `{}`: a fresh namespace |

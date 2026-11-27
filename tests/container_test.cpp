@@ -113,6 +113,27 @@ TEST_CASE("omc serves a session through its bridge, network off", "[podman]") {
   c->call("release", {{"lease", lease["id"]}});
 }
 
+TEST_CASE("omc's text is UTF-8 both ways", "[podman]") {
+  // serve.pl reads requests as characters and omc speaks UTF-8 bytes: an expression with é or 😀 reached omc
+  // as Latin-1 or not at all ("Wide character in syswrite"), and every reply came back encoded twice.
+  NEED_PODMAN();
+  Daemon d;
+  d.start();
+  auto c = d.client();
+  const json lease = c->call("acquire", {{"runtime", "omc"}, {"mode", "session"}, {"owner", "test"}});
+  RuntimeClient rt(lease["ipc"].get<std::string>(), 5min);
+  const auto eval = [&](const std::string& code) { return rt.request("eval", {{"code", code}})["data"]["text/plain"].get<std::string>(); };
+  CHECK(eval(R"(loadString("model Uni \"Température °C – Ω 😀\"\n  Real x \"α 中文\";\nequation\n  der(x) = -x;\nend Uni;"))") == "true");
+  CHECK(eval("getClassComment(Uni)") == "\"Température °C – Ω 😀\"");
+  CHECK_THAT(eval("list(Uni)"), ContainsSubstring("Real x \\\"α 中文\\\";"));
+  // a file whose name is not ASCII: written, loaded and read back through omc
+  CHECK(eval("writeFile(\"/tmp/naïve 😀.mo\", \"model N \\\"ü\\\" end N;\")") == "true");
+  CHECK(eval("loadFile(\"/tmp/naïve 😀.mo\")") == "true");
+  CHECK(eval("getClassComment(N)") == "\"ü\"");
+  CHECK_THAT(eval("checkModel(Uni)"), ContainsSubstring("Check of Uni completed successfully"));
+  c->call("release", {{"lease", lease["id"]}});
+}
+
 TEST_CASE("a crashing runtime fails its lease with its exit code", "[podman]") {
   NEED_PODMAN();
   Daemon d;

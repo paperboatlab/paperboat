@@ -128,6 +128,17 @@ TEST_CASE("session mode", "[runtime]") {
     const json c = rt.request("complete", {{"code", "answer_v"}, {"pos", 8}});
     CHECK(std::ranges::find(c["matches"], json("answer_value")) != c["matches"].end());
     CHECK(c["start"] == 0);
+    // a name that isn't ASCII, the cursor right after a two-byte character: offsets are bytes
+    rt.request("eval", {{"code", jl ? "αβ_value = 1;" : "αβ_value = 1"}});
+    const json u = rt.request("complete", {{"code", "x = αβ"}, {"pos", 8}});
+    CHECK(std::ranges::find(u["matches"], json("αβ_value")) != u["matches"].end());
+    CHECK(u["start"] == 4);
+    CHECK(u["end"] == 8);
+    if (jl) {  // \alpha → α, as the REPL does
+      const json a = rt.request("complete", {{"code", "é = \\alpha"}, {"pos", 11}});
+      CHECK(a["matches"] == json::array({"α"}));
+      CHECK(a["start"] == 5);
+    }
     rt.request("reset");
     CHECK(std::ranges::none_of(rt.request("variables"), [](const json& v) { return v["name"] == "answer_value"; }));
   }

@@ -9,6 +9,8 @@
 # socket the way every runtime does. `eval` takes one omc expression and answers omc's reply as
 # text/plain. omc answers one call at a time; requests from every connection run in arrival order.
 # Perl, because the upstream omc image has it and no Python; core modules only.
+# Text: JSON::PP->utf8 gives the requests as characters and encodes the replies' characters, while omc speaks
+# UTF-8 bytes, so an expression is encoded on its way to omc and omc's reply decoded on its way back (#86).
 use strict;
 use warnings;
 use IO::Socket::INET;
@@ -16,6 +18,7 @@ use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use IO::Socket::UNIX;
 use IO::Select;
 use JSON::PP;
+use Encode ();
 use POSIX ();
 
 my $path = shift @ARGV or die "usage: serve.pl <socket>\n";
@@ -59,8 +62,8 @@ zsend([4, "\x05READY" . "\x0BSocket-Type" . pack('N', 3) . 'REQ']);
 my ($f) = zframe();
 die "omc did not say READY\n" unless $f & 4;
 
-sub omc {   # one expression, omc's reply with its trailing newline cut
-  my $expr = shift;
+sub omc {   # one expression (characters), omc's reply (characters) with its trailing newline cut
+  my $expr = Encode::encode('UTF-8', shift);
   zsend([1, ''], [0, $expr]);   # REQ's empty delimiter, then the expression, in one write
   my $out = '';
   for (;;) {
@@ -70,7 +73,7 @@ sub omc {   # one expression, omc's reply with its trailing newline cut
     last unless $fl & 1;
   }
   $out =~ s/[\r\n]+\z//;
-  return $out;
+  return Encode::decode('UTF-8', $out);   # bytes that aren't UTF-8 (a Latin-1 file's comment) become U+FFFD
 }
 
 my $version = omc('getVersion()');
