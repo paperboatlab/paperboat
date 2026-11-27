@@ -76,6 +76,9 @@ table.t tr.sel td { background: color-mix(in srgb, var(--accent) var(--tint), tr
 /* apps: each card in its app's accent */
 .agrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--gutter); }
 .acard { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--panel-pad); display: flex; flex-direction: column; gap: var(--space-3); }
+.acard.absent { background: var(--surface); }  /* no release on the channel yet: greyed */
+.acard.absent > :not(.afoot), .acard.absent .afoot > .k { opacity: 0.55; }
+.acard.absent .app-mark { filter: grayscale(1); }
 .ahead { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); }
 .an { font: 600 22px var(--font-display); letter-spacing: -0.01em; }
 .acard p { margin: 2px 0 0; color: var(--text-muted); font-size: var(--size-xs); min-height: 38px; }
