@@ -296,3 +296,45 @@ TEST_CASE("station mode", "[runtime]") {
     CHECK_THROWS_AS(other.request("call", {{"instance", g}, {"method", "step"}, {"args", {{1.0}}}}), RuntimeError);
   }
 }
+
+// #74: what `paperboat package add python` installed ($PAPERBOAT_DEPS/venv) is importable from a
+// session and from a station. A first session plants a module in the venv's site-packages for its own
+// interpreter, as pip would; the runtimes started after it import it.
+TEST_CASE("python: the package volume's venv is on sys.path", "[runtime]") {
+  const auto backend = GENERATE(std::string("podman"), std::string("native"));
+  if (!usable("python", backend)) SKIP("python on " + backend + " is not available here");
+  INFO("python on " << backend);
+  Rig rig("python", backend, "session");
+  rig.rt->request("eval", {{"code",
+    "import os, sys\n"
+    "sp = os.path.join(os.environ['PAPERBOAT_DEPS'], 'venv', 'lib', f'python{sys.version_info[0]}.{sys.version_info[1]}', 'site-packages')\n"
+    "os.makedirs(sp, exist_ok=True)\n"
+    "open(os.path.join(sp, 'pb_dep_probe.py'), 'w').write('VALUE = 7\\n')"}});
+  rig.rt.reset();
+  rig.control->call("release", {{"lease", rig.lease["id"]}});
+  std::ofstream(rig.project / "uses_dep.py") << R"py(
+import paperboat_runtime as pb
+import pb_dep_probe
+
+class Probe:
+    def value(self):
+        return pb_dep_probe.VALUE
+
+pb.register("probe", Probe)
+)py";
+  auto acquire = [&](const std::string& mode) {
+    const json l = rig.control->call("acquire", {{"runtime", "python"}, {"mode", mode}, {"backend", backend}, {"project", rig.project.string()}});
+    return std::make_unique<RuntimeClient>(l["ipc"].get<std::string>(), std::chrono::seconds(180));
+  };
+
+  SECTION("session") {
+    auto rt = acquire("session");
+    CHECK(text(rt->request("eval", {{"code", "import pb_dep_probe; pb_dep_probe.VALUE"}})) == "7");
+  }
+  SECTION("station") {
+    auto rt = acquire("station");
+    rt->request("load", {{"path", "uses_dep.py"}});
+    const int p = rt->request("new", {{"type", "probe"}})["instance"];
+    CHECK(rt->request("call", {{"instance", p}, {"method", "value"}}) == 7);
+  }
+}
