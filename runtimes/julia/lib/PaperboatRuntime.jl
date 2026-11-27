@@ -8,7 +8,7 @@
 #     step(g::Gain, u) = g.k .* u
 #     PaperboatRuntime.register("gain", Gain; definition = Dict("inputs" => ["u"], "outputs" => ["y"]))
 #
-# Session evals run on the root task, where SIGINT lands (the daemon's `interrupt`). I/O tasks are
+# Session evals run on the root task, where SIGINT is sent (the daemon's `interrupt`). I/O tasks are
 # @async on the same thread: Julia runs its event loop only on thread 1, so sockets are serviced
 # whenever a cell yields, prints or ends. Station calls run on the default pool (--threads=2).
 module PaperboatRuntime
@@ -197,24 +197,49 @@ mutable struct Connection
     lock::ReentrantLock
 end
 
+# SIGINT throws an InterruptException in whatever task thread 1 is in, and while a cell waits (sleep, I/O)
+# that is one of these I/O tasks, not the root task where the cell runs. They pass it on to the root task
+# (a waiting task woken with the exception), so the cell stops and the connection lives.
+const ROOT = Ref{Union{Task,Nothing}}(nothing)  # the root task in session mode; a station has no cell to stop
+
+function forward_interrupt()
+    r = ROOT[]
+    r === nothing || r === current_task() || istaskdone(r) || schedule(r, InterruptException(); error = true)
+end
+
+"""f(), again after an interrupt meant for the cell (forwarded to it): for a wait that consumed nothing."""
+function uninterrupted(f)
+    while true
+        try
+            return f()
+        catch e
+            e isa InterruptException || rethrow()
+            forward_interrupt()
+        end
+    end
+end
+
 function send(c::Connection, msg)
     data = Vector{UInt8}(JSON.json(msg))
+    uninterrupted(() -> lock(c.lock))
     try
-        lock(c.lock) do
-            write(c.io, htol(UInt32(length(data))), data)
-            flush(c.io)
-        end
+        write(c.io, htol(UInt32(length(data))), data)
+        flush(c.io)
         return true
-    catch
+    catch e
+        # an interrupt while the write completes: libuv still has the bytes, so it is sent
+        e isa InterruptException && (forward_interrupt(); return true)
         return false
+    finally
+        unlock(c.lock)
     end
 end
 
 function recv(c::Connection)
     try
-        eof(c.io) && return nothing
-        n = ltoh(read(c.io, UInt32))
-        return JSON.parse_json(String(read(c.io, n)))
+        uninterrupted(() -> eof(c.io)) && return nothing
+        n = ltoh(uninterrupted(() -> read(c.io, UInt32)))
+        return JSON.parse_json(String(uninterrupted(() -> read(c.io, n))))
     catch
         return nothing
     end
@@ -283,8 +308,8 @@ function capturing(f, conn::Connection, id)
     redirect_stdout(out)
     redirect_stderr(out)
     forward = @async begin
-        while !eof(out)
-            text = String(readavailable(out))
+        while !uninterrupted(() -> eof(out))
+            text = String(uninterrupted(() -> readavailable(out)))
             isempty(text) || send(conn, Dict("type" => "stream", "id" => id, "name" => "stdout", "text" => text))
         end
     end
@@ -401,7 +426,7 @@ end
 
 function interrupt(s::Session)
     s.running[] || return false
-    ccall(:kill, Cint, (Cint, Cint), getpid(), 2)  # SIGINT: an InterruptException in the root task
+    ccall(:kill, Cint, (Cint, Cint), getpid(), 2)  # SIGINT: an InterruptException, passed on to the root task
     return true
 end
 
@@ -634,7 +659,7 @@ function serve(path::String, mode::String)
     @async begin
         while !stop.set
             sock = try
-                accept(server)
+                uninterrupted(() -> accept(server))
             catch
                 break
             end
@@ -642,7 +667,8 @@ function serve(path::String, mode::String)
         end
     end
     if session !== nothing
-        main_loop(session)  # the root task: where SIGINT lands
+        ROOT[] = current_task()
+        main_loop(session)  # the root task: where the cell's interrupt is sent
     else
         wait(stop)
     end
