@@ -28,6 +28,8 @@ export interface App {
   /** The runtimes it uses (`julia@1.11`). */
   runtimes: string[];
   repo: string;
+  /** The newest version on the channel; false: none there yet (greyed); null: GitHub out of reach. */
+  available?: string | false | null;
 }
 
 /** An app server paperboat started on a folder. */
