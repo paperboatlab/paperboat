@@ -3,7 +3,7 @@
 
 import {useEffect, useState} from 'react';
 import {AppMark, APPS, Icon, Key, Pill, RuntimeMark, Spinner, Tabs, Tag} from '@paperboatlab/ui';
-import {PackagePanel, type InstalledPackage} from '@paperboatlab/ui/packages';
+import {PackagePanel, type InstalledPackage, type RegistryItem} from '@paperboatlab/ui/packages';
 import type {Client, Lease, Runtime} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
 import type {Act} from './act.ts';
@@ -134,8 +134,19 @@ function Running({client, act, leases}: {client: Client; act: Act; leases: Lease
   );
 }
 
-// The kit's PackagePanel: environment = `package list`, add = `package add`, remove = `package remove`.
-const REGISTRY: Record<string, string> = {python: 'PyPI', julia: 'General', omc: 'OpenModelica index'};
+// The kit's PackagePanel: environment = `package list`, add = `package add`, remove = `package remove`; an add
+// downloads and precompiles (minutes, at times): `act`'s toast turns into its end, so the view can change meanwhile.
+// Each runtime's registry, and a shelf to start from (the one Julia package manager: Julix sends its users here).
+// ponytail: a shelf, not the registry's index (the CLI has no search); any other name adds as typed
+const REGISTRY: Record<string, {title: string; source?: string; shelf: RegistryItem[]}> = {
+  python: {title: 'PyPI', source: 'pypi.org', shelf: []},
+  omc: {title: 'OpenModelica index', shelf: []},
+  julia: {title: 'General', source: 'pkg.julialang.org', shelf: [
+    {name: 'Plots', note: 'plots through backends (shown as images)'}, {name: 'CairoMakie', note: 'Makie, drawn with Cairo (shown as images)'},
+    {name: 'DataFrames', note: 'tables'}, {name: 'CSV', note: 'read and write CSV'}, {name: 'Optim', note: 'optimisation'},
+    {name: 'DifferentialEquations', note: 'ODEs, SDEs, DAEs'}, {name: 'ControlSystems', note: 'LTI systems, Bode, step'},
+  ]},
+};
 
 function Packages({client, act, rt}: {client: Client; act: Act; rt: Runtime}) {
   const [project, setProject] = useState<string | null>(null);
@@ -162,9 +173,13 @@ function Packages({client, act, rt}: {client: Client; act: Act; rt: Runtime}) {
     setBusy('');
     load(project);
   };
-  // ponytail: the CLI has no registry search, so the registry offers the typed name (name or name@version) as is;
-  // a `package search` would fill `items`/`search` with real results.
-  const byName = async (q: string) => ({results: [{name: q, latest: q.split('@')[1] ?? 'newest', note: `paperboat package add ${rt.name} ${q}`}], total: 1});
+  const reg = REGISTRY[rt.name] ?? {title: rt.name, shelf: []};
+  // the typed name (name or name@version) as is, then the shelf's matches
+  const byName = async (q: string) => {
+    const results = [{name: q, latest: q.split('@')[1] ?? 'newest', note: `paperboat package add ${rt.name} ${q}`},
+      ...reg.shelf.filter(i => i.name !== q && `${i.name} ${i.note}`.toLowerCase().includes(q.toLowerCase()))];
+    return {results, total: results.length};
+  };
   return (
     <div className="card">
       <div className="chead"><span className="label">Project</span>
@@ -172,9 +187,9 @@ function Packages({client, act, rt}: {client: Client; act: Act; rt: Runtime}) {
         <span className="label">its own package volume</span></div>
       {!project ? <p className="empty-note">Choose a project to see its packages.</p> : (
         <PackagePanel runtime={null} busy={busy} error={error} output={output} loading={error ? undefined : 'reading the packages'}
-          environment={pkgs && {title: 'environment', packages: pkgs, empty: 'No packages in this project yet. Add one from the registry.',
+          environment={pkgs && {title: 'environment', tags: ['an add reaches the network, for that step only'], packages: pkgs, empty: 'No packages in this project yet. Add one from the registry.',
             actions: [{label: 'Reload', run: () => load(project)}], remove: name => void change('remove', name)}}
-          registry={{title: REGISTRY[rt.name] ?? rt.name, items: [], itemsLabel: 'type a name, or name@version', search: byName, add: name => void change('add', name)}} />
+          registry={{title: reg.title, source: reg.source, items: reg.shelf, itemsLabel: reg.shelf.length ? 'to start with; or type a name, or name@version' : 'type a name, or name@version', search: byName, add: name => void change('add', name)}} />
       )}
       {pkgs && <div className="cfoot">a running kernel loads new ones after a restart</div>}
     </div>

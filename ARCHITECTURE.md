@@ -101,7 +101,9 @@ flowchart LR
   (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
   Settings (General: the theme; Launcher: the update channel; Shortcuts) from the rail's foot or Ctrl+,. Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds
   the Hubs group: list, Overview, History, Settings, each control one `paperboat hub …` command, pb#16); Ctrl+K lists every
-  registry command. `e2e/` drives it with Playwright against the real CLI.
+  registry command. Runtimes › <runtime> › Packages is the one package manager for a runtime (`paperboat package
+  list|add|remove`, the kit's `PackagePanel`, each runtime's registry and starter shelf in `Runtimes.tsx`); Julix
+  sends its users here (pb#50). `e2e/` drives it with Playwright against the real CLI.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
 - Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` (with the
