@@ -350,29 +350,47 @@ std::string github_slug(std::string repo) {
 }
 
 // GET <api>/repos/<path> (`accept` picks GitHub's media type); $PAPERBOAT_GITHUB_API replaces the API, a file:// folder in the tests.
+// GitHub allows 60 anonymous asks an hour per address; a token (CI's, or the user's: $GITHUB_TOKEN, $GH_TOKEN) lifts it.
 std::string github_get(const std::string& path, const std::string& accept = "application/vnd.github+json") {
   const char* api = std::getenv("PAPERBOAT_GITHUB_API");
-  const auto r = ProcessRunner::run_sync({"curl", "-fsSL", "-H", "Accept: " + accept, std::string(api && *api ? api : "https://api.github.com") + "/repos/" + path},
-                                         {}, {}, std::chrono::seconds(20));
+  std::vector<std::string> curl{"curl", "-fsSL", "--max-time", "15", "-H", "Accept: " + accept};
+  for (const char* v : {"GITHUB_TOKEN", "GH_TOKEN"})
+    if (const char* t = std::getenv(v); t && *t) { curl.insert(curl.end(), {"-H", std::string("Authorization: Bearer ") + t}); break; }
+  curl.push_back(std::string(api && *api ? api : "https://api.github.com") + "/repos/" + path);
+  const auto r = ProcessRunner::run_sync(curl, {}, {}, std::chrono::seconds(20));
   std::string why = r.stderr_text.substr(0, r.stderr_text.find('\n'));
   if (why.find("403") != std::string::npos) why = "GitHub's hourly limit for this address is used up";
   if (!r.ok()) throw Failure("could not reach GitHub for " + path + (why.empty() ? "" : ": " + why));
   return r.stdout_text;
 }
 
-// GitHub's newest release of `repo` (a GitHub URL or owner/name) on the channel, or the one tagged
-// v<want>: {version, url, assets: {name: download url}}, or null.
-json newest_release(std::string repo, const std::string& want = "") {
-  repo = github_slug(repo);
-  std::string text;
-  try {
-    text = github_get(repo + "/releases?per_page=30");
-  } catch (const Failure&) {
-    throw Failure("could not reach GitHub for the releases of " + repo);
-  }
+// GitHub's releases of `repo` (a GitHub URL or owner/name), kept in <home>/cache/releases: `app list` asks on every
+// Launcher poll, so it takes what is younger than `max_age` (0: always ask). GitHub out of reach: what was kept,
+// else null; a miss is kept too ("null"), so an offline list doesn't wait on GitHub each time.
+json releases_of(const std::string& repo, std::chrono::seconds max_age) {
+  std::string key = github_slug(repo);
+  std::ranges::replace(key, '/', '_');
+  const fs::path kept = paths::home() / "cache" / "releases" / (key + ".json");
+  const auto read_kept = [&]() -> json { try { return json::parse(std::ifstream(kept)); } catch (...) { return nullptr; } };
+  std::error_code ec;
+  const auto at = fs::last_write_time(kept, ec);
+  if (!ec && max_age.count() > 0 && fs::file_time_type::clock::now() - at < max_age) return read_kept();
+  json out = nullptr;
+  try { out = json::parse(github_get(github_slug(repo) + "/releases?per_page=30")); } catch (...) {}
+  if (out.is_null() && !ec) out = read_kept();  // stale beats nothing
+  fs::create_directories(kept.parent_path(), ec);
+  std::ofstream(kept) << out.dump();
+  return out;
+}
+
+// GitHub's newest release of `repo` on the channel, or the one tagged v<want>: {version, url, assets: {name: download
+// url}}, or null; throws when GitHub can't be reached.
+json newest_release(const std::string& repo, const std::string& want = "", std::chrono::seconds max_age = {}) {
+  const json all = releases_of(repo, max_age);
+  if (!all.is_array()) throw Failure("could not reach GitHub for the releases of " + github_slug(repo));
   const std::string ch = channel();
   json newest = nullptr;
-  for (const auto& rel : json::parse(text)) {
+  for (const auto& rel : all) {
     std::string tag = rel.value("tag_name", std::string());
     if (tag.starts_with('v')) tag.erase(0, 1);
     if (rel.value("draft", false)) continue;
@@ -570,20 +588,27 @@ int app_list(Args& a) {
   const auto running = sessions();
   for (const auto& e : entries(load_toml("apps.toml"), "apps")) {
     const std::string name = e["name"].value_or(std::string());
+    // the newest version on the channel; false: none there yet (planned, or only on beta); null: GitHub out of reach
+    json available = nullptr;
+    try {
+      const json rel = newest_release(e["repo"].value_or(std::string()), "", std::chrono::hours(1));
+      available = rel.is_null() ? json(false) : rel["version"];
+    } catch (const Failure&) {
+    }
     json rts = json::array();
     if (const auto* r = e["runtimes"].as_array())
       for (const auto& x : *r) rts.push_back(x.value_or(std::string()));
     out.push_back({{"name", name}, {"label", e["label"].value_or(std::string())},
                    {"description", e["description"].value_or(std::string())}, {"installed", installed(name)},
                    {"sessions", std::ranges::count_if(running, [&](const json& s) { return s["app"] == name; })},
-                   {"runtimes", rts}, {"repo", e["repo"].value_or(std::string())}});
+                   {"runtimes", rts}, {"repo", e["repo"].value_or(std::string())}, {"available", available}});
   }
   if (a.json_out) return print_json(out), 0;
   if (out.empty()) return std::cout << "No apps in the registry yet.\n", 0;
   std::vector<std::vector<std::string>> rows;
   for (const auto& x : out) {
     const json& i = x["installed"];
-    const std::string state = x["sessions"].get<int>() ? "running" : i.is_null() ? "available" : "installed";
+    const std::string state = x["sessions"].get<int>() ? "running" : !i.is_null() ? "installed" : x["available"] == false ? "not on " + channel() : "available";
     const std::string ver = i.is_null() ? "" : !i["from"].get<std::string>().empty() ? "checkout" : i["version"].get<std::string>();
     rows.push_back({x["name"], state, ver, x["description"]});
   }
