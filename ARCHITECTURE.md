@@ -31,7 +31,7 @@ flowchart LR
 - `backend.hpp`, `src/lib/backend_oci.cpp`, `backend_native.cpp`: `Backend` and its two
   implementations; `isolation_flags` (the defaults, in one place).
 - `manager.hpp`, `src/lib/manager.cpp`: `Manager`, `Lease`, `AcquireRequest`: acquire/release,
-  the warm pool, `tick` (idle expiry, ended instances), `reap`, `prune`, events.
+  the warm pool, `tick` (idle expiry, ended instances), `reap`, `volumes`, `prune`, events.
 - `control.hpp`, `src/lib/control.cpp`: `ControlClient` (starts the daemon on demand).
 - `process.hpp`, `src/lib/process*.cpp`: `ProcessRunner`, from the Paperboat engine (plus a clean signal state for children).
 - `runtime.hpp`, `src/lib/runtime_client.cpp`: `RuntimeClient`, the app side of
@@ -103,8 +103,11 @@ flowchart LR
   Settings (General: the theme; Launcher: the update channel; Shortcuts) from the rail's foot or Ctrl+,. Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds
   the Hubs group: list, Overview, History, Settings, each control one `paperboat hub …` command, pb#16); Ctrl+K lists every
   registry command. Runtimes › <runtime> › Packages is the one package manager for a runtime (`paperboat package
-  list|add|remove`, the kit's `PackagePanel`, each runtime's registry and starter shelf in `Runtimes.tsx`); Julix
-  sends its users here (pb#50). `e2e/` drives it with Playwright against the real CLI.
+  list|add|remove`, the kit's `PackagePanel`, a starter shelf per runtime in `Runtimes.tsx`); Julix sends its users
+  here (pb#50). Packages are per folder: it lists the hubs (`hub list`, with Malachite), the folders of running
+  sessions and instances and those with a package volume (`package folders`), then Other folder…; a running Julix
+  session's folder first. Julia's registry is General through `package search|info julia` (pb#68); the others add
+  by name. `e2e/` drives it with Playwright against the real CLI.
 - `src/lib/posix.hpp`: the calls that differ between Linux and macOS (cloexec sockets and pipes,
   SIGPIPE). The shm fast path stays Linux-only (futex).
 - Packaging (CMakeLists `install`/CPack, `.github/workflows/package.yml`): components `cli` (with the
@@ -121,6 +124,13 @@ flowchart LR
   and a package's `blocks.toml`; base is Simplicial's `engine/toolkit`), the README as GitHub renders it, the
   newest release on the channel. Cached an hour in `<home>/cache/toolkits/<name>.json` (`--refresh`); offline,
   the last copy marked stale, else an error. The Launcher's Toolkits page shows it.
+  `package search julia <name>` and `package info julia <package>` read Julia's General registry the same way
+  (`JuliaRegistries/General`): the names from its `Registry.toml`, a package's versions (`Versions.toml`, yanked
+  left out) and repository (`Package.toml`), and the repository's description, stars and topics from GitHub.
+  Each is kept a day in `<home>/cache/registries/julia/` (`Registry.toml`, `packages/<name>.json`; `--refresh`);
+  offline, the last copy marked stale, else an error with `offline: true` (a package still adds by name). A
+  detail whose GitHub ask failed is asked again next time. `package folders` lists the package volumes whose
+  folder exists (paperboatd's `volumes`).
 
 ## 3. Invariants
 

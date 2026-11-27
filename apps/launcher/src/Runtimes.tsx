@@ -1,8 +1,8 @@
 // Runtimes: only what paperboatd serves (docs/control.md). The catalog and the backends at the left; the
-// chosen runtime's instances (stats, logs, interrupt), a project's packages, its image, the events.
+// chosen runtime's instances (stats, logs, interrupt), a folder's packages, its image, the events.
 
-import {useEffect, useState} from 'react';
-import {AppMark, APPS, Icon, Key, Pill, RuntimeMark, Spinner, Tabs, Tag} from '@paperboatlab/ui';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {AppMark, APPS, Icon, Key, Menu, Pill, RuntimeMark, Spinner, Tabs, Tag, type MenuEntry} from '@paperboatlab/ui';
 import {PackagePanel, type InstalledPackage, type RegistryItem} from '@paperboatlab/ui/packages';
 import type {Client, Lease, Runtime} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
@@ -136,17 +136,41 @@ function Running({client, act, leases}: {client: Client; act: Act; leases: Lease
 
 // The kit's PackagePanel: environment = `package list`, add = `package add`, remove = `package remove`; an add
 // downloads and precompiles (minutes, at times): `act`'s toast turns into its end, so the view can change meanwhile.
-// Each runtime's registry, and a shelf to start from (the one Julia package manager: Julix sends its users here).
-// ponytail: a shelf, not the registry's index (the CLI has no search); any other name adds as typed
-const REGISTRY: Record<string, {title: string; source?: string; shelf: RegistryItem[]}> = {
+// Julia's registry is General through the CLI (`package search|info julia`, cached a day; Julix sends its users
+// here); the others add by name. A shelf to start from before a search.
+const REGISTRY: Record<string, {title: string; source?: string; search?: boolean; shelf: RegistryItem[]}> = {
   python: {title: 'PyPI', source: 'pypi.org', shelf: []},
   omc: {title: 'OpenModelica index', shelf: []},
-  julia: {title: 'General', source: 'pkg.julialang.org', shelf: [
+  julia: {title: 'General', source: 'github.com/JuliaRegistries', search: true, shelf: [
     {name: 'Plots', note: 'plots through backends (shown as images)'}, {name: 'CairoMakie', note: 'Makie, drawn with Cairo (shown as images)'},
     {name: 'DataFrames', note: 'tables'}, {name: 'CSV', note: 'read and write CSV'}, {name: 'Optim', note: 'optimisation'},
     {name: 'DifferentialEquations', note: 'ODEs, SDEs, DAEs'}, {name: 'ControlSystems', note: 'LTI systems, Bode, step'},
   ]},
 };
+/** `package info julia <name> --json` */
+interface Info {name: string; uuid: string; url: string; latest: string; versions: string[]; version_count: number; description: string; stars: number | null; topics: string[]}
+type Folder = {dir: string; label: string; meta?: string};
+const NONE = {title: 'registry', shelf: [] as RegistryItem[], source: undefined, search: false};
+
+// Packages are per folder (each its own package volume): the hubs (Malachite's `hub list`, absent without it), the
+// folders of running sessions and instances, those that have packages already; or any other.
+function useFolders(client: Client, runtime: string, rev: number) {
+  const {sessions, instances, commands} = useStore(client, s => s);
+  const malachite = commands.some(c => c.id === 'hub.list');
+  const [hubs, setHubs] = useState<Folder[]>([]);
+  const [had, setHad] = useState<Folder[]>([]);
+  useEffect(() => {
+    if (malachite) void client.run('hub list').then(j => j.state === 'done' &&
+      setHubs((j.result as {name: string; path: string; missing?: boolean}[]).filter(h => !h.missing).map(h => ({dir: h.path, label: h.name, meta: home(h.path)}))));
+    void client.run(`package folders ${runtime}`).then(j => j.state === 'done' && setHad((j.result as {project: string}[]).map(v => ({dir: v.project, label: home(v.project)}))));
+  }, [client, runtime, rev, malachite]);
+  const running = [...sessions.map(s => [s.app, s.project]), ...instances.filter(alive).map(l => [ownerApp(l.owner), l.project ?? ''])].filter(([, d]) => d);
+  const julix = running.find(([app]) => app === 'julix')?.[1];
+  const seen = new Set<string>();
+  const once = (fs: Folder[]) => fs.filter(f => !seen.has(f.dir) && seen.add(f.dir));
+  const groups: [string, Folder[]][] = [['Hubs', once(hubs)], ['Running', once(running.map(([app, dir]) => ({dir, label: home(dir), meta: app})))], ['With packages', once(had)]];
+  return {groups, julix, name: (dir: string) => hubs.find(h => h.dir === dir)?.label ?? home(dir)};
+}
 
 function Packages({client, act, rt}: {client: Client; act: Act; rt: Runtime}) {
   const [project, setProject] = useState<string | null>(null);
@@ -154,15 +178,24 @@ function Packages({client, act, rt}: {client: Client; act: Act; rt: Runtime}) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [output, setOutput] = useState('');
+  const [menu, setMenu] = useState(false);
+  const [offline, setOffline] = useState('');
+  const [rev, setRev] = useState(0);
+  const pickRef = useRef<HTMLSpanElement>(null);
+  const folders = useFolders(client, rt.name, rev);
+  const reg = REGISTRY[rt.name] ?? NONE;
   const load = (dir: string) => {
     setPkgs(null);
     setError('');
     void client.run(`package list ${rt.name} --project "${dir}"`).then(j =>
       j.state === 'done' ? setPkgs((j.result as {packages: InstalledPackage[]}).packages ?? []) : setError(j.error ?? 'failed'));
   };
+  const open = (dir: string) => (setProject(dir), setOutput(''), load(dir));
+  // a running Julix session's folder to begin with
+  useEffect(() => void (!project && folders.julix && open(folders.julix)), [folders.julix]);
   const choose = async () => {
-    const dir = await bridge().pickFolder('A project folder');
-    if (dir) (setProject(dir), setOutput(''), load(dir));
+    const dir = await bridge().pickFolder('A folder for packages');
+    if (dir) open(dir);
   };
   const change = async (op: 'add' | 'remove', pkg: string) => {
     if (!project) return;
@@ -172,24 +205,49 @@ function Packages({client, act, rt}: {client: Client; act: Act; rt: Runtime}) {
     setOutput([...job.output, String(job.result ?? job.error ?? '')].join('\n').trim());
     setBusy('');
     load(project);
+    setRev(r => r + 1);  // a first add makes the folder's volume
   };
-  const reg = REGISTRY[rt.name] ?? {title: rt.name, shelf: []};
-  // the typed name (name or name@version) as is, then the shelf's matches
-  const byName = async (q: string) => {
-    const results = [{name: q, latest: q.split('@')[1] ?? 'newest', note: `paperboat package add ${rt.name} ${q}`},
-      ...reg.shelf.filter(i => i.name !== q && `${i.name} ${i.note}`.toLowerCase().includes(q.toLowerCase()))];
+  // General's names (a name@version adds as typed); the others: the typed name, then the shelf's matches. Kept
+  // across renders: the panel searches again when it changes, and a search's job re-renders this.
+  const search = useCallback(async (q: string) => {
+    const typed = (q: string, note = `paperboat package add ${rt.name} ${q}`) => ({name: q, latest: q.split('@')[1] ?? 'newest', note});
+    if (reg.search && /^[\w.+-]+$/.test(q)) {
+      const j = await client.run(`package search ${rt.name} ${q}`);
+      if (j.state === 'done') {
+        const r = j.result as {total: number; results: {name: string}[]; stale: boolean};
+        setOffline(r.stale ? 'offline: the last copy of General' : '');
+        return {results: r.results, total: r.total};
+      }
+      setOffline((j.error ?? 'offline').split(' (')[0]);
+      return {results: [typed(q, 'offline: this adds it by name')], total: 1};
+    }
+    const results = [typed(q), ...reg.shelf.filter(i => i.name !== q && `${i.name} ${i.note}`.toLowerCase().includes(q.toLowerCase()))];
     return {results, total: results.length};
+  }, [client, rt.name, reg]);
+  const detail = async (name: string) => {
+    const j = await client.run(`package info ${rt.name} ${name}`);
+    if (j.state !== 'done') throw new Error(j.error ?? 'failed');
+    const p = j.result as Info;
+    return {name: p.name, latest: p.latest, description: p.description, repo: p.url, versions: p.versions, id: p.uuid,
+      facts: [p.stars !== null ? `${p.stars} stars` : '', `${p.version_count} versions`, p.topics.length ? `topics: ${p.topics.join(', ')}` : ''].filter(Boolean)};
   };
+  const items: MenuEntry[] = folders.groups.flatMap(([group, fs]): MenuEntry[] => fs.length
+    ? [{group}, ...fs.map(f => ({id: f.dir, label: f.label, meta: f.meta, checked: f.dir === project, run: () => open(f.dir)}))] : []);
+  items.push(...(items.length ? ['-' as const] : []), {id: 'other', label: 'Other folder…', icon: 'folder-opened', run: () => void choose()});
   return (
     <div className="card">
-      <div className="chead"><span className="label">Project</span>
-        <button className="well sm pick" onClick={() => void choose()}>{project ? home(project) : 'Choose a folder…'}<Icon name="chevron-down" /></button>
-        <span className="label">its own package volume</span></div>
-      {!project ? <p className="empty-note">Choose a project to see its packages.</p> : (
+      <div className="chead"><span className="label">Folder</span>
+        <span className="folder" ref={pickRef}>
+          <button className="well sm pick" aria-expanded={menu} onClick={() => setMenu(m => !m)}>{project ? folders.name(project) : 'Choose a folder…'}<Icon name="chevron-down" /></button>
+          {menu && <Menu label="Folders" items={items} triggerRef={pickRef} onClose={() => setMenu(false)} />}
+        </span>
+        <span className="label">the folder you open in Julix, or a hub; each has its own packages</span></div>
+      {!project ? <p className="empty-note">Choose a folder to see its packages.</p> : (
         <PackagePanel runtime={null} busy={busy} error={error} output={output} loading={error ? undefined : 'reading the packages'}
-          environment={pkgs && {title: 'environment', tags: ['an add reaches the network, for that step only'], packages: pkgs, empty: 'No packages in this project yet. Add one from the registry.',
+          environment={pkgs && {title: 'environment', path: home(project), tags: ['an add reaches the network, for that step only'], packages: pkgs, empty: 'No packages in this folder yet. Add one from the registry.',
             actions: [{label: 'Reload', run: () => load(project)}], remove: name => void change('remove', name)}}
-          registry={{title: reg.title, source: reg.source, items: reg.shelf, itemsLabel: reg.shelf.length ? 'to start with; or type a name, or name@version' : 'type a name, or name@version', search: byName, add: name => void change('add', name)}} />
+          registry={{title: reg.title, source: offline || reg.source, items: reg.shelf, search, detail: reg.search ? detail : undefined, add: name => void change('add', name),
+            itemsLabel: reg.search ? 'to start with; or search General, or type name@version' : 'type a name, or name@version'}} />
       )}
       {pkgs && <div className="cfoot">a running kernel loads new ones after a restart</div>}
     </div>

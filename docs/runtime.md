@@ -75,8 +75,10 @@ is sent as that and `text/plain` only, with no images: the app draws the scene i
 on demand. The JSON is `{"scene": {...}, "buffers": "<base64>"}`; the scene's large arrays are
 `{"buf": true, "dtype": "f32" | "u32" | "u8", "offset", "length"}` into the decoded buffers.
 
-A session's **project** is active (as `julia --project`), so packages `paperboat add julia …` put in it
-load with `using`.
+A session's **project** is active (as `julia --project`), so packages `paperboat package add julia …` put in
+it load with `using`. `paperboat package search julia <name>` and `package info julia <package>` read Julia's
+General registry (cached a day under `$PAPERBOAT_HOME/cache/registries/julia`); `package folders` lists the
+folders that have a package volume.
 
 **Debugging** (Julia; Python answers `debug` with `UnknownOp`): `eval` with `debug: true` runs the cell's
 top-level statements one by one, instrumented (hooks before each statement and around each function, so

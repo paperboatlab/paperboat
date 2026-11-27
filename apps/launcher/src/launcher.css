@@ -54,6 +54,7 @@ body { background: var(--surface-sunken); color: var(--text); font: var(--size-s
 .chead { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .chead:last-child { border-bottom: 0; } .chead b { font: 600 var(--size-md) var(--font-display); } .chead .bend { gap: 6px; }
 .cfoot { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-top: 1px solid var(--line); font: var(--size-2xs) var(--font-mono); color: var(--text-muted); }
+.folder { position: relative; } .folder .menu { position: absolute; left: 0; top: calc(100% + var(--space-1)); min-width: 100%; }
 .pick { cursor: pointer; min-width: 250px; } .pick .pb-icon { margin-left: auto; color: var(--text-muted); }
 table.t { width: 100%; border-collapse: collapse; }
 table.t th { font: var(--size-2xs) var(--font-sans); color: var(--text-muted); text-align: left; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--line); white-space: nowrap; font-weight: 400; }
