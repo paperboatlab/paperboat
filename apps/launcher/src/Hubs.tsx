@@ -83,7 +83,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
     <div className="main">
       <section className="panel" aria-label="Hubs">
         <div className="phead"><span className="count">{list ? `${list.length} known` : ''}</span></div>
-        <div className="hub-keys">
+        <div className="list-keys">
           <Key size="sm" kind="primary" icon="add" onClick={newHub}>New hub…</Key>
           <Key size="sm" icon="folder-opened" onClick={addHub}>Add a hub folder…</Key>
         </div>
