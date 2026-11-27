@@ -117,6 +117,8 @@ TEST_CASE("toolkit info reads the repository, caches it, and says when it can't"
   CHECK(t["stale"] == false);
   CHECK(json::parse(cli({"toolkit", "info", "control", "--json"}, {}, {gone}).stdout_text) == t);  // fresh in the cache
   CHECK(json::parse(cli({"toolkit", "info", "control", "--refresh", "--json"}, {}, {gone}).stdout_text)["stale"] == true);
+  put(r / "git" / "trees" / "HEAD", json{{"tree", json::array()}}.dump());  // no blocks: a bad read, the last copy stays
+  CHECK(json::parse(cli({"toolkit", "info", "control", "--refresh", "--json"}, {}, {api}).stdout_text)["blocks"].size() == 3);
   fs::remove_all(kHome / "cache");
   const auto off = cli({"toolkit", "info", "control"}, {}, {gone});
   CHECK(off.exit_code == 1);
