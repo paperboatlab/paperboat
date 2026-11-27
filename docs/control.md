@@ -21,7 +21,7 @@ A lease belongs to the connection that acquired it: closing the connection relea
 | `runtimes.list` | – | `{runtimes: [manifest + backends.<name>.{usable, ready}], errors, backends}` |
 | `pull` | `runtime`, `backend?` | `{runtime, backend, image}`; `pull.progress` events meanwhile |
 | `acquire` | `runtime`, `mode` (`station`\|`session`\|`exec`), `command?` (exec), `project?`, `work?`, `policy?`, `backend?`, `owner?`, `allow_unpinned?`, `allow_unverified?` | a lease |
-| `release` | `lease` | `{}` |
+| `release` | `lease`, `stop?` | `{}`; with `stop`, a station runtime ends now instead of staying warm (when no one else holds it) |
 | `ps` | – | `[lease]` |
 | `stats` | `lease` | `{lease, stats: {cpu_percent, memory_bytes, pids}}` (−1 = unavailable) |
 | `interrupt` | `lease` | `{delivered}`: SIGINT to the runtime process (podman/docker `kill`, or `kill(2)` natively) |

@@ -78,7 +78,8 @@ class Manager {
 
   // Throws std::runtime_error with a message a user can act on.
   nlohmann::json acquire(const AcquireRequest& request, int client);
-  void release(const std::string& lease, int client);
+  // `stop`: end it now even when the pool would keep it warm (a station that ends its runtime with itself).
+  void release(const std::string& lease, int client, bool stop = false);
   void drop_client(int client);         // a client went away: release everything it held
 
   // Housekeeping, called every few seconds: idle expiry, instances that exited on their own.
@@ -107,6 +108,7 @@ class Manager {
   Backend* pick_backend(const Manifest& m, const std::string& want, std::string& why);
   Backend* backend_named(const std::string& name);
   void stop_lease(Lease& l, const std::string& why);
+  bool instance_running(const Lease& l);  // its backend lists it as running
   void emit(Event e);
 
   Catalog catalog_;

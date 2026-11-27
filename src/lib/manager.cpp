@@ -145,8 +145,15 @@ json Manager::acquire(const AcquireRequest& req, int client) {
 
   // A warm station-mode instance for the same key is reused; one still starting is waited for.
   if (req.mode == "station") {
-    for (auto& [id, l] : leases_) {
+    for (auto it = leases_.begin(); it != leases_.end(); ++it) {
+      auto& l = it->second;
       if (l->key != key.str() || (l->state != "running" && l->state != "idle" && l->state != "starting")) continue;
+      if (l->state == "idle" && !instance_running(*l)) {  // ended since its release (a shutdown): never handed out
+        std::unique_ptr<Lease> dead = std::move(l);
+        leases_.erase(it);
+        stop_lease(*dead, "exited");
+        break;
+      }
       Lease* lease = l.get();
       lease->holders.insert(client);
       if (lease->state == "starting") started_.wait(lock, [&] { return lease->state != "starting"; });
@@ -283,6 +290,14 @@ json Manager::acquire(const AcquireRequest& req, int client) {
   return to_json(done);
 }
 
+bool Manager::instance_running(const Lease& l) {
+  Backend* b = backend_named(l.backend);
+  if (!b) return false;
+  for (const auto& i : b->list())
+    if (i.name == l.instance.name) return i.state == "running";
+  return false;
+}
+
 void Manager::stop_lease(Lease& l, const std::string& why) {
   Backend* b = backend_named(l.backend);
   if (b && !l.instance.name.empty()) {
@@ -294,7 +309,7 @@ void Manager::stop_lease(Lease& l, const std::string& why) {
   emit({{"event", "runtime.stopped"}, {"lease", l.id}, {"runtime", l.runtime}, {"reason", why}});
 }
 
-void Manager::release(const std::string& id, int client) {
+void Manager::release(const std::string& id, int client, bool stop) {
   std::unique_ptr<Lease> gone;
   {
     std::lock_guard lock(mutex_);
@@ -303,7 +318,7 @@ void Manager::release(const std::string& id, int client) {
     Lease& l = *it->second;
     emit({{"event", "lease.released"}, {"lease", l.id}, {"runtime", l.runtime}, {"holders", l.holders.size()}});
     if (!l.holders.empty()) return;
-    if (l.mode == "station" && l.state == "running" && options_.idle_timeout.count() > 0) {
+    if (!stop && l.mode == "station" && l.state == "running" && options_.idle_timeout.count() > 0) {
       l.state = "idle";
       l.idle_since = Clock::now();
       return;

@@ -178,7 +178,7 @@ json handle(Manager& m, Client& c, const std::string& op, const json& args, cons
                   });
   if (op == "acquire") return m.acquire(acquire_request(args, "client-" + std::to_string(c.id)), c.id);
   if (op == "release") {
-    m.release(args.at("lease").get<std::string>(), c.id);
+    m.release(args.at("lease").get<std::string>(), c.id, args.value("stop", false));
     return json::object();
   }
   if (op == "prune") return m.prune(args.value("dry_run", false));
