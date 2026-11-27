@@ -1080,6 +1080,147 @@ int packages(Args& a, const std::string& op) {
   return 0;
 }
 
+// The folders with a package volume of `runtime` (all with none) whose folder still exists: Packages lists them.
+int package_folders(Args& a) {
+  const std::string rt = a.arg(0).empty() ? "" : language(a.arg(0));
+  json out = json::array();
+  for (const auto& v : daemon(a).call("volumes"))
+    if (v["exists"].get<bool>() && (rt.empty() || v["runtime"].get<std::string>().starts_with(rt + "-"))) out.push_back(v);
+  if (a.json_out) return print_json(out), 0;
+  if (out.empty()) return std::cout << "No folder has packages yet.\n", 0;
+  std::vector<std::vector<std::string>> rows;
+  for (const auto& v : out) rows.push_back({v["runtime"], v["project"]});
+  print_table({"RUNTIME", "FOLDER"}, rows);
+  return 0;
+}
+
+// ── the Julia General registry: the names from its Registry.toml, a package's versions and repository from its
+// folder (Versions.toml, Package.toml), the repository's description, stars and topics from GitHub. Each is kept a
+// day in <home>/cache/registries/julia (--refresh); offline, the last copy marked stale, else an error that says so.
+
+const std::string kGeneral = "JuliaRegistries/General";
+const std::string kRaw = "application/vnd.github.raw";
+
+std::string read_file(const fs::path& f) {
+  std::stringstream s;
+  s << std::ifstream(f).rdbuf();
+  return s.str();
+}
+
+// `file` younger than a day: its text; else what fetch() gives, kept; fetch() failing: the kept text, stale.
+std::pair<std::string, bool> kept_a_day(const fs::path& file, bool refresh, const std::function<std::string()>& fetch) {
+  std::error_code ec;
+  const auto at = fs::last_write_time(file, ec);
+  if (!ec && !refresh && fs::file_time_type::clock::now() - at < std::chrono::hours(24)) return {read_file(file), false};
+  try {
+    std::string text = fetch();
+    fs::create_directories(file.parent_path());
+    std::ofstream(file) << text;
+    return {text, false};
+  } catch (const std::exception& e) {
+    if (ec) throw Failure(std::string("offline: the General registry can't be reached (") + e.what() + "); paperboat package add julia <name> still adds by name", 1, {{"offline", true}});
+    return {read_file(file), true};
+  }
+}
+
+fs::path registry_cache() { return paths::home() / "cache" / "registries" / "julia"; }
+
+// {name: {uuid, path}} of General; `stale` when it is the last copy.
+std::map<std::string, std::pair<std::string, std::string>> general(bool refresh, bool& stale) {
+  const auto [text, old] = kept_a_day(registry_cache() / "Registry.toml", refresh, [] {
+    std::string t = github_get(kGeneral + "/contents/Registry.toml", kRaw);
+    if (!toml::parse(t)["packages"].is_table()) throw Failure("Registry.toml has no packages");  // a bad read is never kept
+    return t;
+  });
+  stale = old;
+  std::map<std::string, std::pair<std::string, std::string>> out;
+  const toml::table reg = toml::parse(text);
+  for (const auto& [uuid, e] : *reg["packages"].as_table())
+    if (const auto* t = e.as_table()) out[(*t)["name"].value_or(std::string())] = {std::string(uuid.str()), (*t)["path"].value_or(std::string())};
+  return out;
+}
+
+std::string lower(std::string s) {
+  std::ranges::transform(s, s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return s;
+}
+
+void julia_only(const std::string& runtime) {
+  if (language(runtime) != "julia") throw Failure("the registry is Julia's General; add a " + language(runtime) + " package by its name (paperboat package add)", 2);
+}
+
+// Names that hold the query: those that start with it first, then the shorter; the first 50.
+int package_search(Args& a) {
+  julia_only(need_arg(a, "runtime"));
+  const std::string q = a.arg(1), needle = lower(q);
+  if (needle.empty()) throw Failure("search for what? paperboat " + a.cmd->name + " " + a.cmd->args, 2);
+  bool stale = false;
+  std::vector<std::tuple<bool, std::size_t, std::string, std::string>> hits;  // (not a prefix, length, name, uuid)
+  for (const auto& [name, e] : general(a.has("--refresh"), stale))
+    if (const auto at = lower(name).find(needle); at != std::string::npos) hits.emplace_back(at != 0, name.size(), name, e.first);
+  std::ranges::sort(hits);
+  json results = json::array();
+  for (std::size_t i = 0; i < hits.size() && i < 50; ++i) results.push_back({{"name", std::get<2>(hits[i])}, {"uuid", std::get<3>(hits[i])}});
+  const json out = {{"runtime", "julia"}, {"registry", "General"}, {"query", q}, {"total", hits.size()}, {"results", results}, {"stale", stale}};
+  if (a.json_out) return print_json(out), 0;
+  if (stale) std::cout << "(offline: the last copy of General)\n";
+  for (const auto& r : results) std::cout << r["name"].get<std::string>() << "\n";
+  if (hits.size() > 50) std::cout << "… " << hits.size() - 50 << " more; narrow the search\n";
+  return 0;
+}
+
+json fetch_julia_package(const std::string& name, const std::string& uuid, const std::string& path) {
+  const std::string dir = kGeneral + "/contents/" + path + "/";
+  const toml::table pkg = toml::parse(github_get(dir + "Package.toml", kRaw)), vers = toml::parse(github_get(dir + "Versions.toml", kRaw));
+  std::vector<std::string> versions;
+  for (const auto& [v, t] : vers)
+    if (!t.as_table() || !(*t.as_table())["yanked"].value_or(false)) versions.emplace_back(v.str());
+  std::ranges::sort(versions, [](const std::string& x, const std::string& y) { return compare_versions(x, y) > 0; });
+  const std::string repo = pkg["repo"].value_or(std::string());
+  std::string url = repo.ends_with(".git") ? repo.substr(0, repo.size() - 4) : repo;
+  json out = {{"runtime", "julia"}, {"name", name}, {"uuid", uuid}, {"repo", repo}, {"url", url}, {"latest", versions.empty() ? "" : versions[0]},
+              {"versions", std::vector(versions.begin(), versions.begin() + static_cast<long>(std::min<std::size_t>(versions.size(), 10)))},
+              {"version_count", versions.size()}, {"description", ""}, {"stars", nullptr}, {"topics", json::array()}, {"fetched", std::time(nullptr)}};
+  if (repo.find("github.com/") != std::string::npos) try {
+      const json gh = json::parse(github_get(github_slug(url)));
+      if (gh["description"].is_string()) out["description"] = gh["description"];
+      out["stars"] = gh.value("stargazers_count", 0);
+      if (gh["topics"].is_array()) out["topics"] = gh["topics"];
+    } catch (const std::exception& e) {
+      out["github_error"] = e.what();  // the registry's part stays; the next info asks GitHub again
+    }
+  return out;
+}
+
+int package_info(Args& a) {
+  julia_only(need_arg(a, "runtime"));
+  const std::string want = a.arg(1);
+  if (want.empty()) throw Failure("which package? paperboat " + a.cmd->name + " " + a.cmd->args, 2);
+  bool stale = false;
+  const auto reg = general(false, stale);
+  auto it = reg.find(want);
+  if (it == reg.end()) it = std::ranges::find_if(reg, [&](const auto& e) { return lower(e.first) == lower(want); });
+  if (it == reg.end()) throw Failure("no package named " + want + " in the General registry", 2);
+  const auto& [name, e] = *it;
+  const fs::path file = registry_cache() / "packages" / (name + ".json");
+  json p;
+  try { p = json::parse(read_file(file)); } catch (...) {}
+  const auto [text, old] = kept_a_day(file, a.has("--refresh") || p.contains("github_error"), [&] { return fetch_julia_package(name, e.first, e.second).dump(); });
+  p = json::parse(text);
+  p["stale"] = old || stale;
+  if (a.json_out) return print_json(p), 0;
+  std::cout << name << " " << p["latest"].get<std::string>() << (p["stars"].is_number() ? " · " + std::to_string(p["stars"].get<long>()) + " stars" : "")
+            << (p["stale"].get<bool>() ? " (offline: the last copy)" : "") << "\n" << p["url"].get<std::string>() << "\n";
+  if (!p["description"].get<std::string>().empty()) std::cout << "\n" << p["description"].get<std::string>() << "\n";
+  if (!p["topics"].empty()) {
+    std::cout << "\ntopics:";
+    for (const auto& t : p["topics"]) std::cout << " " << t.get<std::string>();
+    std::cout << "\n";
+  }
+  std::cout << "\nadd it: paperboat package add julia " << name << " --project <dir>\n";
+  return 0;
+}
+
 // ── Paperboat ──
 
 int paperboat_channel(Args& a) {
@@ -1220,6 +1361,7 @@ const std::map<std::string, Handler>& handlers() {
       {"runtime.logs", runtime_logs}, {"runtime.interrupt", runtime_interrupt}, {"runtime.prune", runtime_prune},
       {"runtime.events", runtime_events}, {"package.list", [](Args& a) { return packages(a, "list"); }},
       {"package.add", [](Args& a) { return packages(a, "add"); }}, {"package.remove", [](Args& a) { return packages(a, "remove"); }},
+      {"package.folders", package_folders}, {"package.search", package_search}, {"package.info", package_info},
       {"paperboat.update", paperboat_update}, {"paperboat.channel", paperboat_channel}, {"paperboat.daemon", paperboat_daemon},
       {"paperboat.about", paperboat_about}, {"paperboat.help", paperboat_help}};
   return h;

@@ -26,6 +26,7 @@ A lease belongs to the connection that acquired it: closing the connection relea
 | `stats` | `lease` | `{lease, stats: {cpu_percent, memory_bytes, pids}}` (−1 = unavailable) |
 | `interrupt` | `lease` | `{delivered}`: SIGINT to the runtime process (podman/docker `kill`, or `kill(2)` natively) |
 | `logs` | `lease`, `tail?` | `{text}`; an ended lease keeps its last output |
+| `volumes` | – | `[{runtime, project, path, exists}]`: the package volumes (`<runtime>-<major.minor>`) and the project each is for |
 | `prune` | `dry_run?` | `{removed: [{path, project}], dry_run}` |
 | `subscribe` | – | `{}`; this connection now receives every event |
 | `shutdown` | – | `{}`; the daemon stops every instance and exits |

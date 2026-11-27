@@ -181,6 +181,7 @@ json handle(Manager& m, Client& c, const std::string& op, const json& args, cons
     m.release(args.at("lease").get<std::string>(), c.id, args.value("stop", false));
     return json::object();
   }
+  if (op == "volumes") return m.volumes();
   if (op == "prune") return m.prune(args.value("dry_run", false));
   if (op == "subscribe") {
     c.subscribed = true;

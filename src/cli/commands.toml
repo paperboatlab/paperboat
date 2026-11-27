@@ -173,6 +173,27 @@ args = "<runtime> <package> --project <dir>"
 desc = "Remove a package from a project"
 group = "Packages"
 
+[[command]]
+id = "package.folders"
+name = "package folders"
+args = "[<runtime>]"
+desc = "The folders that have packages"
+group = "Packages"
+
+[[command]]
+id = "package.search"
+name = "package search"
+args = "julia <name> [--refresh]"
+desc = "Search Julia's General registry"
+group = "Packages"
+
+[[command]]
+id = "package.info"
+name = "package info"
+args = "julia <package> [--refresh]"
+desc = "A package in Julia's General registry"
+group = "Packages"
+
 # ── Paperboat ──
 [[command]]
 id = "paperboat.update"

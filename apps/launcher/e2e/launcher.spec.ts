@@ -37,10 +37,27 @@ test.beforeAll(async () => {
     .map(([id, name, args]) => `[[command]]\nid = "${id}"\nname = "${name}"\nargs = "${args}"\ndesc = "${name}"\ngroup = "Stations"\n`).join(''));
   writeFileSync(join(checkout, 'bin/stations'), `#!/bin/sh\n[ "$1 $2" = "station list" ] && exec echo '${JSON.stringify(stations)}'\necho "stations got: $*"\n`);
   chmodSync(join(checkout, 'bin/stations'), 0o755);
+  // julia natively is a script that keeps the names Pkg.add and Pkg.rm get, in the folder's package volume
+  mkdirSync(join(home, 'fakebin'));
+  writeFileSync(join(home, 'fakebin/julia'), '#!/bin/sh\nf="$PAPERBOAT_DEPS/added"; touch "$f"\n' +
+    'case "$3" in *\'Pkg.add(Pkg.PackageSpec(name="\'*) n=${3#*name=\\"}; echo "${n%%\\"*}" >> "$f";; esac\n' +
+    'case "$3" in *\'Pkg.rm("\'*) n=${3#*Pkg.rm(\\"}; grep -vx "${n%%\\"*}" "$f" > "$f.t"; mv "$f.t" "$f";; esac\n' +
+    'sed "s/^/PKG /;s/$/ 1.10.0/" "$f"\n');
+  chmodSync(join(home, 'fakebin/julia'), 0o755);
+  // GitHub is a folder: General's Registry.toml, DataFrames' folder in it, its repository
+  const general = join(home, 'github/repos/JuliaRegistries/General/contents');
+  mkdirSync(join(general, 'D/DataFrames'), {recursive: true});
+  mkdirSync(join(home, 'github/repos/JuliaData'), {recursive: true});
+  writeFileSync(join(general, 'Registry.toml'), '[packages]\na93c6f00-e57d-5684-b7b6-d8193f3e46c0 = { name = "DataFrames", path = "D/DataFrames" }\n' +
+    '864edb3b-99cc-5e75-8d2d-829cb0a9cfe8 = { name = "DataStructures", path = "D/DataStructures" }\n');
+  writeFileSync(join(general, 'D/DataFrames/Package.toml'), 'name = "DataFrames"\nrepo = "https://github.com/JuliaData/DataFrames.jl.git"\n');
+  writeFileSync(join(general, 'D/DataFrames/Versions.toml'), '["1.9.0"]\n["1.10.0"]\n');
+  writeFileSync(join(home, 'github/repos/JuliaData/DataFrames.jl'), JSON.stringify({description: 'In-memory tabular data', stargazers_count: 1845, topics: ['data', 'julia']}));
   app = await electron.launch({
     // CI runners: no setuid sandbox helper, no GPU under Xvfb
     args: [join(here, '..'), ...(process.env.CI ? ['--no-sandbox', '--disable-gpu'] : [])],
-    env: {...process.env, PAPERBOAT_BIN: bin, PAPERBOAT_HOME: home, PAPERBOAT_RUNTIME_DIR: join(home, 'run'), PAPERBOAT_DATA_DIR: data, PAPERBOAT_BACKENDS: 'native'},
+    env: {...process.env, PAPERBOAT_BIN: bin, PAPERBOAT_HOME: home, PAPERBOAT_RUNTIME_DIR: join(home, 'run'), PAPERBOAT_DATA_DIR: data, PAPERBOAT_BACKENDS: 'native',
+      PATH: `${join(home, 'fakebin')}:${process.env.PATH}`, PAPERBOAT_GITHUB_API: `file://${join(home, 'github')}`},
   });
   page = await app.firstWindow();
   await page.setViewportSize({width: 1440, height: 900});
@@ -135,14 +152,31 @@ test('runtimes: the catalog, where they run, a runtime in detail', async () => {
   await expect(page.locator('.facts2')).toContainText('paperboat-runtime/0');
   await shot('runtimes');
   await page.getByRole('tab', {name: /Events/}).click();
-  // julia's packages: the one Julia package manager, with a shelf to start from (the list itself needs julia)
+  // julia's packages: a folder, then General through the CLI (a folder here), an add, the folder listed after
   await page.locator('.kr', {hasText: 'julia'}).click();
   await page.getByRole('tab', {name: /Packages/}).click();
   await answerFolder(project);
   await page.getByRole('button', {name: /Choose a folder/}).click();
+  await page.getByRole('menuitem', {name: /Other folder/}).click();
+  await expect(page.locator('.pk')).toContainText('No packages in this folder yet');
   await page.getByRole('tab', {name: 'registry'}).click();
-  await expect(page.locator('.pk-results')).toContainText('DataFrames');
+  await expect(page.locator('.pk-results')).toContainText('DifferentialEquations');  // the shelf
+  await page.getByRole('textbox', {name: 'Search General'}).fill('data');
+  await expect(page.locator('.pk-results')).toContainText('DataStructures');
+  await page.locator('.pk-name', {hasText: 'DataFrames'}).click();
+  await expect(page.locator('.pk-card')).toContainText('In-memory tabular data');
+  await expect(page.locator('.pk-card')).toContainText('1845 stars');
+  await expect(page.locator('.pk-card')).toContainText('topics: data, julia');
+  await expect(page.locator('.pk-card .tag').first()).toHaveText('1.10.0');
   await shot('packages');
+  await page.getByRole('button', {name: 'Add DataFrames'}).click();
+  await expect(page.locator('.pk-card')).toContainText('installed');
+  await page.getByRole('tab', {name: 'environment'}).click();
+  await expect(page.locator('.pk-pkg')).toContainText('DataFrames');
+  await page.locator('.folder .pick').click();
+  await expect(page.getByRole('menu', {name: 'Folders'})).toContainText('With packages');
+  await shot('folders');
+  await page.keyboard.press('Escape');
   await page.getByRole('tab', {name: /Running/}).click();
 });
 

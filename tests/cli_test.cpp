@@ -127,6 +127,47 @@ TEST_CASE("toolkit info reads the repository, caches it, and says when it can't"
   fs::remove_all(gh);
 }
 
+// General is a folder too: Registry.toml, a package's folder, its repository on GitHub.
+TEST_CASE("package search and info read Julia's General registry, cache it, and say when they can't", "[cli]") {
+  const fs::path gh = kHome / "github", g = gh / "repos" / "JuliaRegistries" / "General" / "contents";
+  const auto put = [](const fs::path& f, const std::string& text) { fs::create_directories(f.parent_path()), std::ofstream(f) << text; };
+  put(g / "Registry.toml", "name = \"General\"\n[packages]\n"
+                           "a93c6f00-e57d-5684-b7b6-d8193f3e46c0 = { name = \"DataFrames\", path = \"D/DataFrames\" }\n"
+                           "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8 = { name = \"DataStructures\", path = \"D/DataStructures\" }\n"
+                           "11111111-1111-1111-1111-111111111111 = { name = \"MyData\", path = \"M/MyData\" }\n"
+                           "91a5bcdd-55d7-5caf-9e0b-520d859cae80 = { name = \"Plots\", path = \"P/Plots\" }\n");
+  put(g / "D" / "DataFrames" / "Package.toml", "name = \"DataFrames\"\nuuid = \"a93c6f00-e57d-5684-b7b6-d8193f3e46c0\"\nrepo = \"https://github.com/JuliaData/DataFrames.jl.git\"\n");
+  put(g / "D" / "DataFrames" / "Versions.toml", "[\"1.9.0\"]\ngit-tree-sha1 = \"a\"\n[\"1.10.0\"]\ngit-tree-sha1 = \"b\"\n[\"2.0.0\"]\ngit-tree-sha1 = \"c\"\nyanked = true\n");
+  put(gh / "repos" / "JuliaData" / "DataFrames.jl", R"({"description": "In-memory tabular data", "stargazers_count": 1845, "topics": ["data", "julia"], "html_url": "u"})");
+  const std::pair<std::string, std::string> api{"PAPERBOAT_GITHUB_API", "file://" + gh.string()}, gone{"PAPERBOAT_GITHUB_API", "file:///nowhere"};
+
+  const auto s = json::parse(cli({"package", "search", "julia", "data", "--json"}, {}, {api}).stdout_text);
+  CHECK(s["total"] == 3);
+  CHECK(s["results"][0]["name"] == "DataFrames");  // names that start with it first, the shorter first
+  CHECK(s["results"][1]["name"] == "DataStructures");
+  CHECK(s["results"][2]["name"] == "MyData");
+  CHECK(s["stale"] == false);
+  const auto p = json::parse(cli({"package", "info", "julia", "dataframes", "--json"}, {}, {api}).stdout_text);
+  CHECK(p["name"] == "DataFrames");
+  CHECK(p["latest"] == "1.10.0");  // numeric order; a yanked version never counts
+  CHECK(p["versions"] == json{"1.10.0", "1.9.0"});
+  CHECK(p["url"] == "https://github.com/JuliaData/DataFrames.jl");
+  CHECK(p["description"] == "In-memory tabular data");
+  CHECK(p["stars"] == 1845);
+  CHECK(p["topics"] == json{"data", "julia"});
+  CHECK(p["stale"] == false);
+  CHECK(json::parse(cli({"package", "info", "julia", "DataFrames", "--json"}, {}, {gone}).stdout_text) == p);  // a day in the cache
+  CHECK(json::parse(cli({"package", "search", "julia", "plot", "--refresh", "--json"}, {}, {gone}).stdout_text)["stale"] == true);
+  CHECK(cli({"package", "info", "julia", "Frobnicate"}, {}, {api}).exit_code == 2);
+  CHECK(cli({"package", "search", "python", "numpy"}).exit_code == 2);  // the others add by name
+  fs::remove_all(kHome / "cache");
+  const auto off = cli({"package", "search", "julia", "data", "--json"}, {}, {gone});
+  CHECK(off.exit_code == 1);
+  CHECK(json::parse(off.stdout_text)["offline"] == true);
+  CHECK_THAT(json::parse(off.stdout_text)["error"].get<std::string>(), ContainsSubstring("still adds by name"));
+  fs::remove_all(gh);
+}
+
 TEST_CASE("the channel is kept", "[cli]") {
   CHECK(cli({"channel"}).stdout_text == "release\n");
   CHECK(cli({"channel", "beta"}).ok());
