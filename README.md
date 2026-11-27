@@ -30,6 +30,8 @@ tests/               unit tests, and container tests against real podman
 
 ## Build
 
+What to install first, and every repository's checks: [docs/building.md](docs/building.md).
+
 ```sh
 cmake -S . -B build -G Ninja && ninja -C build
 ./build/tests/paperboat_tests              # unit
