@@ -341,28 +341,42 @@ std::string tail(const fs::path& file, std::size_t n) {
   return out;
 }
 
-// GitHub's releases of `repo` (a GitHub URL or owner/name), kept in <home>/cache/releases: `app list` asks on every
-// Launcher poll, so it takes what is younger than `max_age` (0: always ask). GitHub out of reach: what was kept,
-// else null; a miss is kept too ("null"), so an offline list doesn't wait on GitHub each time.
-json releases_of(std::string repo, std::chrono::seconds max_age) {
+// owner/name of a GitHub URL (or owner/name itself).
+std::string github_slug(std::string repo) {
   for (const std::string p : {"https://github.com/", "http://github.com/"})
     if (repo.starts_with(p)) repo.erase(0, p.size());
   if (repo.ends_with(".git")) repo.resize(repo.size() - 4);
-  std::string key = repo;
+  return repo;
+}
+
+// GET <api>/repos/<path> (`accept` picks GitHub's media type); $PAPERBOAT_GITHUB_API replaces the API, a file:// folder in the tests.
+// GitHub allows 60 anonymous asks an hour per address; a token (CI's, or the user's: $GITHUB_TOKEN, $GH_TOKEN) lifts it.
+std::string github_get(const std::string& path, const std::string& accept = "application/vnd.github+json") {
+  const char* api = std::getenv("PAPERBOAT_GITHUB_API");
+  std::vector<std::string> curl{"curl", "-fsSL", "--max-time", "15", "-H", "Accept: " + accept};
+  for (const char* v : {"GITHUB_TOKEN", "GH_TOKEN"})
+    if (const char* t = std::getenv(v); t && *t) { curl.insert(curl.end(), {"-H", std::string("Authorization: Bearer ") + t}); break; }
+  curl.push_back(std::string(api && *api ? api : "https://api.github.com") + "/repos/" + path);
+  const auto r = ProcessRunner::run_sync(curl, {}, {}, std::chrono::seconds(20));
+  std::string why = r.stderr_text.substr(0, r.stderr_text.find('\n'));
+  if (why.find("403") != std::string::npos) why = "GitHub's hourly limit for this address is used up";
+  if (!r.ok()) throw Failure("could not reach GitHub for " + path + (why.empty() ? "" : ": " + why));
+  return r.stdout_text;
+}
+
+// GitHub's releases of `repo` (a GitHub URL or owner/name), kept in <home>/cache/releases: `app list` asks on every
+// Launcher poll, so it takes what is younger than `max_age` (0: always ask). GitHub out of reach: what was kept,
+// else null; a miss is kept too ("null"), so an offline list doesn't wait on GitHub each time.
+json releases_of(const std::string& repo, std::chrono::seconds max_age) {
+  std::string key = github_slug(repo);
   std::ranges::replace(key, '/', '_');
   const fs::path kept = paths::home() / "cache" / "releases" / (key + ".json");
   const auto read_kept = [&]() -> json { try { return json::parse(std::ifstream(kept)); } catch (...) { return nullptr; } };
   std::error_code ec;
   const auto at = fs::last_write_time(kept, ec);
   if (!ec && max_age.count() > 0 && fs::file_time_type::clock::now() - at < max_age) return read_kept();
-  std::vector<std::string> curl{"curl", "-fsSL", "--max-time", "15", "-H", "Accept: application/vnd.github+json"};
-  // GitHub allows 60 anonymous asks an hour per address; a token (CI's, or the user's) lifts it
-  for (const char* v : {"GITHUB_TOKEN", "GH_TOKEN"})
-    if (const char* t = std::getenv(v); t && *t) { curl.insert(curl.end(), {"-H", std::string("Authorization: Bearer ") + t}); break; }
-  curl.push_back("https://api.github.com/repos/" + repo + "/releases?per_page=30");
-  const auto r = ProcessRunner::run_sync(curl, {}, {}, std::chrono::seconds(20));
   json out = nullptr;
-  if (r.ok()) try { out = json::parse(r.stdout_text); } catch (...) {}
+  try { out = json::parse(github_get(github_slug(repo) + "/releases?per_page=30")); } catch (...) {}
   if (out.is_null() && !ec) out = read_kept();  // stale beats nothing
   fs::create_directories(kept.parent_path(), ec);
   std::ofstream(kept) << out.dump();
@@ -373,7 +387,7 @@ json releases_of(std::string repo, std::chrono::seconds max_age) {
 // url}}, or null; throws when GitHub can't be reached.
 json newest_release(const std::string& repo, const std::string& want = "", std::chrono::seconds max_age = {}) {
   const json all = releases_of(repo, max_age);
-  if (!all.is_array()) throw Failure("could not reach GitHub for the releases of " + repo);
+  if (!all.is_array()) throw Failure("could not reach GitHub for the releases of " + github_slug(repo));
   const std::string ch = channel();
   json newest = nullptr;
   for (const auto& rel : all) {
@@ -799,6 +813,75 @@ int toolkit_list(Args& a) {
   return 0;
 }
 
+// A toolkit's details from its repository: its manifest's version, the licence GitHub detects, the blocks (one folder
+// each: src/<package>/<block>/<block>.cpp, and the types a package's blocks.toml defines), the README as GitHub
+// renders it, and the newest release on the channel. base is Simplicial's engine/toolkit. Cached an hour in
+// <home>/cache/toolkits; offline, the last copy (stale) or an error.
+json fetch_toolkit(const toml::table& e) {
+  const std::string name = e["name"].value_or(std::string()), kind = e["kind"].value_or(std::string()), repo = e["repo"].value_or(std::string());
+  const std::string slug = github_slug(repo), dir = kind == "base" ? "engine/toolkit" : "engine/toolkit/" + name, root = dir + "/src/";
+  const std::string readme_path = kind == "base" ? "engine/toolkit/README.md" : "README.md";
+  std::vector<std::string> blocks;
+  const json tree = json::parse(github_get(slug + "/git/trees/HEAD?recursive=1"));
+  for (const auto& f : tree["tree"]) {
+    const std::string p = f.value("path", std::string());
+    if (f.value("type", std::string()) != "blob" || !p.starts_with(root)) continue;
+    const std::vector<std::string> part = [&] {
+      std::vector<std::string> v;
+      std::istringstream in(p.substr(root.size()));
+      for (std::string w; std::getline(in, w, '/');) v.push_back(w);
+      return v;
+    }();
+    if (part.size() == 3 && part[2] == part[1] + ".cpp") blocks.push_back(part[0] + "/" + part[1]);
+    else if (part.size() == 2 && part[1] == "blocks.toml")  // ponytail: the file name signal uses; read toolkit.toml's `definitions` if another package names it otherwise
+      for (const auto& b : entries(toml::parse(github_get(slug + "/contents/" + p, "application/vnd.github.raw")), "blocks"))
+        blocks.push_back(part[0] + "/" + b["type"].value_or(std::string()));
+  }
+  std::ranges::sort(blocks);
+  const json release = newest_release(repo);
+  std::string version = release.is_null() ? "" : release["version"].get<std::string>();
+  if (kind != "base") version = toml::parse(github_get(slug + "/contents/" + dir + "/toolkit.toml", "application/vnd.github.raw"))["version"].value_or(version);
+  const std::string url = "https://github.com/" + slug;
+  return {{"name", name}, {"kind", kind}, {"repo", repo}, {"url", url}, {"version", version},
+          {"licence", json::parse(github_get(slug + "/license"))["license"].value("spdx_id", "")},
+          {"release", release.is_null() ? json(nullptr) : json{{"version", release["version"]}, {"url", release["url"]}}},
+          {"blocks", blocks}, {"readme", github_get(slug + "/readme" + (kind == "base" ? "/engine/toolkit" : ""), "application/vnd.github.html")},
+          {"readme_url", url + "/blob/HEAD/" + readme_path}, {"channel", channel()}, {"fetched", std::time(nullptr)}, {"stale", false}};
+}
+
+int toolkit_info(Args& a) {
+  const std::string name = need_arg(a, "toolkit");
+  toml::table entry;
+  for (auto& e : entries(load_toml("toolkits.toml"), "toolkits"))
+    if (e["name"].value_or(std::string()) == name) entry = e;
+  if (entry.empty()) throw Failure("no toolkit named " + name + "; paperboat toolkit list shows them", 2);
+  const fs::path cache = paths::home() / "cache" / "toolkits" / (name + ".json");
+  json t;
+  std::error_code ec;
+  if (fs::exists(cache, ec)) try {
+      t = json::parse(std::ifstream(cache));
+    } catch (...) {
+    }
+  const bool fresh = t.is_object() && t.value("channel", "") == channel() && std::time(nullptr) - t.value("fetched", 0L) < 3600;
+  if (!fresh || a.has("--refresh")) try {
+      t = fetch_toolkit(entry);
+      fs::create_directories(cache.parent_path());
+      std::ofstream(cache) << t.dump();
+    } catch (const std::exception& e) {
+      if (!t.is_object()) throw Failure("could not read " + name + "'s details from its repository (" + e.what() + "); paperboat toolkit list has its description");
+      t["stale"] = true;
+    }
+  if (a.json_out) return print_json(t), 0;
+  const json& rel = t["release"];
+  const std::string version = t["version"];
+  std::cout << name << (version.empty() ? "" : " " + version) << " · " << t["licence"].get<std::string>() << " · "
+            << (rel.is_null() ? "no release on " + t["channel"].get<std::string>() : "newest on " + t["channel"].get<std::string>() + ": " + rel["version"].get<std::string>())
+            << (t["stale"].get<bool>() ? " (offline: the last copy)" : "") << "\n" << t["url"].get<std::string>() << "\n\n" << t["blocks"].size() << " blocks:";
+  for (const auto& b : t["blocks"]) std::cout << " " << b.get<std::string>();
+  std::cout << "\n\nREADME: " << t["readme_url"].get<std::string>() << "\n";
+  return 0;
+}
+
 int runtime_list(Args& a) {
   ControlClient& c = daemon(a);
   const json r = c.call("runtimes.list");
@@ -1130,7 +1213,7 @@ const std::map<std::string, Handler>& handlers() {
   static const std::map<std::string, Handler> h = {
       {"app.list", app_list}, {"app.open", app_open}, {"app.install", app_install}, {"app.update", app_update},
       {"app.uninstall", app_uninstall}, {"app.stop", app_stop}, {"session.list", session_list}, {"session.logs", session_logs},
-      {"session.restart", session_restart}, {"session.stop", session_stop}, {"toolkit.list", toolkit_list},
+      {"session.restart", session_restart}, {"session.stop", session_stop}, {"toolkit.list", toolkit_list}, {"toolkit.info", toolkit_info},
       {"runtime.list", runtime_list}, {"runtime.pull", runtime_pull}, {"runtime.ps", runtime_ps}, {"runtime.stats", runtime_stats},
       {"runtime.logs", runtime_logs}, {"runtime.interrupt", runtime_interrupt}, {"runtime.prune", runtime_prune},
       {"runtime.events", runtime_events}, {"package.list", [](Args& a) { return packages(a, "list"); }},
