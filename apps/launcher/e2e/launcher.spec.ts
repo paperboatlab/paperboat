@@ -213,6 +213,8 @@ test('settings: the interface scale zooms the window, its keys stay in sight', a
     await settings.getByRole('radio', {name: new RegExp(`^${name}`)}).click();
     await expect.poll(zoom).toBeCloseTo(factor);
     await expect(page.locator('html')).not.toHaveAttribute('style', /zoom/);  // the window zooms, not CSS
+    // and its least width with it: the page never lays out narrower than at Default
+    expect(await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].getMinimumSize()[0])).toBe(Math.round(960 * factor));
     await page.keyboard.press('Escape');
     if (process.platform !== 'darwin') {
       const keys = page.locator('.window-keys').boundingBox(), width = await page.evaluate(() => innerWidth);
