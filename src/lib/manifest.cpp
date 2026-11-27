@@ -203,6 +203,27 @@ int compare_versions(std::string_view a, std::string_view b) {
     const long long p = i < x.size() ? x[i] : -1, q = i < y.size() ? y[i] : -1;
     if (p != q) return p < q ? -1 : 1;
   }
+  // the same numbers: what follows the - (semver's prerelease) orders them; none comes after any
+  const auto pre = [](std::string_view v) { const auto at = v.find('-'); return at == v.npos ? std::string_view{} : v.substr(at + 1); };
+  std::string_view p = pre(a), q = pre(b);
+  if (p.empty() || q.empty()) return p.empty() == q.empty() ? 0 : p.empty() ? 1 : -1;
+  // dot-separated: numbers numerically, before words; words as text; fewer parts first
+  const auto num = [](std::string_view s) { return !s.empty() && std::ranges::all_of(s, [](char c) { return std::isdigit(static_cast<unsigned char>(c)); }); };
+  while (!p.empty() || !q.empty()) {
+    if (p.empty() || q.empty()) return p.empty() ? -1 : 1;
+    const auto i = p.find('.'), j = q.find('.');
+    const std::string_view s = p.substr(0, i), t = q.substr(0, j);
+    p = i == p.npos ? std::string_view{} : p.substr(i + 1);
+    q = j == q.npos ? std::string_view{} : q.substr(j + 1);
+    if (num(s) && num(t)) {
+      if (s.size() != t.size()) return s.size() < t.size() ? -1 : 1;  // no leading zeros: longer is larger
+      if (s != t) return s < t ? -1 : 1;
+    } else if (num(s) != num(t)) {
+      return num(s) ? -1 : 1;
+    } else if (s != t) {
+      return s < t ? -1 : 1;
+    }
+  }
   return 0;
 }
 
