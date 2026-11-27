@@ -139,9 +139,14 @@ flowchart LR
   (that path), app, kind, name, description, path}`; a hub (`kind = "hub"`) opens in Malachite, a `pending` one is
   left out. The examples come from `$PAPERBOAT_EXAMPLES_DIR`, a checkout beside this one (with `golden.py`), else
   GitHub's tarball of the default branch, kept a day in `<home>/cache/examples` (`--refresh`; offline, the last
-  copy). `example open <id>` copies it once to `<home>/examples/<id>` (without `build/`, `.venv/`, `__pycache__/`;
-  later opens reuse the copy as the user left it) and opens that folder in its app (`app open`), printing the path.
-  Every app's Ctrl+K has **Open example: <name>** for its own examples: its server calls these two commands.
+  copy). `example open <id> [--to <folder>]` opens it where it is, the checkout or the cache, in its app (`app
+  open`), printing the path; nothing is copied (pb#75). The page learns it is an example from its URL:
+  `?example=<id>&name=<name>`, `&to=<folder>` (where its Copy goes: the folder the user opened it from) and
+  `&cache=1` when it is the cache (changes there go a day later); `--json` adds `cache` and that `url` to the
+  entry. `example copy <id> --to <folder> [--open]` copies it into `<folder>/<its folder's name>` (without
+  `build/`, `.venv/`, `__pycache__/`, `.git/`), never over a folder already there, prints that path, and with
+  `--open` opens the copy. Every app's Ctrl+K has **Open example: <name>** for its own examples, and an example's
+  window shows the kit's `ExampleBanner` from those parameters: its servers call these three commands.
 
 ## 3. Invariants
 

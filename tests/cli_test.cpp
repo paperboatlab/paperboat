@@ -265,7 +265,7 @@ TEST_CASE("launcher: the Launcher on a page and a runtime (an app's Manage runti
 }
 
 // paperboat-examples of the test's own: a ready example, a pending one, a hub; its apps from a registry of the test's own.
-TEST_CASE("examples: listed by app, copied on first open, opened in their app", "[cli]") {
+TEST_CASE("examples: listed by app, opened where they are, copied when asked", "[cli]") {
   const fs::path data = kHome / "data", repo = kHome / "examples-src", checkout = kHome / "app-src";
   const auto put = [](const fs::path& f, const std::string& text) { fs::create_directories(f.parent_path()), std::ofstream(f) << text; };
   put(repo / "golden.py", "");
@@ -293,25 +293,38 @@ TEST_CASE("examples: listed by app, copied on first open, opened in their app", 
   CHECK(json::parse(run({"example", "list", "--app", "julix", "--json"}).stdout_text).empty());
   CHECK(run({"example", "open", "nope/nothing"}).exit_code == 2);
 
-  // its app not installed: copied all the same, and said which to install
-  const fs::path copy = kHome / "examples" / "simplicial" / "09-synth-cpp";
+   // its app not installed: said which to install
   CHECK_THAT(run({"example", "open", "simplicial/09-synth-cpp"}).stderr_text, ContainsSubstring("paperboat app install simplicial"));
-  CHECK(fs::exists(copy / "src" / "synth.cpp"));
-  CHECK_FALSE(fs::exists(copy / "build"));  // what a build left stays behind
   REQUIRE(run({"app", "install", "malachite", "--from", checkout.string()}).ok());
+  const fs::path lab = repo / "hubs" / "lab", mine = kHome / "my hubs";
   const auto o = run({"example", "open", "hubs/lab", "--no-open"});
   REQUIRE(o.ok());
-  CHECK(o.stdout_text == (kHome / "examples" / "hubs" / "lab").string() + "\n");  // a hub opens in Malachite
-  put(kHome / "examples" / "hubs" / "lab" / "notes" / "index.md", "# Mine\n");
-  const auto j = json::parse(run({"example", "open", "hubs/lab", "--no-open", "--json"}).stdout_text);
-  CHECK(j["session"]["project"] == (kHome / "examples" / "hubs" / "lab").string());  // the session it has
+  CHECK(o.stdout_text == lab.string() + "\n");  // a hub opens in Malachite, where it is: nothing copied
+  CHECK_FALSE(fs::exists(kHome / "examples"));
+  fs::create_directories(mine);
+  CHECK(run({"example", "open", "hubs/lab", "--no-open", "--to", (kHome / "nowhere").string()}).exit_code == 2);
+  const auto j = json::parse(run({"example", "open", "hubs/lab", "--no-open", "--to", mine.string(), "--json"}).stdout_text);
+  CHECK(j["session"]["project"] == lab.string());  // the session it has
   CHECK(j["session"]["app"] == "malachite");
-  std::stringstream kept;
-  kept << std::ifstream(kHome / "examples" / "hubs" / "lab" / "notes" / "index.md").rdbuf();
-  CHECK(kept.str() == "# Mine\n");  // the copy as the user left it; the original stays clean
+  CHECK(j["cache"] == false);
+  // the page is told it is an example, its name, and where its Copy goes
+  CHECK(j["url"] == j["session"]["url"].get<std::string>() + "?example=hubs/lab&name=Lab&to=" + (kHome / "my%20hubs").string());
+
+  // copied into a folder of the user's, without what a build left; never over a folder there
+  const auto c = run({"example", "copy", "simplicial/09-synth-cpp", "--to", mine.string()});
+  REQUIRE(c.ok());
+  CHECK(c.stdout_text == (mine / "09-synth-cpp").string() + "\n");
+  CHECK(fs::exists(mine / "09-synth-cpp" / "src" / "synth.cpp"));
+  CHECK_FALSE(fs::exists(mine / "09-synth-cpp" / "build"));
+  CHECK(fs::exists(repo / "simplicial" / "09-synth-cpp" / "build"));  // the original as it was
+  CHECK_THAT(run({"example", "copy", "simplicial/09-synth-cpp", "--to", mine.string()}).stderr_text, ContainsSubstring("is there already"));
+  CHECK(run({"example", "copy", "simplicial/09-synth-cpp"}).exit_code == 2);  // no --to
+  const auto co = json::parse(run({"example", "copy", "hubs/lab", "--to", mine.string(), "--open", "--no-open", "--json"}).stdout_text);
+  CHECK(co["path"] == (mine / "lab").string());
+  CHECK(co["session"]["project"] == (mine / "lab").string());  // --open: the copy in its app
   CHECK(run({"app", "stop", "malachite"}).ok());
 
-  // no checkout: GitHub's copy (a folder here, its tarball one top folder), kept a day
+ // no checkout: GitHub's copy (a folder here, its tarball one top folder), kept a day
   if (fs::exists(fs::path(PAPERBOAT_BIN_DIR).parent_path().parent_path() / "paperboat-examples" / "golden.py")) SKIP("a paperboat-examples checkout is beside this one");
   const fs::path gh = kHome / "github", tgz = gh / "repos" / "paperboatlab" / "paperboat-examples" / "tarball";
   fs::create_directories(tgz.parent_path());
@@ -323,6 +336,11 @@ TEST_CASE("examples: listed by app, copied on first open, opened in their app", 
   REQUIRE(f.size() == 2);
   CHECK(f[1]["path"] == (kHome / "cache" / "examples" / "simplicial" / "09-synth-cpp").string());
   CHECK(json::parse(cli({"example", "list", "--json"}, data, {{"PAPERBOAT_GITHUB_API", "file:///nowhere"}}).stdout_text) == f);  // kept
+  const std::vector<std::pair<std::string, std::string>> offline = {{"PAPERBOAT_GITHUB_API", "file:///nowhere"}};
+  const auto oc = json::parse(cli({"example", "open", "hubs/lab", "--no-open", "--json"}, data, offline).stdout_text);
+  CHECK(oc["cache"] == true);  // changes there aren't kept: the page says so
+  CHECK(oc["url"].get<std::string>().ends_with("&cache=1"));
+  CHECK(cli({"app", "stop", "malachite"}, data, offline).ok());
   fs::remove_all(kHome / "cache");
   CHECK_THAT(cli({"example", "list"}, data, {{"PAPERBOAT_GITHUB_API", "file:///nowhere"}}).stderr_text, ContainsSubstring("PAPERBOAT_EXAMPLES_DIR"));
   fs::remove_all(kHome);

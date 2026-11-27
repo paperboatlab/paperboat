@@ -66,8 +66,15 @@ group = "Examples"
 [[command]]
 id = "example.open"
 name = "example open"
-args = "<example> [--no-open]"
-desc = "Copy an example to your examples folder and open it in its app"
+args = "<example> [--to <folder>] [--no-open]"
+desc = "Open an example where it is, in its app (--to: where its Copy goes)"
+group = "Examples"
+
+[[command]]
+id = "example.copy"
+name = "example copy"
+args = "<example> --to <folder> [--open]"
+desc = "Copy an example into a folder of yours (and open the copy)"
 group = "Examples"
 
 # ── Sessions ──
