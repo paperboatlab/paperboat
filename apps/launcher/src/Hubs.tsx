@@ -5,6 +5,7 @@
 import {useCallback, useEffect, useState} from 'react';
 import {Dialog, Icon, Key, Tabs, Tag} from '@paperboatlab/ui';
 import {HubMark, HubSettings, PLACE_NAMES, hubStatus, type Hub as KitHub, type HubPlace} from '@paperboatlab/ui/hub';
+import {isOpening, useOpening} from '@paperboatlab/ui/workspace';
 import type {Client, Session} from '@paperboat/client/browser';
 import type {Act, Show} from './act.ts';
 import {bridge} from './bridge.ts';
@@ -31,6 +32,7 @@ const KEEP = {'90d': '90 days', '1y': '1 year', always: 'always'};
 export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}) {
   const [list, setList] = useState<HubInfo[] | null>(null);
   const [pick, setPick] = useState('');
+  const opener = useOpening();
   const [tab, setTab] = useState<'overview' | 'history' | 'settings'>('overview');
   const [shown, setShown] = useState<Shown | null>(null);
   const [versions, setVersions] = useState<Version[] | null>(null);
@@ -71,13 +73,18 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
     if (!parent) return;
     void run(`hub move ${x.id} ${q(x.missing ? parent : `${parent}/${x.path.split('/').pop()}`)}`, x.missing ? `Finding ${x.name}` : `Moving ${x.name}`);
   }
+  // one open at a time: its key shows it until Malachite has the hub open (a big hub indexes first)
   async function openInMalachite(x: HubInfo) {
-    const id = show({title: `Opening ${x.name} in Malachite`, detail: x.shown, state: 'working'});
-    const j = await client.run(`app open malachite ${q(x.path)} --no-open`);
-    if (j.state === 'failed') return show({id, title: `Malachite did not start`, detail: j.error, state: 'failed'});
-    show({id, title: `${x.name} is open in Malachite`, state: 'done'});
-    bridge().openWindow((j.result as Session).url, 'Malachite');
+    let id: number | undefined;
+    await opener.open({name: x.name, hub: x.id}, async () => {
+      id = show({title: `Opening ${x.name} in Malachite`, detail: x.shown, state: 'working'});
+      const j = await client.run(`app open malachite ${q(x.path)} --no-open`);
+      if (j.state === 'failed') throw new Error(j.error);
+      show({id, title: `${x.name} is open in Malachite`, state: 'done'});
+      bridge().openWindow((j.result as Session).url, 'Malachite');
+    }).catch((e: Error) => show({id, title: `Malachite did not start`, detail: e.message, state: 'failed'}));
   }
+  const opening = (x: HubInfo) => isOpening(opener.opening, {id: x.id}) && !opener.opening?.error;
 
   return (
     <div className="main">
@@ -103,7 +110,7 @@ export function Hubs({client, act, show}: {client: Client; act: Act; show: Show}
             <span className="lang big">{h.place === 'local' ? <HubMark size={24} /> : <Icon name="cloud" size={24} />}</span>
             <div><div className="dname">{h.name}</div>
               <div className="dmeta"><Tag>{h.place === 'local' ? 'this computer' : PLACE_NAMES[h.place]}</Tag><Tag>{h.shown}</Tag>{shown && <Tag>hub format {shown.schema}</Tag>}</div></div>
-            <span className="bend"><Key icon="link-external" disabled={h.missing} onClick={() => void openInMalachite(h)}>Open in Malachite</Key></span>
+            <span className="bend"><Key icon="link-external" busy={opening(h)} disabled={h.missing || (!!opener.opening && !opener.opening.error)} onClick={() => void openInMalachite(h)}>Open in Malachite</Key></span>
           </div>
           <div className="hub-tabs">
             <Tabs label="Hub" value={tab} onChange={setTab} tabs={[{value: 'overview', label: 'Overview'}, {value: 'history', label: 'History', count: versions?.length || undefined}, {value: 'settings', label: 'Settings'}]} />
