@@ -46,6 +46,7 @@ cmake -S . -B build -G Ninja && ninja -C build
 ./build/paperboat package add omc Modelica --project ~/demo  # Modelica libraries are omc's packages
 ./build/paperboat package search julia plots                 # Julia's General registry
 ./build/paperboat runtime ps
+./build/paperboat example list --app simplicial           # paperboat-examples; example open <id> copies one and opens it
 ```
 
 `paperboat` starts `paperboatd` on demand; `paperboat daemon stop` stops it.

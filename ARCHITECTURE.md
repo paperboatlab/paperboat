@@ -135,6 +135,13 @@ flowchart LR
   offline, the last copy marked stale, else an error with `offline: true` (a package still adds by name). A
   detail whose GitHub ask failed is asked again next time. `package folders` lists the package volumes whose
   folder exists (paperboatd's `volumes`).
+  `example list [--app <app>]` lists paperboat-examples (pb#72): each `<group>/<example>/example.toml` as `{id
+  (that path), app, kind, name, description, path}`; a hub (`kind = "hub"`) opens in Malachite, a `pending` one is
+  left out. The examples come from `$PAPERBOAT_EXAMPLES_DIR`, a checkout beside this one (with `golden.py`), else
+  GitHub's tarball of the default branch, kept a day in `<home>/cache/examples` (`--refresh`; offline, the last
+  copy). `example open <id>` copies it once to `<home>/examples/<id>` (without `build/`, `.venv/`, `__pycache__/`;
+  later opens reuse the copy as the user left it) and opens that folder in its app (`app open`), printing the path.
+  Every app's Ctrl+K has **Open example: <name>** for its own examples: its server calls these two commands.
 
 ## 3. Invariants
 

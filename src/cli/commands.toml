@@ -7,7 +7,7 @@
 #   name     the words after `paperboat`
 #   args     usage of the arguments (<required>, [optional], a|b choices)
 #   desc     one line: lists describe what they show, actions start with a verb; sentence case, no full stop
-#   group    Apps | Sessions | Stations | Toolkits | Runtimes | Packages | Paperboat
+#   group    Apps | Examples | Sessions | Stations | Toolkits | Runtimes | Packages | Paperboat
 #   alias    other words for the same command (a plural that lists)
 #   tui      true: the TUI only
 
@@ -53,6 +53,22 @@ name = "app stop"
 args = "<app>"
 desc = "Stop a running app"
 group = "Apps"
+
+# ── Examples (paperboat-examples; every app's Ctrl+K has Open example: <name>, pb#72) ──
+[[command]]
+id = "example.list"
+name = "example list"
+alias = ["examples"]
+args = "[--app <app>] [--refresh]"
+desc = "The examples, each with the app it opens in"
+group = "Examples"
+
+[[command]]
+id = "example.open"
+name = "example open"
+args = "<example> [--no-open]"
+desc = "Copy an example to your examples folder and open it in its app"
+group = "Examples"
 
 # ── Sessions ──
 [[command]]

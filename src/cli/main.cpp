@@ -130,7 +130,7 @@ struct Args {
   std::string arg(std::size_t i) const { return i < pos.size() ? pos[i] : ""; }
 };
 
-const std::vector<std::string> kValued = {"--project", "--from", "--backend", "--socket", "--tail", "--source", "--kind", "--port", "--time", "--var", "--page", "--runtime"};
+const std::vector<std::string> kValued = {"--app", "--project", "--from", "--backend", "--socket", "--tail", "--source", "--kind", "--port", "--time", "--var", "--page", "--runtime"};
 
 // The longest registered name (or alias) the words start with; the rest are its arguments.
 Args parse(int argc, char** argv) {
@@ -737,21 +737,29 @@ int app_uninstall(Args& a) {
   return 0;
 }
 
+// An app's session on a folder (none: the window it has, else its Start page): the one running there, or a new one
+// (`fresh`); its window opens unless --no-open.
+json open_app(Args& a, const std::string& app, const fs::path& project, bool& fresh) {
+  registry_entry(app);
+  if (installed(app).is_null()) throw Failure(app + " is not installed · paperboat app install " + app, 2);
+  json s = nullptr;
+  for (const auto& x : sessions_of(app))
+    if (project.empty() || x["project"] == project.string()) s = x;
+  fresh = s.is_null();
+  if (fresh) s = start_session(app, project, a.has("--port") ? std::stoi(a.get("--port")) : 0);
+  if (!a.has("--no-open")) open_url(s["url"], registry_entry(app)["label"].value_or(app));
+  return s;
+}
+
 // Open an app on a folder (the current one by default): its running session, or a new one.
 int app_open(Args& a) {
   const std::string app = need_arg(a, "app");
-  registry_entry(app);
-  if (installed(app).is_null()) throw Failure(app + " is not installed · paperboat app install " + app, 2);
   // --start (the desktop's entry): the window it has, else its Start page, on no folder
   const bool start = a.has("--start");
   const fs::path project = start ? fs::path() : fs::absolute(a.arg(1).empty() ? fs::current_path() : fs::path(a.arg(1))).lexically_normal();
   if (!start && !fs::is_directory(project)) throw Failure(project.string() + " is not a folder", 2);
-  json s = nullptr;
-  for (const auto& x : sessions_of(app))
-    if (start || x["project"] == project.string()) s = x;
-  const bool fresh = s.is_null();
-  if (fresh) s = start_session(app, project, a.has("--port") ? std::stoi(a.get("--port")) : 0);
-  if (!a.has("--no-open")) open_url(s["url"], registry_entry(app)["label"].value_or(app));
+  bool fresh = false;
+  const json s = open_app(a, app, project, fresh);
   if (a.json_out) return print_json(s), 0;
   std::cout << (fresh ? "started " : "running ") << s["id"].get<std::string>() << " on " << (s["project"].get<std::string>().empty() ? "its Start page" : s["project"].get<std::string>()) << " · "
             << s["url"].get<std::string>() << "\n";
@@ -896,6 +904,108 @@ int toolkit_info(Args& a) {
             << (t["stale"].get<bool>() ? " (offline: the last copy)" : "") << "\n" << t["url"].get<std::string>() << "\n\n" << t["blocks"].size() << " blocks:";
   for (const auto& b : t["blocks"]) std::cout << " " << b.get<std::string>();
   std::cout << "\n\nREADME: " << t["readme_url"].get<std::string>() << "\n";
+  return 0;
+}
+
+// ── examples: paperboat-examples, one folder each with an example.toml (kind, app, name, description; its docs/golden.md) ──
+
+// The examples: $PAPERBOAT_EXAMPLES_DIR, a paperboat-examples checkout beside this one (a dev build), else GitHub's
+// copy of the default branch, kept in <home>/cache/examples and asked for again after a day (--refresh: now).
+// GitHub out of reach: the last copy, asked for again the next day.
+fs::path examples_root(bool refresh) {
+  if (const char* d = std::getenv("PAPERBOAT_EXAMPLES_DIR"); d && *d) return d;
+  std::error_code ec;
+  if (const fs::path s = paths::exe_dir().parent_path().parent_path() / "paperboat-examples"; fs::exists(s / "golden.py", ec)) return s;
+  const fs::path cache = paths::home() / "cache", kept = cache / "examples", fresh = cache / ".examples.new", tgz = cache / ".examples.tar.gz";
+  const auto at = fs::last_write_time(kept, ec);
+  if (!ec && !refresh && fs::file_time_type::clock::now() - at < std::chrono::hours(24)) return kept;
+  try {
+    const std::string body = github_get("paperboatlab/paperboat-examples/tarball");
+    fs::remove_all(fresh, ec);
+    fs::create_directories(fresh);
+    std::ofstream(tgz, std::ios::binary) << body;
+    const auto x = ProcessRunner::run_sync({"tar", "-xzf", tgz.string(), "-C", fresh.string(), "--strip-components=1"});
+    fs::remove(tgz, ec);
+    if (!x.ok()) throw Failure("could not unpack them: " + x.stderr_text);
+    fs::remove_all(kept, ec);
+    fs::rename(fresh, kept);
+  } catch (const std::exception& e) {
+    if (!fs::is_directory(kept, ec))
+      throw Failure(std::string("could not fetch the examples (") + e.what() + "); PAPERBOAT_EXAMPLES_DIR can name a checkout of paperboat-examples");
+    fs::last_write_time(kept, fs::file_time_type::clock::now(), ec);  // stale beats waiting on GitHub every time
+  }
+  return kept;
+}
+
+// Every example, <group>/<example>/example.toml, by id (that path). A hub opens in Malachite. A pending one (not
+// ready yet: `pending` says why) only when asked for.
+std::vector<json> examples(const fs::path& root, bool pending) {
+  std::vector<json> out;
+  std::error_code ec;
+  for (const auto& g : fs::directory_iterator(root, ec))
+    for (const auto& x : fs::directory_iterator(g.path(), ec)) {
+      const fs::path m = x.path() / "example.toml";
+      if (!fs::is_regular_file(m, ec)) continue;
+      try {
+        const toml::table t = toml::parse_file(m.string());
+        if (!pending && t.contains("pending")) continue;
+        const std::string kind = t["kind"].value_or(std::string());
+        out.push_back({{"id", g.path().filename().string() + "/" + x.path().filename().string()},
+                       {"app", kind == "hub" ? "malachite" : t["app"].value_or(std::string())}, {"kind", kind},
+                       {"name", t["name"].value_or(std::string())}, {"description", t["description"].value_or(std::string())}, {"path", x.path().string()}});
+      } catch (const std::exception& e) {
+        std::cerr << "paperboat: skipping " << m.string() << ": " << e.what() << "\n";
+      }
+    }
+  std::ranges::sort(out, {}, [](const json& x) { return x["id"].get<std::string>(); });
+  return out;
+}
+
+int example_list(Args& a) {
+  const std::string app = a.get("--app");
+  json out = json::array();
+  for (auto& x : examples(examples_root(a.has("--refresh")), false))
+    if (app.empty() || x["app"] == app) out.push_back(std::move(x));
+  if (a.json_out) return print_json(out), 0;
+  if (out.empty()) return std::cout << "No examples" << (app.empty() ? "" : " for " + app) << " yet.\n", 0;
+  std::vector<std::vector<std::string>> rows;
+  for (const auto& x : out) rows.push_back({x["id"], x["app"], x["name"], x["description"]});
+  print_table({"EXAMPLE", "APP", "NAME", "DESCRIPTION"}, rows);
+  return 0;
+}
+
+// A writable copy of an example, so the original stays clean; what a build or a run leaves (the examples'
+// .gitignore folders) stays behind.
+void copy_example(const fs::path& from, const fs::path& to) {
+  const fs::path tmp = to.parent_path() / ("." + to.filename().string() + ".new");
+  std::error_code ec;
+  fs::remove_all(tmp, ec);
+  fs::create_directories(tmp);
+  for (auto it = fs::recursive_directory_iterator(from); it != fs::recursive_directory_iterator(); ++it) {
+    const fs::path dest = tmp / fs::relative(it->path(), from);
+    const std::string n = it->path().filename().string();
+    if (it->is_symlink()) fs::copy_symlink(it->path(), dest);
+    else if (!it->is_directory()) fs::copy_file(it->path(), dest);
+    else if (n == "build" || n == "__pycache__" || n == ".venv" || n == ".git") it.disable_recursion_pending();
+    else fs::create_directory(dest);
+  }
+  fs::rename(tmp, to);
+}
+
+// Copy an example to <home>/examples/<id> the first time (later: that copy, as the user left it) and open it in its app.
+int example_open(Args& a) {
+  const std::string id = need_arg(a, "example");
+  json ex = nullptr;
+  for (auto& x : examples(examples_root(false), true))
+    if (x["id"] == id) ex = std::move(x);
+  if (ex.is_null()) throw Failure("no example " + id + "; paperboat example list shows them", 2);
+  const fs::path to = paths::home() / "examples" / id;
+  if (!fs::exists(to)) copy_example(ex["path"].get<std::string>(), to);
+  ex["path"] = to.string();
+  bool fresh = false;
+  ex["session"] = open_app(a, ex["app"], to, fresh);
+  if (a.json_out) return print_json(ex), 0;
+  std::cout << to.string() << "\n";
   return 0;
 }
 
@@ -1372,6 +1482,7 @@ const std::map<std::string, Handler>& handlers() {
       {"app.list", app_list}, {"app.open", app_open}, {"app.install", app_install}, {"app.update", app_update},
       {"app.uninstall", app_uninstall}, {"app.stop", app_stop}, {"session.list", session_list}, {"session.logs", session_logs},
       {"session.restart", session_restart}, {"session.stop", session_stop}, {"toolkit.list", toolkit_list}, {"toolkit.info", toolkit_info},
+      {"example.list", example_list}, {"example.open", example_open},
       {"runtime.list", runtime_list}, {"runtime.pull", runtime_pull}, {"runtime.ps", runtime_ps}, {"runtime.stats", runtime_stats},
       {"runtime.logs", runtime_logs}, {"runtime.interrupt", runtime_interrupt}, {"runtime.prune", runtime_prune},
       {"runtime.events", runtime_events}, {"package.list", [](Args& a) { return packages(a, "list"); }},
