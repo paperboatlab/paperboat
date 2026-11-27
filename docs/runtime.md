@@ -43,7 +43,8 @@ the runtime is (Julia services its sockets only between steps of the code it run
 wait behind a busy cell; IJulia and Jupyter interrupt the same way). The `interrupt` op here is the
 best-effort fallback for a client without the daemon. Either way the interrupt lands at the code's
 next safepoint: Python between bytecodes (and in blocking calls), Julia when the code allocates, yields
-or does I/O. A Julia loop that does none of these cannot be interrupted (a Julia limitation, true of
+or does I/O (Julia throws it in whatever task runs, so while a cell waits the runtime's I/O task that
+gets it passes it on to the cell's). A Julia loop that does none of these cannot be interrupted (a Julia limitation, true of
 its own REPL too); a client that sees no reply soon after an interrupt restarts the session (release
 the lease, acquire a new one).
 

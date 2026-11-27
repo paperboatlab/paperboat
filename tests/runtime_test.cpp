@@ -163,6 +163,27 @@ TEST_CASE("session mode", "[runtime]") {
     CHECK(text(rt.request("eval", {{"code", "1 + 1"}})) == "2");
   }
 
+  SECTION("the daemon's interrupt stops a cell that waits (sleep), and the connection lives on") {
+    // Julia throws the interrupt in whatever task thread 1 is in: while the cell sleeps that is an I/O
+    // task, which must pass it on to the cell instead of ending the connection (malachite#29).
+    auto busy = std::async(std::launch::async, [&] {
+      try {
+        rt.request("eval", {{"code", jl ? "sleep(900)" : "import time\ntime.sleep(900)"}});
+        return std::string("finished");
+      } catch (const RuntimeError& e) {
+        return e.type;
+      }
+    });
+    std::this_thread::sleep_for(1500ms);
+    CHECK(rig.control->call("interrupt", {{"lease", rig.lease["id"]}})["delivered"] == true);
+    if (busy.wait_for(20s) != std::future_status::ready) {
+      rig.control->call("release", {{"lease", rig.lease["id"]}});
+      FAIL("the interrupt did not stop the sleeping cell");
+    }
+    CHECK(busy.get() == "InterruptException");
+    CHECK(text(rt.request("eval", {{"code", "1 + 1"}})) == "2");
+  }
+
   SECTION("debug: a breakpoint, locals, step over, eval in the frame, continue; stop") {
     if (!jl) SKIP("no debugger for " + runtime + " yet");
     std::mutex m;
