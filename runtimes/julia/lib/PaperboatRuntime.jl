@@ -409,8 +409,11 @@ function lint(code::String)
     Dict("problems" => problems)
 end
 
+# `pos` counts bytes (0-based, the cursor); REPLCompletions wants the index of the character before the cursor,
+# which is `pos` only after an ASCII one: after `αβ` (4 bytes) it is 3.
 function complete(s::Session, code::String, pos::Int)
-    comps, range, _ = REPL.REPLCompletions.completions(code, pos, s.mod)
+    pos = clamp(pos, 0, ncodeunits(code))
+    comps, range, _ = REPL.REPLCompletions.completions(code, prevind(code, pos + 1), s.mod)
     matches = unique!(sort!([REPL.REPLCompletions.completion_text(c) for c in comps]))
     Dict("matches" => matches, "start" => first(range) - 1, "end" => pos)
 end
