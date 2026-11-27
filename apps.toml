@@ -18,7 +18,7 @@
 name        = "malachite"
 label       = "Malachite"
 repo        = "https://github.com/paperboatlab/malachite"
-description = "Engineering notebook in Julia and Python"
+description = "The hub of your work: notes, cells and every app's files"
 runtimes    = ["julia@1.11", "python@3.12"]
 launch      = "bin/malachite"
 port        = 30474
