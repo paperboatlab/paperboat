@@ -338,7 +338,7 @@ TEST_CASE("volumes lists the package volumes; prune removes those of projects th
   rig.manager->release(l["id"], 1);
   const json v = rig.manager->volumes();  // what Packages offers as folders
   REQUIRE(v.size() == 1);
-  CHECK(v[0]["project"] == p.string());
+  CHECK(v[0]["project"] == fs::canonical(p).string());  // macOS: /var is /private/var
   CHECK(v[0]["path"] == l["deps"]);
   CHECK(v[0]["exists"] == true);
   fs::remove_all(p);
