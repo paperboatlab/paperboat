@@ -1,7 +1,9 @@
 // The Launcher's main process: its window and the bridge to the paperboat CLI (the only transport,
 // @paperboat/client's cliTransport) for its sandboxed page; and the apps' windows (Paperboat windows), each
 // an app's local page with only the system's dialogs (app-preload.ts). One instance: `--open <url>
-// [--title <t>]` (what `paperboat app open` runs) opens an app's window in the running Launcher. No logic of its own.
+// [--title <t>]` (what `paperboat app open` runs) opens an app's window in the running Launcher; `--page <page>
+// [--runtime <name>]` (`paperboat launcher`: an app's Manage runtimes…) opens or focuses the Launcher's window on
+// that page. No logic of its own.
 
 import {app, BrowserWindow, dialog, ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents} from 'electron';
 import {spawn} from 'node:child_process';
@@ -45,7 +47,7 @@ function lastClosed(app: string, origin: string) {
 // a window's least size at Default; the scale widens it (win:zoom)
 const MIN_WIDTH = 960, MIN_HEIGHT = 600;
 
-function window(url: string, opts: {title: string; app?: boolean}) {
+function window(url: string, opts: {title: string; app?: boolean; query?: Record<string, string>}) {
   const desktop = process.env.CHROME_DESKTOP, entry = opts.app ? entryOf(appOf(opts.title)) : null;
   if (entry) process.env.CHROME_DESKTOP = entry;
   const w = new BrowserWindow({
@@ -87,7 +89,7 @@ function window(url: string, opts: {title: string; app?: boolean}) {
     else void shell.openExternal(url);
     return {action: 'deny'};
   });
-  void (url.startsWith('http') ? w.loadURL(url) : w.loadFile(url));
+  void (url.startsWith('http') ? w.loadURL(url) : w.loadFile(url, {query: opts.query}));
   return w;
 }
 
@@ -98,6 +100,16 @@ function opened(argv: string[]) {
   const ti = argv.indexOf('--title');
   return {url, title: ti < 0 ? 'Paperboat' : argv[ti + 1] ?? 'Paperboat'};
 }
+
+/** `--page <page> [--runtime <name>]` from a command line: where the Launcher's page goes, or null. */
+function goto(argv: string[]) {
+  const at = argv.indexOf('--page'), page = at < 0 ? '' : argv[at + 1] ?? '';
+  if (!/^[a-z]+$/.test(page)) return null;
+  const ri = argv.indexOf('--runtime'), runtime = ri < 0 ? '' : argv[ri + 1] ?? '';
+  return {page, ...(/^[\w.@-]+$/.test(runtime) ? {runtime} : {})};
+}
+// the Launcher's window, on that page: the query when it is made, launcher:goto when it is there
+const launcherWindow = (to: ReturnType<typeof goto>) => window(launcherPage, {title: 'Paperboat Launcher', query: to ?? undefined});
 
 // the Launcher page's channels: refused to an app's window
 const launcherOnly = (e: IpcMainEvent | IpcMainInvokeEvent) => {
@@ -185,18 +197,22 @@ if (process.argv.includes('--version')) (console.log(app.getVersion()), app.exit
 else if (!app.requestSingleInstanceLock({argv: process.argv})) app.quit();
 else {
   // a second start hands its command line here: an app's window, or the Launcher's
-  app.on('second-instance', (_e, argv, _cwd, data) => {
-    const o = opened((data as {argv?: string[]} | undefined)?.argv ?? argv);
+  app.on('second-instance', (_e, chromium, _cwd, data) => {
+    const argv = (data as {argv?: string[]} | undefined)?.argv ?? chromium;
+    const o = opened(argv);
     if (o) return void window(o.url, {title: o.title, app: true});
+    const to = goto(argv);
     const w = BrowserWindow.getAllWindows().find(x => !appPages.has(x.webContents.id));
-    if (w) return void (w.isMinimized() && w.restore(), w.focus());
-    window(launcherPage, {title: 'Paperboat Launcher'});
+    if (!w) return void launcherWindow(to);
+    if (to) w.webContents.send('launcher:goto', to);
+    w.isMinimized() && w.restore();
+    w.focus();
   });
   app.whenReady().then(() => {
     const o = opened(process.argv);
     if (o) window(o.url, {title: o.title, app: true});
-    else window(launcherPage, {title: 'Paperboat Launcher'});
-    app.on('activate', () => BrowserWindow.getAllWindows().length || window(launcherPage, {title: 'Paperboat Launcher'}));
+    else launcherWindow(goto(process.argv));
+    app.on('activate', () => BrowserWindow.getAllWindows().length || launcherWindow(null));
   });
 }
 app.on('window-all-closed', () => process.platform !== 'darwin' && app.quit());

@@ -6,7 +6,9 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {About, AppMark, Key, Notifications, Pill, Rail, ScaleSetting, Search, Segmented, SettingRow, Settings, SettingsSection, ShortcutList, ThemeSetting, Toasts, WindowKeys, chordMatches, isScale, readStored, useScale, useTheme, useToasts, writeStored, type Command, type Scale, type RailItem, type Credit, type SearchItem, type Theme} from '@paperboatlab/ui';
 import type {Client} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
+import type {Goto} from '../electron/bridge.ts';
 import {makeAct} from './act.ts';
+import {bridge} from './bridge.ts';
 import {Apps} from './Apps.tsx';
 import {Console} from './Console.tsx';
 import {Hubs} from './Hubs.tsx';
@@ -30,6 +32,10 @@ const KEYS = (pages: {label: string; keys?: string}[]): Command[] => [
 ];
 
 type Page = 'apps' | 'stations' | 'toolkits' | 'runtimes' | 'hubs' | 'console';
+const isPage = (v: unknown): v is Page => ['apps', 'stations', 'toolkits', 'runtimes', 'hubs', 'console'].includes(v as string);
+// `paperboat launcher --page <page> [--runtime <name>]`: the query of a new window (electron/main.ts)
+const query = new URLSearchParams(location.search);
+const first: Goto = {page: query.get('page') ?? 'apps', runtime: query.get('runtime') ?? undefined};
 const isTheme = (v: unknown): v is Theme => v === 'light' || v === 'dark' || v === 'system';
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean';
 
@@ -40,7 +46,8 @@ export function App({client}: {client: Client}) {
   const [scale, setScale] = useState<Scale>(() => readStored('paperboat.scale', isScale) ?? 1);
   useScale(scale);
   const [wide, setWide] = useState(() => readStored('paperboat.launcher.rail.wide', isBool) ?? false);
-  const [page, setPage] = useState<Page>('apps');
+  const [page, setPage] = useState<Page>(isPage(first.page) ? first.page : 'apps');
+  const [want, setWant] = useState<Goto>(first);  // the runtime Runtimes opens on, from the same command line
   const [search, setSearch] = useState(false);
   const [line, setLine] = useState<string | null>(null);  // a command for the Console to fill in
   const [about, setAbout] = useState<{paperboat: string; channel: string; daemon: {version: string} | null} | null>(null);
@@ -72,6 +79,8 @@ export function App({client}: {client: Client}) {
   }, [daemon, show]);
   const loadAbout = () => void client.run('about').then(j => j.state === 'done' && setAbout(j.result as typeof about));
   useEffect(loadAbout, [client]);
+  // a second `paperboat launcher --page …`: the running Launcher goes there
+  useEffect(() => bridge().onGoto(to => isPage(to.page) && (setPage(to.page), setWant(to))), []);
 
   const stations = state.commands.some(c => c.group === 'Stations');
   const hubs = state.commands.some(c => c.group === 'Hubs');   // no Malachite, no hub
@@ -156,7 +165,7 @@ export function App({client}: {client: Client}) {
         {page === 'apps' && <Apps client={client} act={act} show={show} />}
         {page === 'stations' && <Stations client={client} act={act} />}
         {page === 'toolkits' && <Toolkits client={client} act={act} />}
-        {page === 'runtimes' && <Runtimes client={client} act={act} />}
+        {page === 'runtimes' && <Runtimes client={client} act={act} want={want} />}
         {page === 'hubs' && hubs && <Hubs client={client} act={act} show={show} />}
         {page === 'console' && <Console client={client} line={line} onLine={setLine} />}
       </main>

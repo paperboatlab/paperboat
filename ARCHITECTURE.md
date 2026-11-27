@@ -98,7 +98,11 @@ flowchart LR
   is `paperboat-<app>` when its desktop entry exists (Chromium reads `CHROME_DESKTOP` as each window is made), so
   GNOME shows each app with its own icon in one process. An app's last window closing stops its session
   (`session stop <app>-<port>`, detached); a page that sets `beforeunload` (busy, unsaved) is asked about first.
-  One instance: a second start's `--open <url> [--title <t>]` opens that app's window in the first; the page
+  One instance: a second start's `--open <url> [--title <t>]` opens that app's window in the first, and its
+  `--page <page> [--runtime <name>]` takes the Launcher's window there (made with that query, or focused and sent
+  `launcher:goto`, the Launcher page's only, `bridge.onGoto`). `paperboat launcher [--page …] [--runtime …]` runs it
+  the way `open_url` does: every app's **Manage runtimes…** is `launcher --page runtimes --runtime <its runtime>`,
+  run by its server with `$PAPERBOAT_BIN`, from a Paperboat window and a browser alike (pb#69). The page
   (`src/`, React on `@paperboatlab/ui`) uses `@paperboat/client/browser` with that bridge as transport.
   Settings (General: the theme; Launcher: the update channel; Shortcuts) from the rail's foot or Ctrl+,. Pages Apps, Toolkits, Runtimes, Console (Stations once an app adds that group; Hubs once Malachite adds
   the Hubs group: list, Overview, History, Settings, each control one `paperboat hub …` command, pb#16); Ctrl+K lists every
