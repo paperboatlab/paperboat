@@ -42,8 +42,8 @@ A **policy** (only ever weakens the defaults): `network`, `devices` (`["/dev/vid
 ## Events
 
 `lease.acquired` (`reused`), `lease.released`, `runtime.pulling`, `runtime.pulled`,
-`runtime.pull_failed`, `runtime.started`, `runtime.stopped` (`reason`: released, idle, daemon
-stopping), `runtime.exited` (`exit_code`, `state`, `error`), `runtime.failed` (a start that failed),
+`runtime.pull_failed`, `runtime.started`, `runtime.stopped` (`reason`: released, idle, exited: a
+warm instance that ended, daemon stopping), `runtime.exited` (`exit_code`, `state`, `error`), `runtime.failed` (a start that failed),
 `runtime.reaped`, `runtime.verified`, `runtime.unverified` (`reason`), `policy.weakened` (`what`).
 
 ## Runtime manifests

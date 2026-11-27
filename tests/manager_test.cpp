@@ -163,6 +163,19 @@ TEST_CASE("a released station runtime stays warm and is reused", "[manager]") {
   CHECK(rig.saw("runtime.stopped"));
 }
 
+TEST_CASE("a warm station runtime that exits is removed at once, never reused", "[manager]") {
+  Rig rig;
+  const std::string id = rig.manager->acquire(rig.req(), 1)["id"];
+  rig.manager->release(id, 1);
+  REQUIRE(rig.manager->ps()[0]["state"] == "idle");
+  rig.podman->running.begin()->second.state = "exited";  // its holder asked it to shut down
+  rig.manager->tick();
+  CHECK(rig.manager->empty());
+  CHECK(rig.podman->stopped.size() == 1);  // the container is removed, not left exited
+  CHECK(rig.manager->acquire(rig.req(), 2)["id"] != id);
+  CHECK(rig.podman->starts == 2);
+}
+
 TEST_CASE("session and exec runtimes stop when released, and are never shared", "[manager]") {
   Rig rig;
   const std::string a = rig.manager->acquire(rig.req("julia", "session"), 1)["id"];

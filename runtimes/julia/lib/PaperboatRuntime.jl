@@ -236,6 +236,13 @@ const TYPES = Dict{String,Tuple{Any,Dict{String,Any}}}()
 register(name::AbstractString, ctor; definition = Dict{String,Any}()) =
     (TYPES[String(name)] = (ctor, Dict{String,Any}(string(k) => v for (k, v) in definition)); nothing)
 
+"""log(text; level = "info"): a line for the client (Simplicial's Console) from station code, while it answers a request."""
+function log(text; level::AbstractString = "info")
+    conn = get(task_local_storage(), :paperboat_conn, nothing)
+    conn === nothing ? println(stderr, text) : send(conn, Dict("type" => "log", "level" => level, "text" => string(text)))
+    nothing
+end
+
 # --- session ---
 
 mutable struct Target
@@ -540,6 +547,8 @@ end
 
 # On the default pool, so domain code never blocks the event loop on thread 1.
 ondefault(f) = fetch(Threads.@spawn :default f())
+# a station request: on the default pool, with its connection for log()
+onstation(f, conn) = fetch(Threads.@spawn :default task_local_storage(f, :paperboat_conn, conn))
 
 # --- server ---
 
@@ -592,11 +601,11 @@ function serve_connection(io, mode::String, session, stop::Threads.Event)
             elseif session !== nothing && op == "reset"
                 put!(session.jobs, (conn, id, () -> (session.mod = newmodule(); Dict())))
             elseif station !== nothing && op == "load"
-                ok(ondefault(() -> load!(station, String(args["path"]))))
+                ok(onstation(() -> load!(station, String(args["path"])), conn))
             elseif station !== nothing && op == "new"
-                ok(ondefault(() -> new!(station, String(args["type"]), get(args, "params", nothing))))
+                ok(onstation(() -> new!(station, String(args["type"]), get(args, "params", nothing)), conn))
             elseif station !== nothing && op == "call"
-                ok(ondefault(() -> call!(station, Int(args["instance"]), String(args["method"]), get(args, "args", nothing))))
+                ok(onstation(() -> call!(station, Int(args["instance"]), String(args["method"]), get(args, "args", nothing)), conn))
             elseif station !== nothing && op == "drop"
                 obj = pop!(station.instances, Int(args["instance"]), nothing)
                 filter!(kv -> kv[2][1] !== obj, station.bound)

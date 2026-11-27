@@ -44,6 +44,18 @@ def register(name: str, constructor, definition: dict | None = None) -> None:
     _types[name] = (constructor, dict(definition or {}))
 
 
+_calling = threading.local()  # the connection whose request this thread runs
+
+
+def log(text: str, level: str = "info") -> None:
+    """A line for the client (Simplicial's Console) from station code, while it answers a request."""
+    conn = getattr(_calling, "conn", None)
+    if conn:
+        conn.send({"type": "log", "level": level, "text": str(text)})
+    else:
+        print(text, file=sys.stderr)
+
+
 # --- framing ----------------------------------------------------------------------------------
 
 
@@ -335,6 +347,9 @@ class Station:
         import runpy
 
         full = path if os.path.isabs(path) else os.path.join(os.environ.get("PAPERBOAT_PROJECT", os.getcwd()), path)
+        folder = os.path.dirname(os.path.abspath(full))
+        if folder not in sys.path:
+            sys.path.insert(0, folder)  # the file imports the station's other modules
         runpy.run_path(full, run_name="__paperboat_station__")
         return {"types": [{"name": n, "definition": d} for n, (_, d) in _types.items()]}
 
@@ -388,6 +403,7 @@ def _hello(mode: str) -> dict:
 def _serve_connection(sock: socket.socket, mode: str, session: Session | None, stop: threading.Event):
     conn = Connection(sock)
     station = Station(conn) if mode == "station" else None
+    _calling.conn = conn  # station requests run on this thread: log() answers here
     conn.send(_hello(mode))
     while True:
         msg = conn.recv()

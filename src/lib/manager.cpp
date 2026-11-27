@@ -336,7 +336,7 @@ void Manager::tick() {
         it = leases_.erase(it);
         continue;
       }
-      if (l.state == "running") used.insert(l.backend);
+      if (l.state == "running" || l.state == "idle") used.insert(l.backend);
       ++it;
     }
   }
@@ -353,15 +353,24 @@ void Manager::tick() {
     int code;
   };
   std::vector<Ended> ended;
+  std::vector<std::unique_ptr<Lease>> dead;  // idle, nobody holds them: gone at once, never handed out again
   {
     std::lock_guard lock(mutex_);
-    for (auto& [id, l] : leases_) {
-      if (l->state != "running" || !used.contains(l->backend)) continue;
-      const auto it = seen.find(l->instance.name);
-      if (it != seen.end() && it->second.state == "running") continue;
-      ended.push_back({l->id, l->backend, l->instance, it == seen.end() ? -1 : it->second.exit_code});
+    for (auto it = leases_.begin(); it != leases_.end();) {
+      auto& l = it->second;
+      const auto found = used.contains(l->backend) ? seen.find(l->instance.name) : seen.end();
+      const bool alive = !used.contains(l->backend) || (found != seen.end() && found->second.state == "running");
+      if (l->state == "idle" && !alive) {
+        dead.push_back(std::move(l));
+        it = leases_.erase(it);
+        continue;
+      }
+      if (l->state == "running" && !alive)
+        ended.push_back({l->id, l->backend, l->instance, found == seen.end() ? -1 : found->second.exit_code});
+      ++it;
     }
   }
+  for (auto& l : dead) stop_lease(*l, "exited");  // a station runtime that ended once released (a shutdown)
   // The instance was kept until here so its exit code and output could be read. The output is read
   // before the lease says it ended: a holder that sees "exited" asks for the logs next and must get them.
   // The lease stays for its holders to see until they release it.
