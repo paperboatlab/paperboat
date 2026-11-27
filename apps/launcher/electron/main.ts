@@ -180,7 +180,9 @@ ipcMain.handle('app:folder', async (e, title: string) => {
   return r.canceled ? null : r.filePaths[0];
 });
 ipcMain.handle('app:save', async (e, name: string, types: string[], title: string) => {
-  const r = await dialog.showSaveDialog(parent(e), {title: title || undefined, defaultPath: name || undefined, filters: filters(types)});
+  // a taken name asks before replacing: macOS and Windows always do, GTK only when told
+  const r = await dialog.showSaveDialog(parent(e), {title: title || undefined, defaultPath: name || undefined, filters: filters(types),
+    properties: ['showOverwriteConfirmation', 'createDirectory']});
   return r.canceled || !r.filePath ? null : r.filePath;
 });
 ipcMain.on('app:reveal', (_e, path: unknown) => {
