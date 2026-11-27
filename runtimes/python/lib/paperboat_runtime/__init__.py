@@ -24,6 +24,7 @@ import platform
 import queue
 import rlcompleter
 import signal
+import site
 import socket
 import struct
 import sys
@@ -456,8 +457,24 @@ def _serve_connection(sock: socket.socket, mode: str, session: Session | None, s
     sock.close()
 
 
+def _add_package_volume() -> None:
+    """Put the project's package volume ($PAPERBOAT_DEPS/venv, where `paperboat package add python`
+    installs) on sys.path, so session and station code imports what was added. Only the venv made
+    for this interpreter's version counts: another version's wheels would not load."""
+    deps = os.environ.get("PAPERBOAT_DEPS")
+    if not deps:
+        return
+    venv = os.path.join(deps, "venv")
+    for sp in (os.path.join(venv, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages"),
+               os.path.join(venv, "Lib", "site-packages")):  # the Windows layout
+        if os.path.isdir(sp) and sp not in sys.path:
+            site.addsitedir(sp)  # also runs its .pth files (editable installs, namespace packages)
+            return
+
+
 def serve(path: str, mode: str) -> None:
     """Listen on `path` and serve until a client sends `shutdown` (or the container stops)."""
+    _add_package_volume()
     try:
         os.unlink(path)
     except FileNotFoundError:
