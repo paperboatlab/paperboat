@@ -837,6 +837,8 @@ json fetch_toolkit(const toml::table& e) {
       for (const auto& b : entries(toml::parse(github_get(slug + "/contents/" + p, "application/vnd.github.raw")), "blocks"))
         blocks.push_back(part[0] + "/" + b["type"].value_or(std::string()));
   }
+  // a toolkit always has blocks: none (or a cut tree) is a bad read, never kept as the toolkit's details
+  if (tree.value("truncated", false) || blocks.empty()) throw Failure("found no blocks under " + root + " in " + slug);
   std::ranges::sort(blocks);
   const json release = newest_release(repo);
   std::string version = release.is_null() ? "" : release["version"].get<std::string>();
