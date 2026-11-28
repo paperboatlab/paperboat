@@ -63,7 +63,7 @@ the lease, acquire a new one).
 | `eval` | `code`, `cell?` (a label for tracebacks), `debug?`, `breakpoints?` (Julia; see Debugging) | `{"data": {mime: text}}` or `{"data": null}` (no value / `nothing` / `None`); output arrives as `stream` and `display` notifications |
 | `complete` | `code`, `pos` (the cursor: bytes of UTF-8 before it) | `{"matches": [...], "start": n, "end": n}` |
 | `lint` | `code` | `{"problems": [{"from", "to", "severity", "message"}]}`: byte offsets; `severity` `error`, `warning` or `info`. From the language's own parser (Julia: JuliaSyntax; Python: `compile`, with its `SyntaxWarning`s). It only parses, so it answers at once, even while a cell runs; offered in both modes |
-| `variables` | – | `[{"name", "type", "summary", "size"?}]` |
+| `variables` | – | `[{"name", "type", "summary", "size"?}]`: `summary` is the value's first 120 characters as `repr` with `:limit` would print them (only those are printed); Julia lists at most the first 5000 by name |
 | `reset` | – | `{}`: a fresh namespace |
 | `debug` | `command`, … (Julia; see Debugging) | answered at once, never queued behind the eval it steers |
 
@@ -79,6 +79,12 @@ A session's **project** is active (as `julia --project`), so packages `paperboat
 it load with `using`. `paperboat package search julia <name>` and `package info julia <package>` read Julia's
 General registry (cached a day under `$PAPERBOAT_HOME/cache/registries/julia`); `package folders` lists the
 folders that have a package volume.
+
+**Julia's runtime is precompiled** in the project's package volume (`compiled/` of the first depot), with a
+workload that serves a session (eval, display, figures, complete, variables, lint), so a session starts
+with nothing of the runtime's own to compile. The first session of a project, or the first after
+paperboat updates the runtime, runs it from source and builds that image in the background, at the
+lowest priority (one per volume, under Julia's pidfile lock); every session after it loads the image.
 
 **Debugging** (Julia; Python answers `debug` with `UnknownOp`): `eval` with `debug: true` runs the cell's
 top-level statements one by one, instrumented (hooks before each statement and around each function, so

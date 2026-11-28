@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <chrono>
 #include <future>
+#include <map>
 #include <mutex>
 #include <numeric>
 
@@ -350,6 +351,80 @@ pb.register("probe", Probe)
     const int p = rt->request("new", {{"type", "probe"}})["instance"];
     CHECK(rt->request("call", {{"instance", p}, {"method", "value"}}) == 7);
   }
+}
+
+// pb#89: the first session of a project builds the runtime's precompiled image in its package volume, in
+// the background; every session after it loads that and has nothing of the runtime's own to compile.
+TEST_CASE("julia: the runtime loads precompiled from the package volume", "[runtime]") {
+  const auto backend = GENERATE(std::string("podman"), std::string("native"));
+  if (!usable("julia", backend)) SKIP("julia on " + backend + " is not available here");
+  INFO("julia on " << backend);
+  Rig rig("julia", backend, "session");
+  const std::string root_module = "parentmodule(Main.PaperboatRuntime) === Main.PaperboatRuntime";  // a package, not an include
+  CHECK(text(rig.rt->request("eval", {{"code", root_module}})) == "false");  // nothing cached yet: from source
+  const std::string version = rig.rt->hello()["runtime"]["version"];
+  const fs::path cache = fs::path(rig.lease["deps"].get<std::string>()) / "compiled" /
+                         ("v" + version.substr(0, version.rfind('.'))) / "PaperboatRuntime";
+  auto built = [&] {
+    std::error_code ec;
+    int done = 0;
+    for (const auto& f : fs::directory_iterator(cache, ec))
+      if (!f.path().filename().string().starts_with("jl_") && (f.path().extension() == ".ji" || f.path().extension() == ".so")) ++done;
+    return done >= 2;
+  };
+  for (int i = 0; i < 1800 && !built(); ++i) std::this_thread::sleep_for(100ms);  // while this session lives
+  REQUIRE(built());
+  std::this_thread::sleep_for(1s);
+  rig.rt.reset();
+  rig.control->call("release", {{"lease", rig.lease["id"]}, {"stop", true}});
+
+  const json l = rig.control->call("acquire", {{"runtime", "julia"}, {"mode", "session"}, {"backend", backend}, {"project", rig.project.string()}});
+  RuntimeClient rt(l["ipc"].get<std::string>(), std::chrono::seconds(180));
+  CHECK(text(rt.request("eval", {{"code", root_module}})) == "true");
+  CHECK(text(rt.request("eval", {{"code", "v = [1.0, 2.0]; v .* 2"}})) == "2-element Vector{Float64}:\n 2.0\n 4.0");
+  const json vars = rt.request("variables");
+  CHECK(std::ranges::any_of(vars, [](const json& v) { return v["name"] == "v" && v["type"] == "Vector{Float64}" && v["size"] == 2; }));
+  CHECK(rt.request("complete", {{"code", "printl"}, {"pos", 6}})["matches"] == json::array({"println"}));
+}
+
+// pb#89: variables names each type once and prints no more of a value than its summary shows.
+TEST_CASE("julia: variables is the same, and bounded", "[runtime]") {
+  const auto backend = GENERATE(std::string("podman"), std::string("native"));
+  if (!usable("julia", backend)) SKIP("julia on " + backend + " is not available here");
+  INFO("julia on " << backend);
+  Rig rig("julia", backend, "session");
+  RuntimeClient& rt = *rig.rt;
+  rt.request("eval", {{"code",
+    "for i in 1:300; Core.eval(@__MODULE__, :($(Symbol(:vec, i)) = rand(100))); end\n"
+    "big = collect(1:10^6); d = Dict(\"α\" => 1); u = \"αβγ\"^100; nt = (a = 1, b = [1, 2]);\n"
+    "struct Endless end; Base.show(io::IO, ::Endless) = while true; print(io, \"ab\"); end\n"
+    "never = Endless();"}});
+  const auto t0 = std::chrono::steady_clock::now();
+  const json vars = rt.request("variables");  // never finishes printing `never`, but stops at its summary
+  CHECK(std::chrono::steady_clock::now() - t0 < 30s);
+  std::map<std::string, json> by;
+  for (const auto& v : vars) by[v["name"]] = v;
+  CHECK(std::ranges::count_if(vars, [](const json& v) { return v["name"].get<std::string>().starts_with("vec"); }) == 300);
+  std::string ab;
+  while (ab.size() < 120) ab += "ab";
+  CHECK(by["never"]["summary"] == ab);
+  CHECK(by["never"]["type"].get<std::string>().ends_with("Endless"));  // as string(typeof(never)) prints it
+  CHECK(by["big"]["size"] == 1000000);
+  CHECK(by["u"]["summary"].get<std::string>().size() > 120);  // 120 characters, not bytes
+  // the same type names and summaries as printing each value in full
+  for (const std::string name : {"vec1", "vec300", "big", "d", "u", "nt"}) {
+    INFO(name);
+    std::string out;
+    rt.request("eval", {{"code", "print(string(typeof(" + name + ")), '\\n', first(repr(" + name + "; context = :limit => true), 120))"}},
+               [&](const json& m) { if (m["type"] == "stream") out += m["text"].get<std::string>(); });
+    const auto nl = out.find('\n');
+    REQUIRE(nl != std::string::npos);
+    CHECK(by[name]["type"] == out.substr(0, nl));
+    CHECK(by[name]["summary"] == out.substr(nl + 1));
+  }
+
+  rt.request("eval", {{"code", "for i in 1:5100; Core.eval(@__MODULE__, :($(Symbol(:many, i)) = $i)); end"}});
+  CHECK(rt.request("variables").size() == 5000);  // the first 5000 by name
 }
 
 // pb#85: an example opened read-only. Its runtime reads and runs it, writes where it is (the lease's work
