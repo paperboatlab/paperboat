@@ -21,6 +21,8 @@ export interface Bridge {
   pickFolder(title: string): Promise<string | null>;
   /** Show a file or folder in the system's file manager. */
   reveal(path: string): void;
+  /** Quit and start again (Paperboat was updated: pb#61); every window closes the way it does on quit. */
+  relaunch(): void;
   /** `fn` on every `--page <page> [--runtime <name>]` a second start hands the running Launcher; returns stop. */
   onGoto(fn: (to: Goto) => void): () => void;
 }

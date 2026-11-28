@@ -2,7 +2,7 @@
 // them, Toolkits, Runtimes, Hubs when Malachite adds them, Console), the pages, Ctrl+K over the whole registry. A view of
 // @paperboat/client: every key runs a command line, the CLI's own words.
 
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {About, AppMark, Key, Notifications, Pill, Rail, ScaleSetting, Search, Segmented, SettingRow, Settings, SettingsSection, ShortcutList, ThemeSetting, Toasts, WindowKeys, chordMatches, isScale, readStored, useScale, useTheme, useToasts, writeStored, type Command, type Scale, type RailItem, type Credit, type SearchItem, type Theme} from '@paperboatlab/ui';
 import type {Client} from '@paperboat/client/browser';
 import {useStore} from '@paperboat/client/react';
@@ -10,6 +10,8 @@ import type {Goto} from '../electron/bridge.ts';
 import {makeAct} from './act.ts';
 import {bridge} from './bridge.ts';
 import {Apps} from './Apps.tsx';
+import {useUpdates} from './Updates.tsx';
+import {isAutoUpdate, type AutoUpdate} from './update.ts';
 import {Console} from './Console.tsx';
 import {Hubs} from './Hubs.tsx';
 import {Runtimes} from './Runtimes.tsx';
@@ -46,6 +48,7 @@ export function App({client}: {client: Client}) {
   const [scale, setScale] = useState<Scale>(() => readStored('paperboat.scale', isScale) ?? 1);
   useScale(scale);
   const [wide, setWide] = useState(() => readStored('paperboat.launcher.rail.wide', isBool) ?? false);
+  const [auto, setAuto] = useState<AutoUpdate>(() => readStored('paperboat.launcher.updates', isAutoUpdate) ?? 'off');
   const [page, setPage] = useState<Page>(isPage(first.page) ? first.page : 'apps');
   const [want, setWant] = useState<Goto>(first);  // the runtime Runtimes opens on, from the same command line
   const [search, setSearch] = useState(false);
@@ -59,6 +62,7 @@ export function App({client}: {client: Client}) {
   useEffect(() => writeStored('paperboat.theme', theme), [theme]);
   useEffect(() => writeStored('paperboat.scale', scale), [scale]);
   useEffect(() => writeStored('paperboat.launcher.rail.wide', wide), [wide]);
+  useEffect(() => writeStored('paperboat.launcher.updates', auto), [auto]);
 
   useEffect(() => {
     void client.refresh({runtimes: true});
@@ -77,8 +81,9 @@ export function App({client}: {client: Client}) {
       daemonNote.current = undefined;
     }
   }, [daemon, show]);
-  const loadAbout = () => void client.run('about').then(j => j.state === 'done' && setAbout(j.result as typeof about));
-  useEffect(loadAbout, [client]);
+  const loadAbout = useCallback(() => void client.run('about').then(j => j.state === 'done' && setAbout(j.result as typeof about)), [client]);
+  useEffect(loadAbout, [loadAbout]);
+  const updates = useUpdates({client, show, launcher: pkg.version, auto, onAbout: loadAbout});
   // a second `paperboat launcher --page …`: the running Launcher goes there
   useEffect(() => bridge().onGoto(to => isPage(to.page) && (setPage(to.page), setWant(to))), []);
 
@@ -93,7 +98,7 @@ export function App({client}: {client: Client}) {
     {id: 'console', label: 'Console', icon: 'a-console'},
   ];
   const pages = base.map((p, i) => ({...p, keys: `Alt+${i + 1}`}));
-  const checkUpdates = () => void act('update --check', 'Check for updates');
+  const checkUpdates = () => void updates.check(true);
   const openAbout = () => (loadAbout(), setAboutOpen(true));
 
   // Ctrl+K: every command of the registry. One with nothing to fill in runs; else the Console gets it.
@@ -186,6 +191,9 @@ export function App({client}: {client: Client}) {
                   options={[{value: 'release', label: 'Release'}, {value: 'beta', label: 'Beta'}, {value: 'dev', label: 'Dev'}]}
                   onChange={ch => void act(`channel ${ch}`, `Channel ${ch}`, {quiet: true}).then(loadAbout)} />
               </SettingRow>
+              <SettingRow label="Automatic updates" hint="Check and ask: looks for a newer release at start and every six hours, and asks before it installs. Nothing installs on its own">
+                <Segmented label="Automatic updates" value={auto} options={[{value: 'off', label: 'Off'}, {value: 'ask', label: 'Check and ask'}]} onChange={setAuto} />
+              </SettingRow>
               <SettingRow label="Version" hint={about ? `paperboat ${about.paperboat} · paperboatd ${about.daemon?.version ?? 'not running'}` : undefined}>
                 <Key size="sm" icon="cloud-download" onClick={checkUpdates}>Check for updates</Key>
               </SettingRow>
@@ -194,6 +202,7 @@ export function App({client}: {client: Client}) {
           {id: 'shortcuts', label: 'Shortcuts', icon: 'keys', body: <ShortcutList commands={KEYS(pages)} menus={[{id: 'launcher', label: 'Launcher'}, {id: 'pages', label: 'Pages'}]} />},
         ]} />
       )}
+      {updates.dialog}
       <Toasts toasts={toasts} onDismiss={dismiss} />
     </div>
   );

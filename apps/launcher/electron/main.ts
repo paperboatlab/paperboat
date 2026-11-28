@@ -140,6 +140,13 @@ ipcMain.on('pb:window', (e, url: string, title: string) => {
   launcherOnly(e);
   if (isLocal(url)) window(url, {title, app: true});
 });
+// after an update (pb#61): the new bundle starts once this one has quit; quitting closes every window as the
+// user's quit does (an app's busy page asks first, an app's last window stops its session)
+ipcMain.on('launcher:relaunch', e => {
+  launcherOnly(e);
+  app.relaunch();
+  app.quit();
+});
 ipcMain.handle('pb:folder', async (e, title: string) => {
   launcherOnly(e);
   const w = BrowserWindow.fromWebContents(e.sender);

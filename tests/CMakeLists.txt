@@ -20,8 +20,9 @@ catch_discover_tests(paperboat_tests)
 catch_discover_tests(paperboat_container_tests PROPERTIES LABELS container)
 
 # The CLI's binary against its registry (no daemon).
-add_executable(paperboat_cli_tests cli_test.cpp)
+add_executable(paperboat_cli_tests cli_test.cpp update_test.cpp ${PROJECT_SOURCE_DIR}/src/cli/update.cpp)
 target_link_libraries(paperboat_cli_tests PRIVATE paperboat::runtime tomlplusplus::tomlplusplus Catch2::Catch2WithMain paperboat_warnings)
+target_include_directories(paperboat_cli_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/cli)
 target_compile_definitions(paperboat_cli_tests PRIVATE PAPERBOAT_BIN_DIR="$<TARGET_FILE_DIR:paperboat>" PAPERBOAT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 add_dependencies(paperboat_cli_tests paperboat paperboat_runtimes)
 catch_discover_tests(paperboat_cli_tests)
