@@ -334,7 +334,8 @@ int ProcessRunner::run_detached(
     const std::vector<std::string>& args,
     const fs::path& cwd,
     const Env& env,
-    const fs::path& log_file) {
+    const fs::path& log_file,
+    const std::function<void()>& in_child) {
   if (args.empty()) return -1;
 
   pid_t pid = fork();
@@ -369,6 +370,7 @@ int ProcessRunner::run_detached(
     close(out_fd);
   }
 
+  if (in_child) in_child();
   exec_child(args, cwd, env);
 }
 

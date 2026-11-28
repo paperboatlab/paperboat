@@ -4,6 +4,7 @@
 
 #include "daemon.hpp"
 #include "paperboat/runtime.hpp"
+#include "paperboat/sandbox.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -35,7 +36,7 @@ struct Rig {
   std::unique_ptr<RuntimeClient> rt;
   fs::path project = d.root / "project";
 
-  Rig(const std::string& runtime, const std::string& backend, const std::string& mode) {
+  Rig(const std::string& runtime, const std::string& backend, const std::string& mode, bool readonly = false) {
     fs::create_directories(project);
     std::ofstream(project / "blocks.jl") << R"jl(
 struct Gain
@@ -70,7 +71,8 @@ pb.register("gain", Gain, definition={"inputs": ["u"], "outputs": ["y"]})
 )py";
     d.start();
     control = d.client();
-    lease = control->call("acquire", {{"runtime", runtime}, {"mode", mode}, {"backend", backend}, {"project", project.string()}});
+    lease = control->call("acquire", {{"runtime", runtime}, {"mode", mode}, {"backend", backend}, {"project", project.string()},
+                                      {"readonly", readonly}});
     rt = std::make_unique<RuntimeClient>(lease["ipc"].get<std::string>(), std::chrono::seconds(180));
   }
   std::string file(const std::string& runtime) { return runtime == "julia" ? "blocks.jl" : "blocks.py"; }
@@ -347,5 +349,65 @@ pb.register("probe", Probe)
     rt->request("load", {{"path", "uses_dep.py"}});
     const int p = rt->request("new", {{"type", "probe"}})["instance"];
     CHECK(rt->request("call", {{"instance", p}, {"method", "value"}}) == 7);
+  }
+}
+
+// pb#85: an example opened read-only. Its runtime reads and runs it, writes where it is (the lease's work
+// folder), and a write into the project fails with an error that says it is read-only and to copy it.
+TEST_CASE("a read-only project can be read but never written", "[runtime]") {
+  const auto runtime = GENERATE(std::string("python"), std::string("julia"));
+  const auto backend = GENERATE(std::string("podman"), std::string("native"));
+  if (!usable(runtime, backend)) SKIP(runtime + " on " + backend + " is not available here");
+  if (backend == "native" && ReadOnlyProject::mechanism().empty()) SKIP("no native sandbox for read-only projects here");
+  INFO(runtime << " on " << backend);
+  const bool jl = runtime == "julia";
+
+  SECTION("a session") {
+    Rig rig(runtime, backend, "session", true);
+    RuntimeClient& rt = *rig.rt;
+    CHECK(rig.lease["readonly"] == true);
+    const fs::path work = rig.lease["work"].get<std::string>();
+    if (!jl) rt.request("eval", {{"code", "import os"}});
+    // read: the example's own files
+    CHECK(text(rt.request("eval", {{"code", jl ? "length(read(joinpath(ENV[\"PAPERBOAT_PROJECT\"], \"helper.py\"), String))"
+                                               : "len(open(os.path.join(os.environ['PAPERBOAT_PROJECT'], 'helper.py')).read())"}})) == "8");
+    // a relative write lands in the working directory: the lease's work folder
+    rt.request("eval", {{"code", jl ? "write(\"out.txt\", \"made\")" : "open('out.txt', 'w').write('made')"}});
+    CHECK(fs::exists(work / "out.txt"));
+    CHECK_FALSE(fs::exists(rig.project / "out.txt"));
+    // every way into the project fails, and says why
+    const std::vector<std::string> writes =
+        jl ? std::vector<std::string>{"write(joinpath(ENV[\"PAPERBOAT_PROJECT\"], \"new.txt\"), \"x\")",
+                                      "open(joinpath(ENV[\"PAPERBOAT_PROJECT\"], \"helper.py\"), \"a\") do io; write(io, \"x\"); end",
+                                      "rm(joinpath(ENV[\"PAPERBOAT_PROJECT\"], \"helper.py\"))",
+                                      "mkdir(joinpath(ENV[\"PAPERBOAT_PROJECT\"], \"sub\"))"}
+           : std::vector<std::string>{"open(os.path.join(os.environ['PAPERBOAT_PROJECT'], 'new.txt'), 'w')",
+                                      "open(os.path.join(os.environ['PAPERBOAT_PROJECT'], 'helper.py'), 'a').write('x')",
+                                      "os.remove(os.path.join(os.environ['PAPERBOAT_PROJECT'], 'helper.py'))",
+                                      "os.mkdir(os.path.join(os.environ['PAPERBOAT_PROJECT'], 'sub'))"};
+    for (const auto& code : writes) {
+      INFO(code);
+      try {
+        rt.request("eval", {{"code", code}});
+        FAIL("the write went through");
+      } catch (const RuntimeError& e) {
+        CHECK_THAT(e.what(), ContainsSubstring("is read-only: it is an example; copy it to change it"));
+      }
+    }
+    CHECK_FALSE(fs::exists(rig.project / "new.txt"));
+    CHECK_FALSE(fs::exists(rig.project / "sub"));
+    std::ifstream helper(rig.project / "helper.py");
+    CHECK(std::string(std::istreambuf_iterator<char>(helper), {}) == "TWO = 2\n");
+  }
+
+  SECTION("a station loads and runs it") {
+    Rig rig(runtime, backend, "station", true);
+    RuntimeClient& rt = *rig.rt;
+    CHECK(rt.request("load", {{"path", rig.file(runtime)}})["types"][0]["name"] == "gain");
+    const int inst = rt.request("new", {{"type", "gain"}, {"params", {{"k", 2.0}}}})["instance"].get<int>();
+    CHECK(rt.request("call", {{"instance", inst}, {"method", "step"}, {"args", {{1.0, 2.0}}}}) == json::array({2.0, 4.0}));
+    rt.open_fast(8);  // its shared memory is in the lease's ipc folder: writable
+    CHECK(rt.call_fast(rt.bind(inst, "step"), std::vector<double>{1, 2}) == std::vector<double>{2, 4});
+    CHECK_FALSE(fs::exists(rig.project / "__pycache__"));
   }
 }

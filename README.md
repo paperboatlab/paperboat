@@ -11,7 +11,7 @@ OpenModelica) from pinned, isolated container images, with a native fallback. Th
 (Simplicial, Articula, Julix) live in their own repositories.
 
 **Design:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Protocols:** [docs/control.md](docs/control.md)
-(apps ↔ daemon), [docs/runtime.md](docs/runtime.md) (apps ↔ runtimes)
+(apps ↔ daemon), [docs/runtime.md](docs/runtime.md) (apps ↔ runtimes), [docs/apps.md](docs/apps.md) (paperboat ↔ app servers)
 
 ## Layout
 

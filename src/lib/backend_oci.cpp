@@ -138,6 +138,7 @@ class OciBackend final : public Backend {
     for (const auto& [k, v] : m.env) a.insert(a.end(), {"-e", k + "=" + v});
     a.insert(a.end(), {"-e", "PAPERBOAT_IPC=" + m.mounts.at("ipc"), "-e", "PAPERBOAT_MODE=" + spec.mode});
     if (!spec.project.empty()) a.insert(a.end(), {"-e", "PAPERBOAT_PROJECT=" + m.mounts.at("project")});
+    if (spec.readonly) a.insert(a.end(), {"-e", "PAPERBOAT_READONLY=1"});
     if (!spec.deps.empty()) a.insert(a.end(), {"-e", "PAPERBOAT_DEPS=" + m.mounts.at("deps")});
     a.push_back(m.image());
     const std::map<std::string, std::string> vars = {{"ipc", m.mounts.at("ipc")}, {"project", m.mounts.at("project")},
@@ -282,6 +283,9 @@ std::vector<std::string> isolation_flags(const LaunchSpec& spec, const std::stri
     else a.insert(a.end(), {"--gpus", "all"});
   }
   if (p.ipc_host) a.emplace_back("--ipc=host");
+  // A read-only project: the mount above is :ro (writable_project is refused with it), and writes go to
+  // the lease's work folder, the working directory (natively it always is).
+  if (spec.readonly && !spec.work.empty()) a.insert(a.end(), {"--workdir", m.mounts.at("work")});
   return a;
 }
 

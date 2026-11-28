@@ -4,10 +4,12 @@
 // POSIX for now; the Windows half (job objects) follows with the Windows port.
 
 #include "paperboat/backend.hpp"
+#include "paperboat/sandbox.hpp"
 
 #include <csignal>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
@@ -28,6 +30,23 @@ const std::vector<std::string> kScrubbed = {"PYTHONPATH", "PYTHONHOME", "PYTHONS
                                             "JULIA_PROJECT", "JULIA_DEPOT_PATH", "JULIA_LOAD_PATH", "LD_LIBRARY_PATH",
                                             "LD_PRELOAD", "DYLD_LIBRARY_PATH"};
 
+// The folders a read-only project's runtime may still write: the lease's own, and the temporary folder
+// (unless it holds the project: then TMPDIR is the work folder).
+std::vector<fs::path> writable_of(const LaunchSpec& spec) {
+  std::vector<fs::path> w = {spec.work, spec.deps, spec.ipc};
+  std::error_code ec;
+  if (const fs::path tmp = fs::temp_directory_path(ec); !ec) w.push_back(tmp);
+  return w;
+}
+
+bool temp_holds(const fs::path& project) {
+  std::error_code ec;
+  const fs::path tmp = fs::weakly_canonical(fs::temp_directory_path(ec), ec);
+  if (ec) return false;
+  const fs::path r = fs::weakly_canonical(project, ec).lexically_relative(tmp);
+  return !r.empty() && *r.begin() != "..";
+}
+
 class NativeBackend final : public Backend {
  public:
   explicit NativeBackend(fs::path state) : state_(std::move(state)) {}
@@ -38,7 +57,10 @@ class NativeBackend final : public Backend {
 #ifdef _WIN32
     return {false, "the native backend is not ported to Windows yet", false, false};
 #else
-    return {true, "processes on this host (environment cleaned, no sandbox)", false, false};
+    std::string why;
+    const std::string ro = ReadOnlyProject::mechanism(&why);
+    return {true, "processes on this host (environment cleaned, no sandbox; read-only projects: " +
+                      (ro.empty() ? "no, " + why : ro) + ")", false, false};
 #endif
   }
 
@@ -54,7 +76,11 @@ class NativeBackend final : public Backend {
 
   std::vector<std::string> command(const LaunchSpec& spec) const override {
     const Manifest& m = *spec.manifest;
-    std::vector<std::string> a = {"env"};
+    std::vector<std::string> a;
+#ifdef __APPLE__
+    if (spec.readonly) a = sandbox_exec_prefix(spec.project, writable_of(spec));
+#endif
+    a.push_back("env");
     for (const auto& k : kScrubbed) a.insert(a.end(), {"-u", k});
     const std::map<std::string, std::string> vars = {{"ipc", spec.ipc.string()}, {"project", spec.project.string()},
                                                      {"deps", spec.deps.string()}, {"work", spec.work.string()},
@@ -78,6 +104,10 @@ class NativeBackend final : public Backend {
     a.push_back("PAPERBOAT_MODE=" + spec.mode);
     if (!spec.project.empty()) a.push_back("PAPERBOAT_PROJECT=" + spec.project.string());
     if (!spec.deps.empty()) a.push_back("PAPERBOAT_DEPS=" + spec.deps.string());
+    if (spec.readonly) {
+      a.push_back("PAPERBOAT_READONLY=1");
+      if (temp_holds(spec.project) && !spec.work.empty()) a.push_back("TMPDIR=" + spec.work.string());
+    }
     std::vector<std::string> argv;
     if (spec.mode == "exec") argv = spec.command;
     else if (const auto it = m.native_entry.find(spec.mode); it != m.native_entry.end()) argv = expand(it->second, vars);
@@ -94,7 +124,12 @@ class NativeBackend final : public Backend {
     if (spec.mode == "exec" ? spec.command.empty() : !m.native_entry.contains(spec.mode))
       throw std::runtime_error(m.id() + " has no native " + spec.mode + " entry");
     const auto argv = command(spec);
-    const int pid = ProcessRunner::run_detached(argv, spec.work.empty() ? fs::path() : spec.work, {}, spec.log);
+    // A read-only project: Landlock on Linux (the ruleset lives until the child has restricted itself),
+    // sandbox-exec on macOS (already in argv). Neither: refused, never run with a writable project.
+    std::unique_ptr<ReadOnlyProject> sandbox;
+    if (spec.readonly) sandbox = std::make_unique<ReadOnlyProject>(spec.project, writable_of(spec));
+    const int pid = ProcessRunner::run_detached(argv, spec.work.empty() ? fs::path() : spec.work, {}, spec.log,
+                                                sandbox ? sandbox->in_child() : nullptr);
     if (pid <= 0) throw std::runtime_error("could not start " + m.id() + " natively");
     Instance i{"native", spec.name, "running", -1, pid, spec.labels};
     {

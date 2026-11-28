@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import ctypes
+import errno
 import io
 import json
 import mmap
@@ -102,8 +103,23 @@ def _jsonable(x):
     return repr(x)
 
 
+def _readonly_hint(e: BaseException) -> str:
+    """A write into a read-only project ($PAPERBOAT_READONLY, an example: pb#85) says so and what to do."""
+    project = os.environ.get("PAPERBOAT_PROJECT", "")
+    if not (os.environ.get("PAPERBOAT_READONLY") and project and isinstance(e, OSError)):
+        return ""
+    if e.errno not in (errno.EACCES, errno.EPERM, errno.EROFS):
+        return ""
+    paths = [p for p in (e.filename, e.filename2) if p]
+    root = os.path.realpath(project)
+    if not any(os.path.commonpath([root, os.path.realpath(os.fsdecode(p))]) == root for p in paths):
+        return ""
+    return (f" (the project {project} is read-only: it is an example; copy it to change it, or write under"
+            f" the working directory, {os.getcwd()})")
+
+
 def _error(e: BaseException) -> dict:
-    return {"type": type(e).__name__, "message": str(e), "traceback": "".join(traceback.format_exception(e))}
+    return {"type": type(e).__name__, "message": str(e) + _readonly_hint(e), "traceback": "".join(traceback.format_exception(e))}
 
 
 # --- session ----------------------------------------------------------------------------------

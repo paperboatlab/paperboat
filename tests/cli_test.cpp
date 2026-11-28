@@ -277,15 +277,21 @@ TEST_CASE("examples: listed by app, opened where they are, copied when asked", "
   put(repo / "hubs" / "lab" / "notes" / "index.md", "# Lab\n");
   put(repo / "legacy" / "README.md", "old\n");
   put(data / "apps.toml", "[[apps]]\nname = \"malachite\"\nlaunch = \"bin/serve\"\nport = 47220\n[[apps]]\nname = \"simplicial\"\nlaunch = \"bin/serve\"\nport = 47221\n");
-  put(checkout / "bin" / "serve", "#!/bin/sh\nexec python3 -m http.server \"$3\" --bind 127.0.0.1 --directory \"$1\"\n");
+  // the server notes what it was told: PAPERBOAT_EXAMPLE, by its port
+  put(checkout / "bin" / "serve", "#!/bin/sh\nprintf %s \"$PAPERBOAT_EXAMPLE\" > " + (kHome / "told-").string() +
+                                      "$3\nexec python3 -m http.server \"$3\" --bind 127.0.0.1 --directory \"$1\"\n");
   fs::permissions(checkout / "bin" / "serve", fs::perms::owner_all);
+  const auto told = [](const json& session) {
+    std::ifstream in(kHome / ("told-" + std::to_string(session["port"].get<int>())));
+    return std::string(std::istreambuf_iterator<char>(in), {});
+  };
   const std::pair<std::string, std::string> dir{"PAPERBOAT_EXAMPLES_DIR", repo.string()};
   auto run = [&](std::vector<std::string> args) { return cli(std::move(args), data, {dir}); };
 
   const auto all = json::parse(run({"example", "list", "--json"}).stdout_text);
   REQUIRE(all.size() == 2);  // the pending one is left out
   CHECK(all[0] == json{{"id", "hubs/lab"}, {"app", "malachite"}, {"kind", "hub"}, {"name", "Lab"}, {"description", "A study across the apps"},
-                       {"path", (repo / "hubs" / "lab").string()}});
+                       {"path", (repo / "hubs" / "lab").string()}, {"root", repo.string()}});  // root: where examples are
   CHECK(all[1]["id"] == "simplicial/09-synth-cpp");
   const auto sx = json::parse(run({"examples", "--app", "simplicial", "--json"}).stdout_text);
   REQUIRE(sx.size() == 1);
@@ -297,6 +303,10 @@ TEST_CASE("examples: listed by app, opened where they are, copied when asked", "
   CHECK_THAT(run({"example", "open", "simplicial/09-synth-cpp"}).stderr_text, ContainsSubstring("paperboat app install simplicial"));
   REQUIRE(run({"app", "install", "malachite", "--from", checkout.string()}).ok());
   const fs::path lab = repo / "hubs" / "lab", mine = kHome / "my hubs";
+  // the folder opened as a folder first: not an example's session, so `example open` doesn't reuse it (pb#85)
+  const auto plain = json::parse(run({"app", "open", "malachite", lab.string(), "--no-open", "--json"}).stdout_text);
+  CHECK(plain["example"] == "");
+  CHECK(told(plain).empty());
   const auto o = run({"example", "open", "hubs/lab", "--no-open"});
   REQUIRE(o.ok());
   CHECK(o.stdout_text == lab.string() + "\n");  // a hub opens in Malachite, where it is: nothing copied
@@ -306,6 +316,17 @@ TEST_CASE("examples: listed by app, opened where they are, copied when asked", "
   const auto j = json::parse(run({"example", "open", "hubs/lab", "--no-open", "--to", mine.string(), "--json"}).stdout_text);
   CHECK(j["session"]["project"] == lab.string());  // the session it has
   CHECK(j["session"]["app"] == "malachite");
+  CHECK(j["session"]["example"] == "hubs/lab");  // opened as the example, and its server was told so
+  CHECK(j["session"]["port"] != plain["port"]);
+  CHECK(told(j["session"]) == "hubs/lab");
+  CHECK(j["root"] == repo.string());
+  // and the folder's own session is still the one `app open` finds
+  CHECK(json::parse(run({"app", "open", "malachite", lab.string(), "--no-open", "--json"}).stdout_text)["port"] == plain["port"]);
+  // a restart keeps it an example
+  const std::string ex_id = j["session"]["id"];
+  const auto re = json::parse(run({"session", "restart", ex_id, "--json"}).stdout_text);
+  CHECK(re["example"] == "hubs/lab");
+  CHECK(told(re) == "hubs/lab");
   CHECK(j["cache"] == false);
   // the page is told it is an example, its name, and where its Copy goes
   CHECK(j["url"] == j["session"]["url"].get<std::string>() + "?example=hubs/lab&name=Lab&to=" + (kHome / "my%20hubs").string());
@@ -322,6 +343,8 @@ TEST_CASE("examples: listed by app, opened where they are, copied when asked", "
   const auto co = json::parse(run({"example", "copy", "hubs/lab", "--to", mine.string(), "--open", "--no-open", "--json"}).stdout_text);
   CHECK(co["path"] == (mine / "lab").string());
   CHECK(co["session"]["project"] == (mine / "lab").string());  // --open: the copy in its app
+  CHECK(co["session"]["example"] == "");  // a copy is the user's: no longer an example
+  CHECK(told(co["session"]).empty());
   CHECK(run({"app", "stop", "malachite"}).ok());
 
  // no checkout: GitHub's copy (a folder here, its tarball one top folder), kept a day

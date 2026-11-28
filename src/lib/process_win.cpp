@@ -455,7 +455,7 @@ int ProcessRunner::run_stream(const std::vector<std::string>& args, const fs::pa
 }
 
 int ProcessRunner::run_detached(const std::vector<std::string>& args, const fs::path& cwd, const Env& env,
-                                const fs::path& log_file) {
+                                const fs::path& log_file, const std::function<void()>&) {
   if (args.empty()) return -1;
   SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
   HANDLE nul = open_nul(GENERIC_READ);

@@ -43,6 +43,7 @@ add_library(paperboat_runtime STATIC
   src/lib/paths.cpp
   src/lib/backend_oci.cpp
   src/lib/backend_native.cpp
+  src/lib/sandbox.cpp
   src/lib/manager.cpp
   src/lib/control.cpp
   src/lib/runtime_client.cpp
