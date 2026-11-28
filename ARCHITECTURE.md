@@ -147,7 +147,8 @@ flowchart LR
   `file://` folder in the tests): the manifest's version, the licence, the blocks (`src/<package>/<block>/<block>.cpp`
   and a package's `blocks.toml`; base is Simplicial's `engine/toolkit`), the README as GitHub renders it, the
   newest release on the channel. Cached an hour in `<home>/cache/toolkits/<name>.json` (`--refresh`); offline,
-  the last copy marked stale, else an error. The Launcher's Toolkits page shows it.
+  the last copy marked stale, else an error. The Launcher's Toolkits page shows it, on the kit's toolkit list, head
+  and cards (`@paperboatlab/ui/toolkits`), the same as Simplicial's block library.
   `package search julia <name>` and `package info julia <package>` read Julia's General registry the same way
   (`JuliaRegistries/General`): the names from its `Registry.toml`, a package's versions (`Versions.toml`, yanked
   left out) and repository (`Package.toml`), and the repository's description, stars and topics from GitHub.

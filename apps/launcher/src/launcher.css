@@ -123,18 +123,6 @@ table.t tr.sel td { background: color-mix(in srgb, var(--accent) var(--tint), tr
 .hub-head > div { min-width: 0; flex: 1; }
 .hub-head .dmeta .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
-/* Toolkits (paperboat#48): the blocks a toolkit adds, its README as GitHub renders it */
-.tk-blocks { display: flex; flex-wrap: wrap; gap: 6px; padding: var(--space-3) var(--space-4); }
-.tk-blocks code { font: var(--size-2xs) var(--font-mono); padding: 2px 6px; border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--line); }
-.tk-readme { padding: var(--space-1) var(--space-4) var(--space-3); font-size: var(--size-sm); overflow-wrap: anywhere; }
-.tk-readme h1, .tk-readme h2, .tk-readme h3 { font: 600 var(--size-md) var(--font-display); margin: var(--space-4) 0 var(--space-2); }
-.tk-readme h1 { font-size: var(--size-lg); }
-.tk-readme p, .tk-readme ul, .tk-readme ol { margin: 0 0 var(--space-2); }
-.tk-readme a { color: var(--accent-text); text-decoration: none; } .tk-readme a:hover { text-decoration: underline; }
-.tk-readme code { font: 0.9em var(--font-mono); }
-.tk-readme pre { background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); overflow: auto; font-size: var(--size-xs); }
-.tk-readme img { max-width: 100%; }
-
 /* Stations: the list grouped by where they come from */
 .kgroup { padding: var(--space-2) var(--space-2) 2px; }
 .st-list .kr > span { min-width: 0; }
