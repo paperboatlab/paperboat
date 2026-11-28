@@ -18,6 +18,8 @@ export interface Job {
   error?: string;
   /** For an unknown word an app adds: the app to install. */
   app?: string;
+  /** What a failure's JSON says beside its error (`update --install`'s `cancelled`). */
+  extra?: Record<string, unknown>;
   started: number;
   ended?: number;
 }
@@ -95,8 +97,9 @@ export function createClient(t: Transport): Client {
         const result = await t.call(words, l => set(s => ({jobs: s.jobs.map(j => (j.id === id ? {...j, output: [...j.output, l]} : j))})), !opts.text);
         setJob(id, {state: 'done', result, ended: Date.now()});
       } catch (e) {
-        const app = e instanceof CliError && typeof e.extra.app === 'string' ? e.extra.app : undefined;
-        setJob(id, {state: 'failed', error: (e as Error).message, app, ended: Date.now()});
+        const extra = e instanceof CliError ? e.extra : undefined;
+        const app = typeof extra?.app === 'string' ? extra.app : undefined;
+        setJob(id, {state: 'failed', error: (e as Error).message, app, extra, ended: Date.now()});
       }
       // ponytail: every list after every job; narrow it by command group if it ever shows
       await client.refresh({runtimes: state.runtimes !== null});

@@ -68,7 +68,7 @@ target_link_libraries(paperboatd PRIVATE paperboat::runtime paperboat_warnings)
 file(READ src/cli/commands.toml PAPERBOAT_COMMANDS)
 configure_file(src/cli/commands.cpp.in ${CMAKE_CURRENT_BINARY_DIR}/commands.cpp @ONLY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS src/cli/commands.toml)
-add_executable(paperboat src/cli/main.cpp ${CMAKE_CURRENT_BINARY_DIR}/commands.cpp)
+add_executable(paperboat src/cli/main.cpp src/cli/update.cpp ${CMAKE_CURRENT_BINARY_DIR}/commands.cpp)
 target_compile_definitions(paperboat PRIVATE PAPERBOAT_VERSION="${PAPERBOAT_VERSION}")
 target_link_libraries(paperboat PRIVATE paperboat::runtime tomlplusplus::tomlplusplus paperboat_warnings)
 

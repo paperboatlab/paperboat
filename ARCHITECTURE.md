@@ -122,7 +122,24 @@ flowchart LR
   rpm `paperboat-launcher` (electron-builder, `apps/launcher/electron-builder.cjs`; x86_64) Requires `paperboat-cli`:
   `/opt/paperboat-launcher/` (no space: the setuid sandbox) linked as `/usr/bin/paperboat-launcher`, the desktop entry from `linux/`, the kit's
   Paperboat mark as its icon; a tag's version (`v0.2.0-beta.1` → `0.2.0~beta.1`). `paperboat-launcher --version`
-  prints the version and exits (the job's start check).
+  prints the version and exits (the job's start check). A release also carries `SHA256SUMS`.
+- Updating Paperboat itself (pb#94): `paperboat update --install [--yes]` (`src/cli/main.cpp` runs, `src/cli/update.cpp`
+  decides, with no network or process of its own: `tests/update_test.cpp`). Only the installed CLI updates (`/usr/bin`,
+  `/usr/local/bin` on macOS; a build from source updates its checkout). It reads how Paperboat is installed (`rpm -q`,
+  `dpkg-query`, `pkgutil`: the kind, the machine, which of cli, devel and launcher), takes the release's package of each,
+  asks (`--yes` is the answer; without a terminal it refuses), downloads to `<home>/cache/updates/<version>/` with its
+  progress on stderr, checks each file's SHA-256 against GitHub's asset digest (else the release's `SHA256SUMS`; neither:
+  refused), then runs `pkexec dnf|apt-get install -y <paths>` or `osascript … installer -pkg <path> -target / with
+  administrator privileges`. A dismissed or refused password prompt (pkexec 126/127, osascript -128) is `cancelled: true`,
+  nothing changed. `--json` returns `installed`, `files` and `daemon` (`version`, `older`, its `instances`).
+  `$PAPERBOAT_UPDATE_SYSTEM` (`rpm x86_64 cli devel`) and `$PAPERBOAT_UPDATE_RUNNER` (run in front of the install command)
+  are the tests' stand-ins. The Launcher's side (`apps/launcher/src/Updates.tsx`, words in `update.ts`): Check for updates
+  and Settings › Launcher › Automatic updates (Off, or Check and ask: at start and every six hours, never installing on its
+  own) toast `update --check --json` in words, with **Update now** and **Later** when `installable` (else Open release);
+  Update now runs `update --install --yes` in the same toast, then **Restart** (pb#61): `daemon stop` when paperboatd is
+  older, then `relaunch` (Electron's `app.relaunch()` + `app.quit()`), after a dialog naming what it ends (running
+  instances; the apps' windows) with Restart now, When none run, Cancel. Back on the window, a CLI on disk newer than
+  the Launcher (an update from the terminal) offers the same restart.
 - `apps.toml`, `toolkits.toml`: the app and toolkit registries (Malachite, Julix; the five
   `simplicial-toolkit-*` repos), installed to `share/paperboat/`; `$PAPERBOAT_DATA_DIR` is searched
   first (tests, a private registry).

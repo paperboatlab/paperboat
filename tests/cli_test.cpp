@@ -1,6 +1,7 @@
 // The CLI against its registry: the real binary, a home of its own, no daemon needed.
 
 #include "paperboat/process.hpp"
+#include "update.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -366,5 +367,99 @@ TEST_CASE("examples: listed by app, opened where they are, copied when asked", "
   CHECK(cli({"app", "stop", "malachite"}, data, offline).ok());
   fs::remove_all(kHome / "cache");
   CHECK_THAT(cli({"example", "list"}, data, {{"PAPERBOAT_GITHUB_API", "file:///nowhere"}}).stderr_text, ContainsSubstring("PAPERBOAT_EXAMPLES_DIR"));
+  fs::remove_all(kHome);
+}
+
+// pb#94: `update --install` against a release of the test's own (file://), the install command run by a stand-in
+// that records it: nothing here asks for a password or installs anything.
+TEST_CASE("update --install: asks first, checks the SHA-256, installs the system's packages, a cancel changes nothing", "[cli]") {
+  const fs::path gh = kHome / "github", rel = kHome / "release", stub = kHome / "pkexec-stub", said = kHome / "stub-said";
+  const auto put = [](const fs::path& f, const std::string& text) { fs::create_directories(f.parent_path()), std::ofstream(f) << text; };
+  const std::string cli_rpm = "paperboat-cli-99.0.0-1.x86_64.rpm", devel_rpm = "paperboat-devel-99.0.0-1.x86_64.rpm";
+  put(rel / cli_rpm, std::string(300000, 'c'));
+  put(rel / devel_rpm, "devel");
+  put(rel / "paperboat-launcher-99.0.0.x86_64.rpm", "launcher");
+  const auto release = [&](const std::string& cli_digest, bool sums) {
+    json assets = {{{"name", cli_rpm}, {"browser_download_url", "file://" + (rel / cli_rpm).string()}, {"digest", cli_digest}, {"size", 300000}},
+                   {{"name", devel_rpm}, {"browser_download_url", "file://" + (rel / devel_rpm).string()}, {"digest", sums ? json(nullptr) : json("sha256:" + paperboat::update::sha256_hex("devel"))}, {"size", 5}},
+                   {{"name", "paperboat-launcher-99.0.0.x86_64.rpm"}, {"browser_download_url", "file:///nowhere"}, {"digest", ""}, {"size", 8}}};
+    if (sums) {
+      put(rel / "SHA256SUMS", paperboat::update::sha256_hex("devel") + "  " + devel_rpm + "\n");
+      assets.push_back({{"name", "SHA256SUMS"}, {"browser_download_url", "file://" + (rel / "SHA256SUMS").string()}});
+    }
+    put(gh / "repos" / "paperboatlab" / "paperboat" / "releases", json{{{"tag_name", "v99.0.0"}, {"html_url", "https://example.org/v99"}, {"assets", assets}}}.dump());
+  };
+  put(stub, "#!/bin/sh\necho \"$@\" >> " + said.string() + "\necho 'Not authorized' >&2\nexit ${STUB_EXIT:-0}\n");
+  fs::permissions(stub, fs::perms::owner_all);
+  const std::string good = "sha256:" + paperboat::update::sha256_hex(std::string(300000, 'c'));
+  const fs::path cache = kHome / "cache" / "updates" / "99.0.0";
+  const auto update = [&](std::vector<std::string> args, std::string exit = "0", std::string sys = "rpm x86_64 cli devel") {
+    args.insert(args.begin(), "update");
+    return cli(args, {}, {{"PAPERBOAT_GITHUB_API", "file://" + gh.string()}, {"PAPERBOAT_UPDATE_SYSTEM", sys},
+                          {"PAPERBOAT_UPDATE_RUNNER", stub.string()}, {"STUB_EXIT", exit}});
+  };
+  const auto stub_said = [&] { std::ifstream in(said); std::string l; std::getline(in, l); return l; };
+  release(good, false);
+
+  // the check says how to install; nothing downloads before the user agrees
+  CHECK_THAT(update({}).stdout_text, ContainsSubstring("paperboat update --install"));
+  CHECK(json::parse(update({"--check", "--json"}).stdout_text)["installable"] == true);
+  CHECK(json::parse(cli({"update", "--check", "--json"}, {}, {{"PAPERBOAT_GITHUB_API", "file://" + gh.string()}}).stdout_text)["installable"] == false);
+  const auto no = update({"--install", "--json"});
+  CHECK(no.exit_code == 2);
+  CHECK_THAT(json::parse(no.stdout_text)["error"].get<std::string>(), ContainsSubstring("--yes"));
+  CHECK(!fs::exists(cache));
+  CHECK(!fs::exists(said));
+
+  // a refused password: the packages were checked, the install ran once and nothing changed
+  const auto refused = update({"--install", "--yes", "--json"}, "126");
+  CHECK(refused.exit_code == 1);
+  CHECK(json::parse(refused.stdout_text)["cancelled"] == true);
+  CHECK_THAT(json::parse(refused.stdout_text)["error"].get<std::string>(), ContainsSubstring("nothing was installed"));
+  CHECK_THAT(refused.stderr_text, ContainsSubstring("checked " + cli_rpm + ": SHA-256 matches the release"));
+  CHECK_THAT(refused.stderr_text, ContainsSubstring("downloading " + cli_rpm + ": 0.3 of 0.3 MB"));
+  CHECK(stub_said() == "pkexec dnf install -y " + (cache / cli_rpm).string() + " " + (cache / devel_rpm).string());  // not the Launcher: not installed here
+  fs::remove(said);
+
+  // installed: the files go, the result names them; no paperboatd runs for this home
+  const auto ok = update({"--install", "--yes", "--json"});
+  REQUIRE(ok.ok());
+  const auto j = json::parse(ok.stdout_text);
+  CHECK(j["installed"] == "99.0.0");
+  CHECK(j["files"] == json{cli_rpm, devel_rpm});
+  CHECK(j["daemon"].is_null());
+  CHECK(!fs::exists(cache));
+  CHECK_THAT(update({"--install", "--yes"}).stdout_text, ContainsSubstring("Paperboat 99.0.0 is installed. Restart the Launcher to use it."));
+  fs::remove(said);
+
+  // a file that isn't what the release published is never installed
+  release("sha256:" + std::string(64, '0'), false);
+  const auto bad = update({"--install", "--yes", "--json"});
+  CHECK(bad.exit_code == 1);
+  CHECK_THAT(json::parse(bad.stdout_text)["error"].get<std::string>(), ContainsSubstring("doesn't match the release's SHA-256"));
+  CHECK(!fs::exists(said));
+  CHECK(!fs::exists(cache / cli_rpm));
+
+  // without GitHub's digest, the release's SHA256SUMS; with neither, refused
+  release(good, true);
+  CHECK(update({"--install", "--yes", "--json"}).ok());
+  CHECK(fs::exists(said));
+  fs::remove(said);
+  release("", false);
+  CHECK_THAT(json::parse(update({"--install", "--yes", "--json"}).stdout_text)["error"].get<std::string>(), ContainsSubstring("publishes no SHA-256 for " + cli_rpm));
+  CHECK(!fs::exists(said));
+
+  // the Launcher's package comes too when it is installed, and a missing one stops it all; a dnf failure is a failure
+  release(good, false);
+  CHECK_THAT(update({"--install", "--yes", "--json"}, "0", "rpm aarch64 cli devel").stdout_text, ContainsSubstring("no rpm of paperboat-cli for aarch64"));
+  const auto failed = update({"--install", "--yes", "--json"}, "1");
+  CHECK(failed.exit_code == 1);
+  CHECK(!json::parse(failed.stdout_text).contains("cancelled"));
+  CHECK_THAT(json::parse(failed.stdout_text)["error"].get<std::string>(), ContainsSubstring("the install failed (pkexec dnf exited 1)"));
+  fs::remove(said);
+  // a build from source updates its checkout
+  const auto src = cli({"update", "--install", "--yes"}, {}, {{"PAPERBOAT_GITHUB_API", "file://" + gh.string()}});
+  CHECK(src.exit_code == 1);
+  CHECK_THAT(src.stderr_text, ContainsSubstring("isn't installed from a package"));
   fs::remove_all(kHome);
 }

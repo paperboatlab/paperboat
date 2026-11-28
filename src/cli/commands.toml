@@ -221,8 +221,8 @@ group = "Packages"
 [[command]]
 id = "paperboat.update"
 name = "update"
-args = "[--check]"
-desc = "Update Paperboat, apps and toolkits on your channel; --check only looks"
+args = "[--check | --install [--yes]]"
+desc = "Paperboat's newest release on your channel; --install downloads, checks and installs it"
 group = "Paperboat"
 
 [[command]]

@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include "paperboat/backend.hpp"
@@ -15,11 +16,14 @@
 #include "paperboat/manifest.hpp"
 #include "paperboat/paths.hpp"
 #include "paperboat/process.hpp"
+#include "update.hpp"
 
 #include <nlohmann/json.hpp>
 #include <toml++/toml.hpp>
 
 #include <algorithm>
+#include <atomic>
+#include <deque>
 #include <csignal>
 #include <cstdio>
 #include <ctime>
@@ -384,7 +388,7 @@ json releases_of(const std::string& repo, std::chrono::seconds max_age) {
 }
 
 // GitHub's newest release of `repo` on the channel, or the one tagged v<want>: {version, url, assets: {name: download
-// url}}, or null; throws when GitHub can't be reached.
+// url}, files: [{name, url, digest, size}]}, or null; throws when GitHub can't be reached.
 json newest_release(const std::string& repo, const std::string& want = "", std::chrono::seconds max_age = {}) {
   const json all = releases_of(repo, max_age);
   if (!all.is_array()) throw Failure("could not reach GitHub for the releases of " + github_slug(repo));
@@ -396,9 +400,13 @@ json newest_release(const std::string& repo, const std::string& want = "", std::
     if (rel.value("draft", false)) continue;
     if (want.empty() ? (ch == "release" && rel.value("prerelease", false)) : tag != want) continue;
     if (!newest.is_null() && compare_versions(tag, newest["version"].get<std::string>()) <= 0) continue;
-    json assets = json::object();
-    for (const auto& x : rel.value("assets", json::array())) assets[x.value("name", "")] = x.value("browser_download_url", "");
-    newest = {{"version", tag}, {"url", rel.value("html_url", std::string())}, {"assets", assets}};
+    json assets = json::object(), files = json::array();
+    for (const auto& x : rel.value("assets", json::array())) {
+      assets[x.value("name", "")] = x.value("browser_download_url", "");
+      files.push_back({{"name", x.value("name", "")}, {"url", x.value("browser_download_url", "")}, {"digest", x.contains("digest") && x["digest"].is_string() ? x["digest"] : json("")},
+                       {"size", x.contains("size") && x["size"].is_number() ? x["size"] : json(0)}});
+    }
+    newest = {{"version", tag}, {"url", rel.value("html_url", std::string())}, {"assets", assets}, {"files", files}};
   }
   return newest;
 }
@@ -1415,18 +1423,208 @@ int paperboat_channel(Args& a) {
   return 0;
 }
 
+// ── update --install (pb#94): update.hpp chooses, checks and builds the command; this runs them ──
+
+// How Paperboat is installed here. Only the installed CLI updates itself: a build from source (any other
+// folder) updates its checkout. $PAPERBOAT_UPDATE_SYSTEM ("rpm x86_64 cli devel") stands in for the probe.
+update::System this_system() {
+  if (const char* t = std::getenv("PAPERBOAT_UPDATE_SYSTEM"); t && *t) return update::parse_system(t);
+  utsname u{};
+  ::uname(&u);
+  update::System s{.kind = "", .arch = u.machine, .parts = {}};
+  std::error_code ec;
+#ifdef __APPLE__
+  if (!fs::equivalent(paths::exe_dir(), "/usr/local/bin", ec)) return s;
+  if (ProcessRunner::run_sync({"pkgutil", "--pkg-info", "org.paperboatlab.paperboat.cli"}).ok()) s.kind = "pkg", s.parts = {"cli", "devel"};
+#else
+  if (!fs::equivalent(paths::exe_dir(), "/usr/bin", ec)) return s;
+  for (const std::string p : {"cli", "devel", "launcher"}) {
+    if (ProcessRunner::run_sync({"rpm", "-q", "paperboat-" + p}).ok()) s.kind = "rpm", s.parts.push_back(p);
+    else if (ProcessRunner::run_sync({"dpkg-query", "-W", "-f", "${Status}", "paperboat-" + p}).stdout_text.ends_with("install ok installed"))
+      s.kind = "deb", s.parts.push_back(p);
+  }
+#endif
+  return s;
+}
+
+std::string megabytes(std::int64_t n) {
+  std::ostringstream o;
+  o << std::fixed << std::setprecision(1) << static_cast<double>(n) / 1e6;
+  return o.str();
+}
+
+// curl `f` to `to` (`to`.part until it is whole), saying how far on stderr: a line at each tenth.
+void download(const update::Asset& f, const fs::path& to) {
+  fs::path part = to;
+  part += ".part";
+  std::error_code ec;
+  fs::remove(part, ec);
+  ProcessResult r;
+  std::atomic<bool> done{false};
+  std::jthread t([&] {
+    r = ProcessRunner::run_sync({"curl", "-fsSL", "--retry", "2", "--max-time", "1800", "-o", part.string(), f.url}, {}, {}, std::chrono::seconds(1900));
+    done = true;
+  });
+  std::cerr << "downloading " << f.name << (f.size ? ": 0.0 of " + megabytes(f.size) + " MB" : "") << "\n";
+  for (std::int64_t tenth = 0; !done;) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    const auto got = static_cast<std::int64_t>(fs::file_size(part, ec));
+    if (ec || !f.size || got * 10 / f.size <= tenth || got >= f.size) continue;
+    tenth = got * 10 / f.size;
+    std::cerr << "downloading " << f.name << ": " << megabytes(got) << " of " << megabytes(f.size) << " MB\n";
+  }
+  t.join();
+  if (!r.ok()) {
+    fs::remove(part, ec);
+    throw Failure("could not download " + f.name + ": " + r.stderr_text.substr(0, r.stderr_text.find('\n')));
+  }
+  if (f.size) std::cerr << "downloading " << f.name << ": " << megabytes(f.size) << " of " << megabytes(f.size) << " MB\n";
+  fs::rename(part, to);
+}
+
+// Run the install command. On a terminal it has the terminal (pkexec asks there without a desktop's agent);
+// else its words go to stderr, line by line. Returns the exit code and the last lines it said.
+std::pair<int, std::string> run_installer(const std::vector<std::string>& argv, bool terminal) {
+  std::vector<std::string> cmd = argv;
+  if (const char* r = std::getenv("PAPERBOAT_UPDATE_RUNNER"); r && *r) cmd.insert(cmd.begin(), r);  // the tests' stand-in
+  if (terminal) {
+    std::vector<char*> args;
+    for (auto& w : cmd) args.push_back(w.data());
+    args.push_back(nullptr);
+    const pid_t pid = ::fork();
+    if (pid == 0) {
+      ::execvp(args[0], args.data());
+      std::cerr << "paperboat: " << cmd[0] << ": " << std::strerror(errno) << "\n";
+      ::_exit(127);
+    }
+    int status = 0;
+    ::waitpid(pid, &status, 0);
+    return {WIFEXITED(status) ? WEXITSTATUS(status) : 1, ""};
+  }
+  std::deque<std::string> said;
+  const int code = ProcessRunner::run_stream(cmd, {}, {}, [&](std::string_view, std::string_view l) {
+    std::cerr << l << "\n";
+    said.emplace_back(l);
+    if (said.size() > 12) said.pop_front();
+  });
+  std::string tail;
+  for (const auto& l : said) tail += l + "\n";
+  return {code, tail};
+}
+
+// The release's published SHA-256 of each file: GitHub's digest, else the release's SHA256SUMS (package.yml).
+std::map<std::string, std::string> release_sums(const std::vector<update::Asset>& files, const std::vector<update::Asset>& want) {
+  if (std::ranges::all_of(want, [](const update::Asset& f) { return !update::expected_sha256(f, {}).empty(); })) return {};
+  const auto it = std::ranges::find(files, std::string("SHA256SUMS"), &update::Asset::name);
+  if (it == files.end()) return {};
+  const auto r = ProcessRunner::run_sync({"curl", "-fsSL", "--max-time", "60", it->url}, {}, {}, std::chrono::seconds(70));
+  if (!r.ok()) throw Failure("could not download the release's SHA256SUMS");
+  return update::parse_sums(r.stdout_text);
+}
+
+json update_install(Args& a, const json& newest, const std::string& ch) {
+  const update::System sys = this_system();
+  if (sys.kind.empty() || sys.parts.empty())
+    throw Failure("this paperboat (" + (paths::exe_dir() / "paperboat").string() + ") isn't installed from a package: update its checkout, or "
+                  "install the release with your package manager: " + newest["url"].get<std::string>());
+  const std::string version = newest["version"].get<std::string>();
+  std::vector<update::Asset> files;
+  for (const auto& f : newest["files"]) files.push_back({f["name"], f["url"], f["digest"], f["size"].get<std::int64_t>()});
+  std::vector<update::Asset> want;
+  try {
+    want = update::choose(files, sys);
+  } catch (const std::runtime_error& e) {
+    throw Failure(std::string(e.what()) + " (" + newest["url"].get<std::string>() + ")");
+  }
+  const auto sums = release_sums(files, want);
+  for (const auto& f : want)
+    if (update::expected_sha256(f, sums).empty()) throw Failure("the release publishes no SHA-256 for " + f.name + ", so it isn't installed");
+  std::int64_t total = 0;
+  for (const auto& f : want) total += f.size;
+
+  // nothing downloads before the user agrees: --yes (the Launcher's Update now), or y on a terminal
+  const bool terminal = !a.json_out && ::isatty(0) && ::isatty(1);
+  if (!a.has("--yes")) {
+    if (!terminal) throw Failure("paperboat update --install --yes installs Paperboat " + version + " without asking", 2);
+    std::cout << "Install Paperboat " << version << " from the " << ch << " channel (" << want.size() << (want.size() == 1 ? " package, " : " packages, ")
+              << megabytes(total) << " MB)? It asks for your password. [y/N] " << std::flush;
+    std::string yes;
+    std::getline(std::cin, yes);
+    if (yes != "y" && yes != "Y" && yes != "yes") throw Failure("not installed: nothing changed", 1, {{"cancelled", true}});
+  }
+
+  const fs::path dir = paths::home() / "cache" / "updates" / version;
+  fs::create_directories(dir);
+  std::vector<fs::path> got;
+  for (const auto& f : want) {
+    const fs::path to = dir / f.name;
+    std::error_code ec;
+    if (!fs::exists(to, ec) || update::sha256_file(to) != update::expected_sha256(f, sums)) download(f, to);  // a kept whole one is reused
+    if (update::sha256_file(to) != update::expected_sha256(f, sums)) {
+      fs::remove(to, ec);
+      throw Failure(f.name + " doesn't match the release's SHA-256, so nothing was installed; try again later");
+    }
+    std::cerr << "checked " << f.name << ": SHA-256 matches the release\n";
+    got.push_back(to);
+  }
+
+  const auto argv = update::install_argv(sys, got);
+  std::cerr << "installing: " << argv[0] << " asks for your password\n";
+  const auto [code, said] = run_installer(argv, terminal);
+  switch (update::outcome(sys, code, said)) {
+    case update::Outcome::cancelled:
+      throw Failure("cancelled: nothing was installed, Paperboat " PAPERBOAT_VERSION " is as it was", 1, {{"cancelled", true}});
+    case update::Outcome::failed:
+      throw Failure("the install failed (" + argv[0] + " " + argv[1] + " exited " + std::to_string(code) + "), Paperboat " PAPERBOAT_VERSION " is as it was" +
+                    (said.empty() ? "" : ":\n" + said));
+    case update::Outcome::installed:
+      break;
+  }
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  json names = json::array();
+  for (const auto& f : want) names.push_back(f.name);
+  // paperboatd keeps running the old binary until it restarts, and a restart ends its instances
+  json daemon = nullptr;
+  try {
+    ControlClient c(a.socket, false);
+    const std::string v = c.call("hello")["version"];
+    daemon = {{"version", v}, {"older", compare_versions(v, version) < 0}, {"instances", c.call("ps")}};
+  } catch (const ControlError&) {
+  }
+  return {{"installed", version}, {"previous", PAPERBOAT_VERSION}, {"files", names}, {"daemon", daemon}};
+}
+
 int paperboat_update(Args& a) {
-  // Releases are packages (rpm, pkg): the package manager installs them; this finds the newest.
+  // Releases are packages (rpm, deb, pkg): --check finds the newest, --install installs it (pb#94).
   const std::string ch = channel();
+  const bool install = a.has("--install");
+  if (install && ch == "dev") throw Failure("the dev channel builds from main: update your checkout", 2);
   const json newest = ch == "dev" ? json(nullptr) : newest_release("paperboatlab/paperboat");
   const bool behind = !newest.is_null() && compare_versions(newest["version"].get<std::string>(), PAPERBOAT_VERSION) > 0;
-  if (a.json_out) return print_json({{"channel", ch}, {"current", PAPERBOAT_VERSION}, {"newest", newest}, {"update", behind}}), 0;
+  json out = {{"channel", ch}, {"current", PAPERBOAT_VERSION}, {"newest", newest}, {"update", behind}};
+  if (behind) {  // whether --install can install it here: a package of ours is (a build from source can't)
+    const update::System sys = this_system();
+    out["installable"] = !sys.kind.empty() && !sys.parts.empty();
+  }
+  if (install && behind) {
+    out.update(update_install(a, newest, ch));
+    if (a.json_out) return print_json(out), 0;
+    std::cout << "Paperboat " << out["installed"].get<std::string>() << " is installed. Restart the Launcher to use it.\n";
+    if (out["daemon"].is_object() && out["daemon"]["older"].get<bool>()) {
+      const auto n = out["daemon"]["instances"].size();
+      std::cout << "paperboatd " << out["daemon"]["version"].get<std::string>() << " still runs: paperboat daemon stop restarts it"
+                << (n ? " and ends its " + std::to_string(n) + (n == 1 ? " running runtime" : " running runtimes") : "") << " (it starts when needed).\n";
+    }
+    return 0;
+  }
+  if (a.json_out) return print_json(out), 0;
   if (ch == "dev") return std::cout << "The dev channel builds from main: update your checkout.\n", 0;
   if (newest.is_null()) return std::cout << "No releases on the " << ch << " channel yet.\n", 0;
   if (!behind) return std::cout << "Paperboat " << PAPERBOAT_VERSION << " is the newest on " << ch << ".\n", 0;
   std::cout << "Paperboat " << newest["version"].get<std::string>() << " is out (you have " << PAPERBOAT_VERSION << "): "
             << newest["url"].get<std::string>() << "\n";
-  if (!a.has("--check")) std::cout << "Install it with your package manager (dnf install ./paperboat-cli-….rpm) or the macOS installer.\n";
+  if (!a.has("--check")) std::cout << "Install it: paperboat update --install\n";
   return 0;
 }
 

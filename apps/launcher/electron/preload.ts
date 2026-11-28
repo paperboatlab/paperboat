@@ -31,6 +31,7 @@ const bridge: Bridge = {
   openWindow: (url, title) => ipcRenderer.send('pb:window', url, title),
   pickFolder: title => ipcRenderer.invoke('pb:folder', title),
   reveal: path => ipcRenderer.send('app:reveal', path),
+  relaunch: () => ipcRenderer.send('launcher:relaunch'),
   onGoto(fn) {
     const on = (_e: unknown, to: Goto) => fn(to);
     ipcRenderer.on('launcher:goto', on);
