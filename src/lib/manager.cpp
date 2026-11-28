@@ -1,6 +1,7 @@
 #include "paperboat/manager.hpp"
 
 #include "paperboat/paths.hpp"
+#include "paperboat/sandbox.hpp"
 
 #include <algorithm>
 #include <condition_variable>
@@ -58,6 +59,7 @@ json to_json(const Lease& l) {
           {"error", l.error},
           {"instance", l.instance.name},
           {"project", l.project.string()},
+          {"readonly", l.readonly},
           {"work", l.work.string()},
           {"deps", l.deps.string()},
           {"ipc", (l.dir / "ipc").string()},
@@ -88,7 +90,7 @@ Backend* Manager::backend_named(const std::string& name) {
   return nullptr;
 }
 
-Backend* Manager::pick_backend(const Manifest& m, const std::string& want, std::string& why) {
+Backend* Manager::pick_backend(const Manifest& m, const std::string& want, std::string& why, bool readonly) {
   std::vector<std::string> order = want.empty() ? options_.backend_order : std::vector<std::string>{want};
   for (const auto& name : order) {
     Backend* b = backend_named(name);
@@ -109,6 +111,11 @@ Backend* Manager::pick_backend(const Manifest& m, const std::string& want, std::
       why += "native: " + m.native_requires + " is not on PATH; ";
       continue;
     }
+    std::string no;
+    if (name == "native" && readonly && ReadOnlyProject::mechanism(&no).empty()) {
+      why += "native: cannot keep a read-only project read-only here (" + no + "); podman or docker can; ";
+      continue;
+    }
     return b;
   }
   return nullptr;
@@ -126,8 +133,12 @@ json Manager::acquire(const AcquireRequest& req, int client) {
   if (req.mode == "exec" && req.command.empty()) throw std::runtime_error("exec mode needs a command");
   if (req.mode != "exec" && !req.command.empty()) throw std::runtime_error("only exec mode takes a command");
 
+  if (req.readonly && req.project.empty()) throw std::runtime_error("a read-only lease needs a project");
+  if (req.readonly && req.policy.writable_project)
+    throw std::runtime_error("a read-only project can't also be writable (policy.writable_project)");
+
   std::string why;
-  Backend* backend = pick_backend(*m, req.backend, why);
+  Backend* backend = pick_backend(*m, req.backend, why, req.readonly);
   if (!backend) throw std::runtime_error("no backend can run " + m->id() + ": " + why);
   if (backend->name() != "native" && !m->pinned() && !req.allow_unpinned)
     throw std::runtime_error(m->id() + " is not pinned to an image digest (" + m->source.string() +
@@ -139,9 +150,16 @@ json Manager::acquire(const AcquireRequest& req, int client) {
     project = fs::canonical(req.project, ec);
     if (ec || !fs::is_directory(project)) throw std::runtime_error("project folder not found: " + req.project.string());
   }
+  if (req.readonly && !req.work.empty()) {  // the work folder is writable: it can't be the project or hold it
+    std::error_code ec;
+    const fs::path r = project.lexically_relative(fs::weakly_canonical(req.work, ec));
+    if (!r.empty() && *r.begin() != "..")
+      throw std::runtime_error("the work folder " + req.work.string() + " holds the read-only project; give it a folder of its own");
+  }
 
   std::ostringstream key;
-  key << m->id() << '|' << req.mode << '|' << backend->name() << '|' << project.string() << '|' << to_json(req.policy).dump();
+  key << m->id() << '|' << req.mode << '|' << backend->name() << '|' << project.string() << '|' << to_json(req.policy).dump()
+      << (req.readonly ? "|readonly" : "");
 
   // A warm station-mode instance for the same key is reused; one still starting is waited for.
   if (req.mode == "station") {
@@ -185,6 +203,7 @@ json Manager::acquire(const AcquireRequest& req, int client) {
   l.backend = backend->name();
   l.project = project;
   l.policy = req.policy;
+  l.readonly = req.readonly;
   l.digest = m->image_digest;
   l.dir = options_.state / "leases" / l.id;
   l.work = req.work.empty() ? l.dir / "work" : req.work;
@@ -206,6 +225,7 @@ json Manager::acquire(const AcquireRequest& req, int client) {
   spec.work = l.work;
   spec.ipc = l.dir / "ipc";
   spec.policy = req.policy;
+  spec.readonly = req.readonly;
   spec.log = l.dir / "log.txt";
   if (fs::is_directory(m->lib_dir())) {
     // The daemon's own copy: relabelled for containers on SELinux, never the user's (or the
@@ -224,7 +244,9 @@ json Manager::acquire(const AcquireRequest& req, int client) {
                  {"paperboat.mode", req.mode}, {"paperboat.owner", l.owner}, {"paperboat.digest", m->image_digest}};
   l.instance.name = spec.name;
   l.isolation = backend->name() == "native"
-                    ? std::vector<std::string>{"native: environment cleaned, no sandbox"}
+                    ? std::vector<std::string>{req.readonly ? "native: environment cleaned, project read-only (" +
+                                                                  ReadOnlyProject::mechanism() + ")"
+                                                            : "native: environment cleaned, no sandbox"}
                     : isolation_flags(spec, backend->name(), availability_[backend->name()].selinux);
   for (const auto& w : req.policy.weakened()) emit({{"event", "policy.weakened"}, {"lease", l.id}, {"runtime", l.runtime}, {"what", w}});
   leases_[l.id] = std::move(lease);

@@ -1,7 +1,8 @@
 add_executable(paperboat_tests
   process_test.cpp
   manifest_test.cpp
-  manager_test.cpp)
+  manager_test.cpp
+  sandbox_test.cpp)
 target_link_libraries(paperboat_tests PRIVATE paperboat::runtime Catch2::Catch2WithMain paperboat_warnings)
 target_include_directories(paperboat_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(paperboat_tests PRIVATE PAPERBOAT_SOURCE_RUNTIMES="${PROJECT_SOURCE_DIR}/runtimes")

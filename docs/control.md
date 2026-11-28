@@ -20,7 +20,7 @@ A lease belongs to the connection that acquired it: closing the connection relea
 | `backends` | – | `[{name, available, detail, rootless, selinux}]` |
 | `runtimes.list` | – | `{runtimes: [manifest + backends.<name>.{usable, ready}], errors, backends}` |
 | `pull` | `runtime`, `backend?` | `{runtime, backend, image}`; `pull.progress` events meanwhile |
-| `acquire` | `runtime`, `mode` (`station`\|`session`\|`exec`), `command?` (exec), `project?`, `work?`, `policy?`, `backend?`, `owner?`, `allow_unpinned?`, `allow_unverified?` | a lease |
+| `acquire` | `runtime`, `mode` (`station`\|`session`\|`exec`), `command?` (exec), `project?`, `readonly?`, `work?`, `policy?`, `backend?`, `owner?`, `allow_unpinned?`, `allow_unverified?` | a lease |
 | `release` | `lease`, `stop?` | `{}`; with `stop`, a station runtime ends now instead of staying warm (when no one else holds it) |
 | `ps` | – | `[lease]` |
 | `stats` | `lease` | `{lease, stats: {cpu_percent, memory_bytes, pids}}` (−1 = unavailable) |
@@ -32,13 +32,35 @@ A lease belongs to the connection that acquired it: closing the connection relea
 | `shutdown` | – | `{}`; the daemon stops every instance and exits |
 
 A **lease**: `id`, `runtime`, `mode`, `owner`, `backend`, `state` (`starting`, `running`, `idle`,
-`exited`, `failed`), `error`, `instance`, `project`, `work`, `deps`, `ipc` (the host folder mounted at
+`exited`, `failed`), `error`, `instance`, `project`, `readonly`, `work`, `deps`, `ipc` (the host folder mounted at
 the manifest's `mounts.ipc`; the runtime listens there on `runtime.sock`), `digest`, `verified`
 (`signature`, `unsigned`, `skipped`, `native`), `isolation` (the flags in effect), `policy`, `weakened`,
 `holders`, `uptime_s`, `idle_s`. `digest`, `isolation` and the runtime id are what a run record keeps.
 
 A **policy** (only ever weakens the defaults): `network`, `devices` (`["/dev/video0"]`), `gpu`,
 `ipc_host`, `writable_project`.
+
+### Read-only projects (examples, pb#85)
+
+`"readonly": true` asks for a project the runtime can read and run but never write: what an app asks
+for when the folder it was opened on is an example (`PAPERBOAT_EXAMPLE`, [apps.md](apps.md)). The
+daemon enforces it on every backend, and passes over a backend that can't:
+
+| backend | how |
+| --- | --- |
+| podman, docker | the project is mounted `:ro` (as by default) and `--workdir` is the work folder |
+| native, Linux | Landlock (Linux 5.19+): the project and everything under it can't be written; the rest of the file system is as it was, except that no new entry can be made directly in a folder above the project (a new file in `$HOME` itself). When the temporary folder holds the project, `TMPDIR` is the work folder |
+| native, macOS | `sandbox-exec` with a profile that denies writes under the project |
+| native, elsewhere | refused: `no backend can run …: native: cannot keep a read-only project read-only here (…); podman or docker can` |
+
+It needs a `project` and can't go with `policy.writable_project` (both refused with an error). Writes
+go to the lease's work folder, the runtime's working directory on every backend, so `open("out.csv",
+"w")` works and lands in the lease's `work`. A write into the project fails, and the Julia and Python
+runtimes add to the error: `(the project <path> is read-only: it is an example; copy it to change it, or
+write under the working directory, <work>)`. A station-mode instance on a read-only project is never
+the one on the same folder without it (the key includes `readonly`). The lease's `isolation` says
+`native: environment cleaned, project read-only (Landlock)` (or `sandbox-exec`) natively, and the
+runtime gets `PAPERBOAT_READONLY=1`.
 
 ## Events
 
@@ -98,4 +120,5 @@ Placeholders in `entry`: `{ipc}`, `{project}`, `{deps}`, `{work}`, `{lib}` (cont
 paths for native), `{lease}` (the instance name), `{runtime}` (native: the manifest's folder).
 `<manifest folder>/lib/`, when present, is the runtime library: copied by the daemon and mounted
 read-only at `mounts.lib` (default `/opt/pb`). The runtime gets `PAPERBOAT_IPC`, `PAPERBOAT_MODE`,
-`PAPERBOAT_DEPS` (the project's package volume) and, with a project, `PAPERBOAT_PROJECT`.
+`PAPERBOAT_DEPS` (the project's package volume), with a project `PAPERBOAT_PROJECT`, and with a
+read-only one `PAPERBOAT_READONLY=1`.

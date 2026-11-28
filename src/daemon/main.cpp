@@ -150,6 +150,7 @@ AcquireRequest acquire_request(const json& a, const std::string& fallback_owner)
   r.project = a.value("project", std::string());
   r.work = a.value("work", std::string());
   r.policy = policy_from_json(a.value("policy", json::object()));
+  r.readonly = a.value("readonly", false);
   r.backend = a.value("backend", std::string());
   r.owner = a.value("owner", fallback_owner);
   r.allow_unpinned = a.value("allow_unpinned", false);

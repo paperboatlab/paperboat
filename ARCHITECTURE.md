@@ -30,6 +30,9 @@ flowchart LR
 - `policy.hpp`: `Policy`, the only way to weaken isolation; `weakened()` lists what it gives up.
 - `backend.hpp`, `src/lib/backend_oci.cpp`, `backend_native.cpp`: `Backend` and its two
   implementations; `isolation_flags` (the defaults, in one place).
+- `sandbox.hpp`, `src/lib/sandbox.cpp`: `ReadOnlyProject`, the native backend's read-only project
+  (pb#85): a Landlock ruleset built in the daemon and applied by the child before exec (Linux), or a
+  `sandbox-exec` profile (macOS); `mechanism()` says which, or why neither.
 - `manager.hpp`, `src/lib/manager.cpp`: `Manager`, `Lease`, `AcquireRequest`: acquire/release,
   the warm pool, `tick` (idle expiry, ended instances), `reap`, `volumes`, `prune`, events.
 - `control.hpp`, `src/lib/control.cpp`: `ControlClient` (starts the daemon on demand).
@@ -140,7 +143,9 @@ flowchart LR
   left out. The examples come from `$PAPERBOAT_EXAMPLES_DIR`, a checkout beside this one (with `golden.py`), else
   GitHub's tarball of the default branch, kept a day in `<home>/cache/examples` (`--refresh`; offline, the last
   copy). `example open <id> [--to <folder>]` opens it where it is, the checkout or the cache, in its app (`app
-  open`), printing the path; nothing is copied (pb#75). The page learns it is an example from its URL:
+  open`), printing the path; nothing is copied (pb#75). Its server is told by `PAPERBOAT_EXAMPLE=<id>`, and the
+  session's record keeps `example`; a session on that folder is reused only when it was opened as that example
+  (docs/apps.md, pb#85). `--json` gives every entry `root`, the examples' folder. The page learns it is an example from its URL:
   `?example=<id>&name=<name>`, `&to=<folder>` (where its Copy goes: the folder the user opened it from) and
   `&cache=1` when it is the cache (changes there go a day later); `--json` adds `cache` and that `url` to the
   entry. `example copy <id> --to <folder> [--open]` copies it into `<folder>/<its folder's name>` (without
@@ -160,7 +165,9 @@ flowchart LR
    the request allows it.
 5. **Strictest by default.** `--network=none`, read-only root, tmpfs `/tmp`, `--cap-drop=all`,
    `no-new-privileges`, pid/memory/cpu limits, project read-only, rootless user mapping. Only a
-   `Policy` weakens it, and each weakening is an event (`policy.weakened`).
+   `Policy` weakens it, and each weakening is an event (`policy.weakened`). A `readonly` request (an
+   example) holds the project read-only on every backend, natively too (Landlock, `sandbox-exec`), or
+   is refused (docs/control.md).
 6. **SELinux:** the daemon's own folders (lease, deps, work) are relabelled `:Z`; a user's project is
    never relabelled, so mounting one turns labelling off for that container (`label=disable`).
 7. **No orphans.** Instances carry `paperboat.daemon=<boot id>:<pid>`. A forked cleaner removes them

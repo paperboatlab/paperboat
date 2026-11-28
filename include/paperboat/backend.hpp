@@ -34,6 +34,7 @@ struct LaunchSpec {
   fs::path project, deps, work, ipc;    // host folders (project may be empty)
   fs::path lib;                         // the runtime library (empty: none)
   Policy policy;
+  bool readonly = false;                // the project can't be written (pb#85): :ro, or a sandbox natively
   std::map<std::string, std::string> labels;
   fs::path log;                         // native: where output goes
 };

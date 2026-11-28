@@ -46,12 +46,15 @@ class ProcessRunner {
       std::stop_token stop = {});
 
   // Detached daemon execution: runs in a new session (setsid), redirecting output to log_file.
-  // Returns the spawned child PID, or -1 on error.
+  // `in_child` (POSIX) runs in the child just before exec, its output already in the log: a sandbox
+  // that applies to the process (paperboat's read-only project, Landlock). Returns the spawned child
+  // PID, or -1 on error.
   static int run_detached(
       const std::vector<std::string>& args,
       const std::filesystem::path& cwd = {},
       const std::vector<std::pair<std::string, std::string>>& env = {},
-      const std::filesystem::path& log_file = {});
+      const std::filesystem::path& log_file = {},
+      const std::function<void()>& in_child = nullptr);
 
   // Check if a process PID is currently alive.
   static bool is_alive(int pid);

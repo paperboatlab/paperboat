@@ -1,4 +1,5 @@
 #include "paperboat/manager.hpp"
+#include "paperboat/sandbox.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -36,6 +37,7 @@ struct Fake final : Backend {
     }
     Instance i{name_, s.name, "running", -1, 1, s.labels};
     running[s.name] = i;
+    readonly[s.name] = s.readonly;
     ++starts;
     return i;
   }
@@ -64,6 +66,7 @@ struct Fake final : Backend {
   bool ok_, images_;
   std::mutex mu;
   std::map<std::string, Instance> running;
+  std::map<std::string, bool> readonly;  // what each start was asked for
   std::vector<std::string> stopped;
   int starts = 0, pulls = 0;
   bool fail_next = false;
@@ -380,4 +383,71 @@ TEST_CASE("a signed runtime is verified once per digest, and refused when it can
 TEST_CASE("unsigned upstream images and native runtimes say so", "[manager]") {
   Rig rig;
   CHECK(rig.manager->acquire(rig.req(), 1)["verified"] == "unsigned");
+}
+
+TEST_CASE("a read-only project is asked of the backend, kept apart, and never writable", "[manager]") {
+  Rig rig;
+  const fs::path ex = rig.state / "example";
+  fs::create_directories(ex);
+  auto ro = rig.req(), rw = rig.req();
+  ro.project = rw.project = ex;
+  ro.readonly = true;
+  const json l = rig.manager->acquire(ro, 1), plain = rig.manager->acquire(rw, 1);
+  CHECK(l["readonly"] == true);
+  CHECK(plain["readonly"] == false);
+  CHECK(l["id"] != plain["id"]);  // a station on the folder is not the example's
+  CHECK(rig.podman->readonly.at(l["instance"].get<std::string>()));
+  CHECK_FALSE(rig.podman->readonly.at(plain["instance"].get<std::string>()));
+  CHECK(rig.manager->acquire(ro, 2)["id"] == l["id"]);  // the example's station is shared as usual
+
+  auto both = ro;
+  both.policy.writable_project = true;
+  CHECK_THROWS_WITH(rig.manager->acquire(both, 1), ContainsSubstring("can't also be writable"));
+  auto over = ro;
+  over.work = rig.state;  // holds the example
+  CHECK_THROWS_WITH(rig.manager->acquire(over, 1), ContainsSubstring("holds the read-only project"));
+  auto none = rig.req();
+  none.readonly = true;
+  CHECK_THROWS_WITH(rig.manager->acquire(none, 1), ContainsSubstring("needs a project"));
+}
+
+TEST_CASE("natively, a read-only project is sandboxed, or refused where it can't be", "[manager]") {
+  Rig rig(std::chrono::seconds(300), /*podman_ok=*/false);
+  const fs::path ex = rig.state / "example";
+  fs::create_directories(ex);
+  auto r = rig.req("julia", "session");
+  r.project = ex;
+  r.readonly = true;
+  std::string why;
+  const std::string how = ReadOnlyProject::mechanism(&why);
+  if (how.empty()) {
+    CHECK_THROWS_WITH(rig.manager->acquire(r, 1), ContainsSubstring("read-only") && ContainsSubstring("podman or docker"));
+    return;
+  }
+  const json l = rig.manager->acquire(r, 1);
+  CHECK(l["backend"] == "native");
+  CHECK(l["isolation"] == json::array({"native: environment cleaned, project read-only (" + how + ")"}));
+  CHECK(rig.native->readonly.at(l["instance"].get<std::string>()));
+}
+
+TEST_CASE("a read-only project's container: the project :ro, the work folder the working directory", "[manager]") {
+  Manifest m = manifest("julia");
+  m.mounts["lib"] = "/opt/pb";
+  LaunchSpec s;
+  s.manifest = &m;
+  s.mode = "session";
+  s.name = "pb-x";
+  s.project = "/home/u/example";
+  s.work = "/state/leases/1/work";
+  s.readonly = true;
+  const auto f = isolation_flags(s, "podman", false);
+  CHECK(std::ranges::find(f, "/home/u/example:/work/project:ro") != f.end());
+  const auto wd = std::ranges::find(f, "--workdir");
+  REQUIRE(wd != f.end());
+  CHECK(*(wd + 1) == "/work/out");
+  const auto cmd = make_oci_backend("podman", "/usr/bin/podman")->command(s);
+  CHECK(std::ranges::find(cmd, "PAPERBOAT_READONLY=1") != cmd.end());
+  s.readonly = false;
+  const auto plain = isolation_flags(s, "podman", false);
+  CHECK(std::ranges::find(plain, "--workdir") == plain.end());
 }

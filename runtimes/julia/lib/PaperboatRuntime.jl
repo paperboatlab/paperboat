@@ -245,11 +245,22 @@ function recv(c::Connection)
     end
 end
 
-errdict(e, bt = catch_backtrace()) = e isa LoadError ? errdict(e.error, bt) : Dict(
-    "type" => string(nameof(typeof(e))),
-    "message" => sprint(showerror, e),
-    "traceback" => sprint(Base.show_backtrace, bt),
-)
+# A write into a read-only project ($PAPERBOAT_READONLY, an example: pb#85) says so and what to do.
+function readonly_hint(e, message)
+    project = get(ENV, "PAPERBOAT_PROJECT", "")
+    (isempty(get(ENV, "PAPERBOAT_READONLY", "")) || isempty(project)) && return ""
+    denied = (e isa SystemError && e.errnum in (Libc.EACCES, Libc.EPERM, Libc.EROFS)) ||
+             (e isa Base.IOError && e.code in (Base.UV_EACCES, Base.UV_EPERM, Base.UV_EROFS))
+    (denied && occursin(rstrip(project, '/'), message)) || return ""
+    " (the project $project is read-only: it is an example; copy it to change it, or write under the working directory, $(pwd()))"
+end
+
+function errdict(e, bt = catch_backtrace())
+    e isa LoadError && return errdict(e.error, bt)
+    message = sprint(showerror, e)
+    Dict("type" => string(nameof(typeof(e))), "message" => message * readonly_hint(e, message),
+         "traceback" => sprint(Base.show_backtrace, bt))
+end
 
 include(joinpath(@__DIR__, "Debugger.jl"))
 

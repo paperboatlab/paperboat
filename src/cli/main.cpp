@@ -463,8 +463,9 @@ constexpr int kOverflowFirst = 30500, kOverflowLast = 30599;
 
 // Start <app>'s server on a folder: `<launch> <folder> --port <port>`, detached, its output in a log.
 // Its home port (or the one asked for, waited on for up to 5 s), else the first free one in the overflow range;
-// ready once it listens.
-json start_session(const std::string& app, const fs::path& project, int port = 0) {
+// ready once it listens. `example`: the folder is that example (its id), told to the server as
+// PAPERBOAT_EXAMPLE=<id> (pb#85) and kept in the record; any other session has no PAPERBOAT_EXAMPLE.
+json start_session(const std::string& app, const fs::path& project, int port = 0, const std::string& example = "") {
   const toml::table e = registry_entry(app);
   const int home = port ? port : e["port"].value_or(0);
   if (home <= 0) throw Failure(app + " has no port in the registry");
@@ -488,7 +489,10 @@ json start_session(const std::string& app, const fs::path& project, int port = 0
   std::vector<std::string> argv{exe.string(), "--port", std::to_string(p)};
   if (!project.empty()) argv.insert(argv.begin() + 1, project.string());  // none: the app's Start page
   const char* h = std::getenv("HOME");
-  const int pid = ProcessRunner::run_detached(argv, project.empty() ? fs::path(h ? h : "/") : project, {}, log);
+  ::unsetenv("PAPERBOAT_EXAMPLE");  // ours, if paperboat was run by an example's server: never handed on
+  std::vector<std::pair<std::string, std::string>> env;
+  if (!example.empty()) env.emplace_back("PAPERBOAT_EXAMPLE", example);
+  const int pid = ProcessRunner::run_detached(argv, project.empty() ? fs::path(h ? h : "/") : project, env, log);
   if (pid < 0) throw Failure("could not start " + exe.string());
   for (int i = 0; i < 300 && !listening(p); ++i) {
     int st = 0;
@@ -499,7 +503,7 @@ json start_session(const std::string& app, const fs::path& project, int port = 0
     ProcessRunner::kill_pgid(pid);
     throw Failure(app + " did not listen on port " + std::to_string(p) + " within 30 s:\n" + tail(log, 20));
   }
-  const json s = {{"id", id},   {"app", app}, {"project", project.string()}, {"port", p}, {"pid", pid},
+  const json s = {{"id", id},   {"app", app}, {"project", project.string()}, {"example", example}, {"port", p}, {"pid", pid},
                   {"url", "http://127.0.0.1:" + std::to_string(p) + "/"}, {"log", log.string()}, {"started", std::time(nullptr)}};
   std::ofstream(sessions_dir() / (id + ".json")) << s.dump(2);
   return s;
@@ -739,15 +743,17 @@ int app_uninstall(Args& a) {
 
 // An app's session on a folder (none: the window it has, else its Start page): the one running there, or a new one
 // (`fresh`); its window opens unless --no-open.
-// `query`: what the page is told besides (an example's ?example=…, pb#75).
-json open_app(Args& a, const std::string& app, const fs::path& project, bool& fresh, const std::string& query = "") {
+// `query`: what the page is told besides (an example's ?example=…, pb#75). `example`: the folder is that example
+// (its id); a session on the folder is reused only when it was opened as the same example, or both as none (pb#85).
+json open_app(Args& a, const std::string& app, const fs::path& project, bool& fresh, const std::string& query = "",
+              const std::string& example = "") {
   registry_entry(app);
   if (installed(app).is_null()) throw Failure(app + " is not installed · paperboat app install " + app, 2);
   json s = nullptr;
   for (const auto& x : sessions_of(app))
-    if (project.empty() || x["project"] == project.string()) s = x;
+    if (project.empty() || (x["project"] == project.string() && x.value("example", "") == example)) s = x;
   fresh = s.is_null();
-  if (fresh) s = start_session(app, project, a.has("--port") ? std::stoi(a.get("--port")) : 0);
+  if (fresh) s = start_session(app, project, a.has("--port") ? std::stoi(a.get("--port")) : 0, example);
   if (!a.has("--no-open")) open_url(s["url"].get<std::string>() + query, registry_entry(app)["label"].value_or(app));
   return s;
 }
@@ -802,7 +808,7 @@ int session_logs(Args& a) {
 int session_restart(Args& a) {
   const json old = find_session(need_arg(a, "session"));
   stop_session(old);
-  const json s = start_session(old["app"], old["project"].get<std::string>(), old["port"].get<int>());
+  const json s = start_session(old["app"], old["project"].get<std::string>(), old["port"].get<int>(), old.value("example", ""));
   if (a.json_out) return print_json(s), 0;
   std::cout << "restarted " << s["id"].get<std::string>() << " · " << s["url"].get<std::string>() << "\n";
   return 0;
@@ -962,11 +968,16 @@ std::vector<json> examples(const fs::path& root, bool pending) {
   return out;
 }
 
+// --json: each with `root`, the folder the examples are in (an app knows an example's folder by it, pb#85).
 int example_list(Args& a) {
   const std::string app = a.get("--app");
   json out = json::array();
-  for (auto& x : examples(examples_root(a.has("--refresh")), false))
-    if (app.empty() || x["app"] == app) out.push_back(std::move(x));
+  const fs::path root = examples_root(a.has("--refresh"));
+  for (auto& x : examples(root, false))
+    if (app.empty() || x["app"] == app) {
+      x["root"] = root.string();
+      out.push_back(std::move(x));
+    }
   if (a.json_out) return print_json(out), 0;
   if (out.empty()) return std::cout << "No examples" << (app.empty() ? "" : " for " + app) << " yet.\n", 0;
   std::vector<std::vector<std::string>> rows;
@@ -999,6 +1010,7 @@ json find_example(const std::string& id) {
   for (auto& x : examples(root, true))
     if (x["id"] == id) {
       x["cache"] = root == paths::home() / "cache" / "examples";
+      x["root"] = root.string();
       return x;
     }
   throw Failure("no example " + id + "; paperboat example list shows them", 2);
@@ -1029,7 +1041,7 @@ int example_open(Args& a) {
   if (a.has("--to")) query += "&to=" + url_escape(to_folder(a).string());
   if (ex["cache"].get<bool>()) query += "&cache=1";
   bool fresh = false;
-  ex["session"] = open_app(a, ex["app"], ex["path"].get<std::string>(), fresh, query);
+  ex["session"] = open_app(a, ex["app"], ex["path"].get<std::string>(), fresh, query, ex["id"].get<std::string>());
   ex["url"] = ex["session"]["url"].get<std::string>() + query;
   if (a.json_out) return print_json(ex), 0;
   std::cout << ex["path"].get<std::string>() << "\n";

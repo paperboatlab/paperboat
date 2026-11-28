@@ -35,6 +35,10 @@ struct AcquireRequest {
   fs::path project;                     // optional; mounted read-only unless policy says otherwise
   fs::path work;                        // optional; default: the lease's own work folder
   Policy policy;
+  // A read-only project (an example, pb#85), enforced on every backend: the container's mount, or a
+  // sandbox around the native process (Landlock, sandbox-exec); a backend that can't is passed over.
+  // Not with policy.writable_project. The runtime's working directory is the lease's work folder.
+  bool readonly = false;
   std::string backend;                  // "" = the manager's preference
   std::string owner;                    // "simplicial", "articula", "cli": shown in ps
   bool allow_unpinned = false;
@@ -45,6 +49,7 @@ struct Lease {
   std::string id, key, runtime, mode, owner, backend;
   fs::path dir, project, work, deps;
   Policy policy;
+  bool readonly = false;
   Instance instance;
   std::set<int> holders;                // client ids
   std::chrono::steady_clock::time_point started, idle_since;
@@ -106,7 +111,7 @@ class Manager {
   const Catalog& catalog() const { return catalog_; }
 
  private:
-  Backend* pick_backend(const Manifest& m, const std::string& want, std::string& why);
+  Backend* pick_backend(const Manifest& m, const std::string& want, std::string& why, bool readonly = false);
   Backend* backend_named(const std::string& name);
   void stop_lease(Lease& l, const std::string& why);
   bool instance_running(const Lease& l);  // its backend lists it as running
