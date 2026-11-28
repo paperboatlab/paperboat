@@ -1,7 +1,8 @@
 # paperboat-runtime/0 for Julia: a session (a live namespace) or a station (domain objects).
 #
-# Stdlib only (Sockets, Mmap, Base64, REPL), so it runs in the official Julia image with no network and
-# needs no precompilation. The spec is docs/runtime.md in the paperboat repository. Station files call
+# Stdlib only (Sockets, Mmap, Base64, REPL), so it runs in the official Julia image with no network. It
+# is a package (lib/Project.toml) that serve.jl loads precompiled when it can, from source otherwise.
+# The spec is docs/runtime.md in the paperboat repository. Station files call
 #
 #     struct Gain; k::Float64; end
 #     Gain(; k = 1.0) = Gain(k)
@@ -295,7 +296,7 @@ Base.display(::PBDisplay, x) = TARGET.conn === nothing ? throw(MethodError(displ
 # (JulixPlot). Sent instead of the value's images: each of those costs a render, and the app exports on demand.
 const FIGURE = MIME"application/vnd.paperboat.figure+json"()
 
-function mime(x)
+function mime(@nospecialize(x))
     x === nothing && return nothing
     d = Dict{String,Any}("text/plain" => repr(MIME"text/plain"(), x; context = :limit => true))
     if showable(FIGURE, x)
@@ -359,8 +360,8 @@ end
 
 # --- debugging (docs/runtime.md "Debugging") ---
 
-describe(pairs) = [Dict{String,Any}("name" => string(k), "type" => string(typeof(v)),
-                                    "summary" => first(repr(v; context = :limit => true), 120)) for (k, v) in pairs]
+describe(pairs) = (names = type_names(); [Dict{String,Any}("name" => string(k), "type" => type_name(names, typeof(v)),
+                                                           "summary" => summary_of(v)) for (k, v) in pairs])
 # a frame's locals; the top-level frame's are the session's variables
 frame_locals(s::Session, f) = f === nothing ? Any[] : f.name == "top-level" ? variables(s) : describe(Debugger.frame_locals(f.id))
 
@@ -403,7 +404,7 @@ function debug_op(s::Session, args)
         D.STATE.paused || error("not paused")
         f = D.frame(Int(args["frame"]))
         v = f === nothing || f.name == "top-level" ? Core.eval(s.mod, Meta.parse(String(args["code"]))) : D.eval_in_frame(f.id, String(args["code"]))
-        return Dict("type" => string(typeof(v)), "summary" => first(repr(v; context = :limit => true), 400))
+        return Dict("type" => type_name(type_names(), typeof(v)), "summary" => summary_of(v, 400))
     end
     error("debug command is continue, over, into, out, pause, stop, breakpoints, locals or eval")
 end
@@ -437,16 +438,68 @@ function complete(s::Session, code::String, pos::Int)
     Dict("matches" => matches, "start" => first(range) - 1, "end" => pos)
 end
 
+# A type's name is what `string` prints, which looks for aliases (`Vector{Float64}`) through the modules
+# its parts come from: ~2 ms each with a big package loaded. Kept per type, until a package loads (its
+# aliases can rename one).
+const TYPE_NAMES = IdDict{Any,String}()
+const TYPE_NAMES_MODULES = Ref(-1)
+
+function type_names()
+    n = length(Base.loaded_modules_array())
+    if n != TYPE_NAMES_MODULES[] || length(TYPE_NAMES) > 10_000
+        empty!(TYPE_NAMES)
+        TYPE_NAMES_MODULES[] = n
+    end
+    TYPE_NAMES
+end
+type_name(names, @nospecialize(T)) = get!(() -> string(T), names, T)
+
+# The first `n` characters of `repr(v; context = :limit => true)`, without printing the rest: show stops
+# when they are written (a struct whose show ignores :limit could print for ever).
+mutable struct Clip <: IO
+    buf::IOBuffer
+    chars::Int
+    max::Int
+end
+struct ClipFull <: Exception end
+function Base.write(io::Clip, b::UInt8)
+    io.chars > io.max && throw(ClipFull())
+    write(io.buf, b)
+    (b & 0xc0) == 0x80 || (io.chars += 1)  # a character starts with any byte but a continuation byte
+    return 1
+end
+function Base.unsafe_write(io::Clip, p::Ptr{UInt8}, n::UInt)
+    for i in 1:n
+        write(io, unsafe_load(p, i))
+    end
+    return Int(n)
+end
+Base.isopen(::Clip) = true
+
+function summary_of(@nospecialize(v), n::Int = 120)
+    io = Clip(IOBuffer(), 0, n)
+    try
+        show(IOContext(io, :limit => true), v)
+    catch e
+        e isa ClipFull || rethrow()
+    end
+    first(String(take!(io.buf)), n)
+end
+
+# Bounded for a module of any size: the first MAX_VARIABLES values, by name.
+const MAX_VARIABLES = 5000
+
 function variables(s::Session)
     out = Any[]
+    types = type_names()
     for n in names(s.mod; all = true)
+        length(out) >= MAX_VARIABLES && break
         name = string(n)
         (startswith(name, '#') || n in (:eval, :include, :Session, :ans)) && continue
         isdefined(s.mod, n) || continue
         v = getfield(s.mod, n)
         (v isa Module || v isa Function || v isa Type) && continue
-        item = Dict{String,Any}("name" => name, "type" => string(typeof(v)),
-                                "summary" => first(repr(v; context = :limit => true), 120))
+        item = Dict{String,Any}("name" => name, "type" => type_name(types, typeof(v)), "summary" => summary_of(v))
         applicable(length, v) && !(v isa AbstractString) && try item["size"] = length(v) catch end
         push!(out, item)
     end
@@ -671,8 +724,9 @@ function serve_connection(io, mode::String, session, stop::Threads.Event)
     close(io)
 end
 
-"""serve(path, mode): listen on `path` and serve until a client sends `shutdown`."""
-function serve(path::String, mode::String)
+"""serve(path, mode): listen on `path` and serve until a client sends `shutdown`. `mod`: the session's
+namespace instead of a new one (the precompile workload's, which must be the package's own)."""
+function serve(path::String, mode::String; mod::Union{Module,Nothing} = nothing)
     Base.exit_on_sigint(false)
     ispath(path) && rm(path)
     tmp = path * ".tmp"
@@ -681,6 +735,7 @@ function serve(path::String, mode::String)
     mv(tmp, path; force = true)  # appears only when it can be connected to
     stop = Threads.Event()
     session = mode == "session" ? Session() : nothing
+    session === nothing || mod === nothing || (session.mod = mod)
     if session !== nothing
         pushdisplay(PBDisplay())
         # the project's environment, as `julia --project`: what `paperboat add julia …` put there loads with `using`
@@ -706,5 +761,7 @@ function serve(path::String, mode::String)
     close(server)
     ispath(path) && rm(path)
 end
+
+include(joinpath(@__DIR__, "precompile.jl"))
 
 end  # module PaperboatRuntime

@@ -1,7 +1,7 @@
 # Julia 1.11. The image holds the toolchain only; a project's packages live in its deps volume
 # (/work/deps, first on JULIA_DEPOT_PATH; the trailing ":" keeps the image's own depot behind it).
-# session and station speak paperboat-runtime/0 through lib/ (PaperboatRuntime.jl, stdlib only), which
-# the daemon mounts at /opt/pb.
+# session and station speak paperboat-runtime/0 through lib/ (the PaperboatRuntime package, stdlib only),
+# which the daemon mounts at /opt/pb. Its precompiled image goes in the deps volume (lib/serve.jl).
 name     = "julia"
 version  = "1.11.9"
 protocol = "paperboat-runtime/0"
@@ -35,4 +35,4 @@ entry.session = ["julia", "--startup-file=no", "--threads=1", "{lib}/serve.jl", 
 entry.station = ["julia", "--startup-file=no", "--threads=2", "{lib}/serve.jl", "{ipc}/runtime.sock", "station"]
 
 [healthcheck]
-hello_timeout = "60s"  # no sysimage yet: a first start compiles
+hello_timeout = "60s"  # a project's first start runs the runtime from source (it is precompiled for the next)
