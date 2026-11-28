@@ -72,7 +72,7 @@ test.afterAll(async () => {
 });
 
 test('settings: automatic updates are off until asked, and never install on their own', async () => {
-  await page.keyboard.press('Control+,');
+  await page.getByRole('button', {name: 'Settings', exact: true}).click();
   const settings = page.getByRole('dialog', {name: 'Settings'});
   await settings.getByRole('button', {name: 'Launcher'}).click();
   const auto = settings.getByRole('radiogroup', {name: 'Automatic updates'});
